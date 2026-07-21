@@ -19,4 +19,15 @@
     <None Remove="AnalyticsProxy\**" />
   </ItemGroup>
 
+  <!--
+    Local editing backups live alongside the real assets in wwwroot. They are
+    excluded from git, but publish copies everything under wwwroot, which was
+    putting stale copies of the site's scripts on the public server.
+  -->
+  <ItemGroup>
+    <Content Remove="wwwroot\**\*.bak" />
+    <Content Remove="wwwroot\**\*.backup" />
+    <Content Remove="wwwroot\**\*.orig" />
+  </ItemGroup>
+
 </Project>
