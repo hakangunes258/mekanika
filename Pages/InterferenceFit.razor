@@ -1,0 +1,694 @@
+@page "/interference-fit"
+@inject MaterialService MaterialService
+@inject AnalyticsService Analytics
+@inject SeoService Seo
+@inject ModuleMetadataService Metadata
+@inject FeedbackService Feedback
+@inject IJSRuntime JSRuntime
+@using MechanicalCalculatorWeb.Services
+
+<PageTitle>Interference Fit Calculator - Mekanika</PageTitle>
+
+<div class="page-header">
+    <h1>
+        <ModuleIcon Type="interference-fit" Size="large" Style="transparent" CustomStyle="margin-right: 12px;" />
+        Interference Fit Calculator
+    </h1>
+    <p>Press fit and shrink fit calculations according to DIN 7190, with temperature and rotation effects.</p>
+</div>
+
+@if (!showResults)
+{
+    <!-- INPUT FORM -->
+    <div class="form-grid">
+        <!-- Geometry Card -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="geometry" Size="medium" Style="solid" /><h2>Geometry</h2></div>
+            <div class="form-group">
+                <label>Nominal Diameter (d)</label>
+                <div class="input-group">
+                    <input type="number" step="0.001" @bind="engine.NominalDiameter" @bind:after="UpdateTolerances" placeholder="e.g. 50" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Fit Length (L)</label>
+                <div class="input-group">
+                    <input type="number" step="0.001" @bind="engine.FitLength" placeholder="e.g. 40" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Shaft Inner Diameter (di)</label>
+                <div class="input-group">
+                    <input type="number" step="0.001" @bind="engine.ShaftInnerDiameter" placeholder="0 for solid" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Hub Outer Diameter (Da)</label>
+                <div class="input-group">
+                    <input type="number" step="0.001" @bind="engine.HubOuterDiameter" placeholder="e.g. 80" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tolerances Card -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="tolerance" Size="medium" Style="solid" /><h2>Tolerances (ISO 286)</h2></div>
+            @if (toleranceWarning != null)
+            {
+                <div class="alert alert-warning" style="margin-bottom: 12px;">
+                    <span>⚠️</span>
+                    <div>@toleranceWarning</div>
+                </div>
+            }
+            <div class="form-group">
+                <label>Shaft Fit</label>
+                <select @bind="selectedShaftFit" @bind:after="UpdateTolerances">
+                    <option value="n6">n6</option>
+                    <option value="p6">p6</option>
+                    <option value="r6">r6</option>
+                    <option value="s6">s6</option>
+                    <option value="t6">t6</option>
+                    <option value="u6">u6</option>
+                    <option value="custom">Custom</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Shaft Upper Deviation (es)</label>
+                <div class="input-group"><input type="number" step="0.1" @bind="engine.ShaftUpperDeviation" disabled="@(!isCustomShaft)" /><span class="unit">μm</span></div>
+            </div>
+            <div class="form-group">
+                <label>Shaft Lower Deviation (ei)</label>
+                <div class="input-group"><input type="number" step="0.1" @bind="engine.ShaftLowerDeviation" disabled="@(!isCustomShaft)" /><span class="unit">μm</span></div>
+            </div>
+            <hr />
+            <div class="form-group">
+                <label>Hub Fit</label>
+                <select @bind="selectedHubFit" @bind:after="UpdateTolerances">
+                    <option value="H7">H7</option>
+                    <option value="H6">H6</option>
+                    <option value="custom">Custom</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Hub Upper Deviation (ES)</label>
+                <div class="input-group"><input type="number" step="0.1" @bind="engine.HubUpperDeviation" disabled="@(!isCustomHub)" /><span class="unit">μm</span></div>
+            </div>
+            <div class="form-group">
+                <label>Hub Lower Deviation (EI)</label>
+                <div class="input-group"><input type="number" step="0.1" @bind="engine.HubLowerDeviation" disabled="@(!isCustomHub)" /><span class="unit">μm</span></div>
+            </div>
+        </div>
+
+        <!-- Operating Conditions Card -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="gear" Size="medium" Style="solid" /><h2>Operating Conditions</h2></div>
+            <div class="form-group">
+                <label>Rotational Speed</label>
+                <div class="input-group"><input type="number" step="100" @bind="engine.RotationalSpeed" /><span class="unit">rpm</span></div>
+            </div>
+            <div class="form-group">
+                <label>Shaft Service Temperature</label>
+                <div class="input-group"><input type="number" step="5" @bind="engine.ShaftServiceTemperature" /><span class="unit">°C</span></div>
+            </div>
+            <div class="form-group">
+                <label>Hub Service Temperature</label>
+                <div class="input-group"><input type="number" step="5" @bind="engine.HubServiceTemperature" /><span class="unit">°C</span></div>
+            </div>
+            <hr/>
+            <div class="form-group">
+                <label>Applied Torque</label>
+                <div class="input-group"><input type="number" step="1" @bind="engine.AppliedTorque" placeholder="Optional" /><span class="unit">Nm</span></div>
+            </div>
+            <div class="form-group">
+                <label>Applied Axial Force</label>
+                <div class="input-group"><input type="number" step="10" @bind="engine.AppliedAxialForce" placeholder="Optional" /><span class="unit">N</span></div>
+            </div>
+            <div class="form-group">
+                <label>Application Factor (φ)</label>
+                <select @bind="selectedLoadFactor" @bind:after="OnLoadFactorChanged">
+                    <option value="1.0">1.0 - Static load</option>
+                    <option value="1.25">1.25 - Light shock</option>
+                    <option value="1.5">1.5 - Moderate shock</option>
+                    <option value="1.75">1.75 - Heavy shock</option>
+                    <option value="2.0">2.0 - Impact load</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Physical Properties Card -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="surface" Size="medium" Style="solid" /><h2>Physical Properties</h2></div>
+            <div class="form-group">
+                <label>Shaft Surface Roughness (Rz)</label>
+                <div class="input-group"><input type="number" step="0.1" @bind="engine.ShaftRoughness" /><span class="unit">μm</span></div>
+                <small style="color: #6c757d; font-size: 12px;">Peak-to-valley height</small>
+            </div>
+            <div class="form-group">
+                <label>Hub Surface Roughness (Rz)</label>
+                <div class="input-group"><input type="number" step="0.1" @bind="engine.HubRoughness" /><span class="unit">μm</span></div>
+                <small style="color: #6c757d; font-size: 12px;">Peak-to-valley height</small>
+            </div>
+            <hr/>
+            <div class="form-group">
+                <label>Friction Coefficient (Rotation/Torque)</label>
+                <div class="input-group"><input type="number" step="0.01" @bind="engine.FrictionCoefficientTorque" /><span class="unit">-</span></div>
+                <small style="color: #6c757d; font-size: 12px;">For torque transmission</small>
+            </div>
+            <div class="form-group">
+                <label>Friction Coefficient (Axial/Assembly)</label>
+                <div class="input-group"><input type="number" step="0.01" @bind="engine.FrictionCoefficientAssembly" /><span class="unit">-</span></div>
+                <small style="color: #6c757d; font-size: 12px;">For assembly and axial force</small>
+            </div>
+        </div>
+        
+        <!-- Materials Card -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="material" Size="medium" Style="solid" /><h2>Materials</h2></div>
+            <div class="form-group">
+                <label>Shaft Material</label>
+                <select @bind="selectedShaftMaterialIndex">
+                    @for (int i = 0; i < materials.Count; i++) { <option value="@i">@materials[i].ToString()</option> }
+                </select>
+                @if (materials.Any())
+                {
+                    <div class="material-info">
+                        Re = @materials[selectedShaftMaterialIndex].YieldStrength MPa | Rm = @materials[selectedShaftMaterialIndex].TensileStrength MPa
+                    </div>
+                }
+            </div>
+            <div class="form-group">
+                <label>Hub Material</label>
+                <select @bind="selectedHubMaterialIndex">
+                    @for (int i = 0; i < materials.Count; i++) { <option value="@i">@materials[i].ToString()</option> }
+                </select>
+                @if (materials.Any())
+                {
+                    <div class="material-info">
+                        Re = @materials[selectedHubMaterialIndex].YieldStrength MPa | Rm = @materials[selectedHubMaterialIndex].TensileStrength MPa
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="button-group">
+        <button class="btn btn-success btn-lg @(isCalculating ? "btn-calculating" : "")" @onclick="Calculate" disabled="@isCalculating">
+            @if (isCalculating)
+            {
+                <span class="spinner"></span>
+                <span>Calculating...</span>
+            }
+            else
+            {
+                <ModuleIcon Type="calculate" Size="button" Style="default" />
+                <span>Calculate</span>
+            }
+        </button>
+        <button class="btn btn-secondary" @onclick="ClearForm" disabled="@isCalculating"><ModuleIcon Type="clear" Size="button" Style="default" /> Clear</button>
+    </div>
+}
+else
+{
+    <!-- ============ RESULTS SECTION ============ -->
+    <div class="button-group" style="margin-bottom: 24px;">
+        <button class="btn btn-primary" @onclick="BackToInput"><ModuleIcon Type="back" Size="button" Style="default" /> Back to Input</button>
+        <button class="btn btn-secondary" @onclick="ClearForm"><ModuleIcon Type="new" Size="button" Style="default" /> New Calculation</button>
+        <button class="btn btn-info @(isSavingPdf ? "btn-saving" : "")" @onclick="SaveAsPdf" disabled="@isSavingPdf">
+            @if (isSavingPdf)
+            {
+                <span class="spinner"></span>
+                <span>Generating PDF...</span>
+            }
+            else
+            {
+                <ModuleIcon Type="pdf" Size="button" Style="default" />
+                <span>Save as PDF</span>
+            }
+        </button>
+        <Viewer3D Module="interference-fit" Parameters="@Build3dParameters()" />
+    </div>
+
+    <div id="results-content">
+        <!-- Calculation Summary -->
+        <div class="card">
+            <div class="card-header"><span>📝</span><h2>Calculation Summary</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Nominal Diameter</td><td><i>d</i></td><td>@engine.NominalDiameter.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Fit Length</td><td><i>L</i></td><td>@engine.FitLength.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Shaft Inner Diameter</td><td><i>d<sub>i</sub></i></td><td>@engine.ShaftInnerDiameter.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Hub Outer Diameter</td><td><i>D<sub>a</sub></i></td><td>@engine.HubOuterDiameter.ToString("F2")</td><td>mm</td></tr>
+                    <tr class="table-section-header"><td colspan="4">Actual Dimensions</td></tr>
+                    <tr><td>Shaft Actual Diameter (min)</td><td><i>d</i><sub>min</sub></td><td>@((engine.NominalDiameter + engine.ShaftLowerDeviation / 1000).ToString("F3"))</td><td>mm</td></tr>
+                    <tr><td>Shaft Actual Diameter (max)</td><td><i>d</i><sub>max</sub></td><td>@((engine.NominalDiameter + engine.ShaftUpperDeviation / 1000).ToString("F3"))</td><td>mm</td></tr>
+                    <tr><td>Hub Actual Diameter (min)</td><td><i>D</i><sub>min</sub></td><td>@((engine.NominalDiameter + engine.HubLowerDeviation / 1000).ToString("F3"))</td><td>mm</td></tr>
+                    <tr><td>Hub Actual Diameter (max)</td><td><i>D</i><sub>max</sub></td><td>@((engine.NominalDiameter + engine.HubUpperDeviation / 1000).ToString("F3"))</td><td>mm</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Interference & Pressure -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="info" Size="medium" Style="solid" /><h2>Interference & Pressure</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr class="highlight"><td>Max Geometric Interference</td><td>U<sub>max,g</sub></td><td>@engine.MaxInterference.ToString("F1")</td><td>μm</td></tr>
+                    <tr><td>Min Geometric Interference</td><td>U<sub>min,g</sub></td><td>@engine.MinInterference.ToString("F1")</td><td>μm</td></tr>
+                    <tr><td>Roughness Loss</td><td>R<sub>z</sub></td><td>@engine.RoughnessLoss.ToString("F1")</td><td>μm</td></tr>
+                    <tr><td>Thermal Interference Change</td><td>ΔU<sub>th</sub></td><td>@engine.ThermalInterferenceChange.ToString("F1")</td><td>μm</td></tr>
+                    <tr class="highlight"><td>Effective Max Interference (Operating)</td><td>U<sub>eff,max</sub></td><td>@engine.EffectiveMaxInterference.ToString("F1")</td><td>μm</td></tr>
+                    <tr><td>Effective Min Interference (Operating)</td><td>U<sub>eff,min</sub></td><td>@engine.EffectiveMinInterference.ToString("F1")</td><td>μm</td></tr>
+                    <tr class="highlight danger"><td>Pressure Loss from Rotation</td><td>p<sub>loss,rot</sub></td><td>@engine.RotationalPressureLoss.ToString("F2")</td><td>MPa</td></tr>
+                    <tr class="highlight"><td>Maximum Contact Pressure (Operating)</td><td>p<sub>max</sub></td><td>@engine.MaxContactPressure.ToString("F2")</td><td>MPa</td></tr>
+                    <tr><td>Minimum Contact Pressure (Operating)</td><td>p<sub>min</sub></td><td>@engine.MinContactPressure.ToString("F2")</td><td>MPa</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Stresses -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="force" Size="medium" Style="solid" /><h2>Stresses at Max Interference</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td colspan="4" class="table-section-header">Shaft Stresses</td></tr>
+                    <tr><td>Tangential Stress</td><td>σ<sub>t,shaft</sub></td><td>@engine.ShaftTangentialStress.ToString("F1")</td><td>MPa</td></tr>
+                    <tr><td>Radial Stress</td><td>σ<sub>r,shaft</sub></td><td>@engine.ShaftRadialStress.ToString("F1")</td><td>MPa</td></tr>
+                    <tr class="@(engine.ShaftVonMisesStress > engine.ShaftMaterial.YieldStrength * 0.8 ? "warning" : "")"><td>Von Mises Stress</td><td>σ<sub>v,shaft</sub></td><td>@engine.ShaftVonMisesStress.ToString("F1")</td><td>MPa</td></tr>
+                    <tr><td colspan="4" class="table-section-header">Hub Stresses</td></tr>
+                    <tr><td>Tangential Stress</td><td>σ<sub>t,hub</sub></td><td>@engine.HubTangentialStress.ToString("F1")</td><td>MPa</td></tr>
+                    <tr><td>Radial Stress</td><td>σ<sub>r,hub</sub></td><td>@engine.HubRadialStress.ToString("F1")</td><td>MPa</td></tr>
+                    <tr class="@(engine.HubVonMisesStress > engine.HubMaterial.YieldStrength * 0.8 ? "warning" : "")"><td>Von Mises Stress</td><td>σ<sub>v,hub</sub></td><td>@engine.HubVonMisesStress.ToString("F1")</td><td>MPa</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Load Capacities -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="force" Size="medium" Style="solid" /><h2>Load Capacities (Operating)</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Application Factor</td><td>φ</td><td>@engine.LoadFactor.ToString("F2")</td><td>-</td></tr>
+                    <tr><td>Applied Torque (with factor)</td><td>T<sub>app</sub></td><td>@((engine.AppliedTorque * engine.LoadFactor).ToString("F1"))</td><td>Nm</td></tr>
+                    <tr><td>Applied Axial Force (with factor)</td><td>F<sub>app</sub></td><td>@((engine.AppliedAxialForce * engine.LoadFactor).ToString("F1"))</td><td>N</td></tr>
+                    <tr class="highlight"><td>Minimum Torque Capacity</td><td>T<sub>min</sub></td><td>@engine.MinTorqueCapacity.ToString("F1")</td><td>Nm</td></tr>
+                    <tr><td>Maximum Torque Capacity</td><td>T<sub>max</sub></td><td>@engine.MaxTorqueCapacity.ToString("F1")</td><td>Nm</td></tr>
+                    <tr class="highlight"><td>Minimum Axial Force Capacity</td><td>F<sub>a,min</sub></td><td>@((engine.MinAxialForceCapacity/1000).ToString("F2"))</td><td>kN</td></tr>
+                    <tr><td>Maximum Axial Force Capacity</td><td>F<sub>a,max</sub></td><td>@((engine.MaxAxialForceCapacity/1000).ToString("F2"))</td><td>kN</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Assembly -->
+        <div class="card">
+            <div class="card-header"><span>🛠️</span><h2>Assembly Parameters</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr class="highlight"><td>Max Press-Fit Assembly Force</td><td>F<sub>asm</sub></td><td>@((engine.AssemblyForce / 1000).ToString("F2"))</td><td>kN</td></tr>
+                    <tr><td>Hub Heating Temp (for Shrink Fit)</td><td>T<sub>heat</sub></td><td>@engine.HeatingTemperature.ToString("F0")</td><td>°C</td></tr>
+                    <tr><td>Shaft Cooling Temp (for Shrink Fit)</td><td>T<sub>cool</sub></td><td>@engine.CoolingTemperature.ToString("F0")</td><td>°C</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Safety Factors -->
+        <div class="card">
+             <div class="card-header"><ModuleIcon Type="safety" Size="medium" Style="solid" /><h2>Safety Factors</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Status</th></tr></thead>
+                <tbody>
+                    <tr><td colspan="4" class="table-section-header">Against Sliding (based on min capacity)</td></tr>
+                    <tr class="@GetSafetyRowClass(engine.SafetyFactorSliding)"><td>Torque (vs Applied)</td><td>SF<sub>T</sub></td><td>@FormatSafetyFactor(engine.SafetyFactorSliding)</td><td>@GetSafetyStatus(engine.SafetyFactorSliding)</td></tr>
+                    <tr class="@GetSafetyRowClass(engine.SafetyFactorAxial)"><td>Axial Force (vs Applied)</td><td>SF<sub>F</sub></td><td>@FormatSafetyFactor(engine.SafetyFactorAxial)</td><td>@GetSafetyStatus(engine.SafetyFactorAxial)</td></tr>
+                    <tr><td colspan="4" class="table-section-header">Against Yielding (at max interference)</td></tr>
+                    <tr class="@GetSafetyRowClass(engine.SafetyFactorShaftStress)"><td>Shaft</td><td>SF<sub>shaft</sub></td><td>@FormatSafetyFactor(engine.SafetyFactorShaftStress)</td><td>@GetSafetyStatus(engine.SafetyFactorShaftStress)</td></tr>
+                    <tr class="@GetSafetyRowClass(engine.SafetyFactorHubStress)"><td>Hub</td><td>SF<sub>hub</sub></td><td>@FormatSafetyFactor(engine.SafetyFactorHubStress)</td><td>@GetSafetyStatus(engine.SafetyFactorHubStress)</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Feedback Widget -->
+    <FeedbackWidget ModuleKey="interference-fit" />
+}
+
+<!-- Related Calculators -->
+<RelatedCalculators CurrentModuleKey="interference-fit" />
+
+@code {
+    private InterferenceFitEngine engine = new();
+    private List<Material> materials = new();
+    private ModuleInfo moduleInfo = new();
+    private bool showResults = false;
+    private bool isCalculating = false;
+    private bool isSavingPdf = false;
+
+    private string selectedShaftFit = "p6";
+    private string selectedHubFit = "H7";
+    private bool isCustomShaft = false;
+    private bool isCustomHub = false;
+    private string selectedLoadFactor = "1.0";
+    private string? toleranceWarning = null;
+
+    private int selectedShaftMaterialIndex = 2; // C45
+    private int selectedHubMaterialIndex = 2;   // C45
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load materials
+        materials = MaterialService.GetMaterials();
+
+        // Load module metadata
+        moduleInfo = Metadata.GetModule("interference-fit");
+
+        // Set SEO metadata
+        await SetSeoMetadata();
+
+        // Set structured data
+        await SetStructuredData();
+
+        // Track page view
+        await Analytics.TrackPageView("/interference-fit", moduleInfo.Name);
+    }
+
+    private async Task SetSeoMetadata()
+    {
+        var baseUrl = "https://mekanika.org";
+        var seo = new SeoMetadata
+        {
+            Title = $"{moduleInfo.Name} - Free Online Tool | Mekanika",
+            Description = moduleInfo.Description,
+            Keywords = moduleInfo.Keywords,
+            CanonicalUrl = $"{baseUrl}{moduleInfo.Route}",
+            OgTitle = moduleInfo.Name,
+            OgDescription = moduleInfo.Description,
+            OgImage = $"{baseUrl}/logo.png",
+            OgUrl = $"{baseUrl}{moduleInfo.Route}",
+            TwitterCard = "summary",
+            TwitterTitle = moduleInfo.Name,
+            TwitterDescription = moduleInfo.Description,
+            TwitterImage = $"{baseUrl}/logo.png"
+        };
+
+        await Seo.SetMetaTags(seo);
+    }
+
+    private async Task SetStructuredData()
+    {
+        var structuredData = new
+        {
+            context = "https://schema.org",
+            type = "SoftwareApplication",
+            name = moduleInfo.Name,
+            description = moduleInfo.Description,
+            applicationCategory = "EngineeringApplication",
+            operatingSystem = "Web Browser",
+            browserRequirements = "Requires JavaScript, WebAssembly support",
+            offers = new
+            {
+                type = "Offer",
+                price = "0",
+                priceCurrency = "USD"
+            },
+            author = new
+            {
+                type = "Organization",
+                name = "Mekanika",
+                url = "https://mekanika.org"
+            },
+            featureList = new[]
+            {
+                "Standards-based calculations (DIN 7190)",
+                "PDF export",
+                "No registration required",
+                "Privacy-focused (client-side calculation)"
+            }
+        };
+
+        await Seo.SetStructuredData(structuredData);
+    }
+
+    private void OnLoadFactorChanged()
+    {
+        if (double.TryParse(selectedLoadFactor, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double factor))
+            engine.LoadFactor = factor;
+    }
+
+    private void SetDefaultValues()
+    {
+        // This is now only called from ClearForm, to reset to a default state
+        engine.NominalDiameter = 50;
+        engine.FitLength = 40;
+        engine.ShaftInnerDiameter = 0;
+        engine.HubOuterDiameter = 80;
+        engine.ShaftRoughness = 4.0;
+        engine.HubRoughness = 6.0;
+        engine.RotationalSpeed = 0;
+        engine.ShaftServiceTemperature = 20;
+        engine.HubServiceTemperature = 20;
+        engine.AmbientTemperature = 20;
+        engine.LoadFactor = 1.0;
+        engine.FrictionCoefficientTorque = 0.12;
+        engine.FrictionCoefficientAssembly = 0.15;
+        UpdateTolerances();
+    }
+
+    /// <summary>
+    /// Geometry handed to the 3D viewer. Keys must match the "interference-fit"
+    /// builder in wwwroot/js/viewer3d.js.
+    /// </summary>
+    private object Build3dParameters() => new
+    {
+        d = engine.NominalDiameter,
+        L = engine.FitLength,
+        di = engine.ShaftInnerDiameter,
+        Da = engine.HubOuterDiameter,
+        pressure = engine.MaxContactPressure
+    };
+
+    private void UpdateTolerances()
+    {
+        isCustomShaft = selectedShaftFit == "custom";
+        isCustomHub = selectedHubFit == "custom";
+
+        var unsupported = new List<string>();
+
+        // Update shaft tolerances if not in custom mode
+        if (!isCustomShaft && !string.IsNullOrEmpty(selectedShaftFit))
+        {
+            var dev = Iso286.TryGetDeviations(selectedShaftFit, engine.NominalDiameter);
+            if (dev != null)
+            {
+                engine.ShaftUpperDeviation = dev.Value.upper;
+                engine.ShaftLowerDeviation = dev.Value.lower;
+            }
+            else
+            {
+                engine.ShaftUpperDeviation = 0;
+                engine.ShaftLowerDeviation = 0;
+                unsupported.Add(selectedShaftFit);
+            }
+        }
+
+        // Update hub tolerances if not in custom mode
+        if (!isCustomHub && !string.IsNullOrEmpty(selectedHubFit))
+        {
+            var dev = Iso286.TryGetDeviations(selectedHubFit, engine.NominalDiameter);
+            if (dev != null)
+            {
+                engine.HubUpperDeviation = dev.Value.upper;
+                engine.HubLowerDeviation = dev.Value.lower;
+            }
+            else
+            {
+                engine.HubUpperDeviation = 0;
+                engine.HubLowerDeviation = 0;
+                unsupported.Add(selectedHubFit);
+            }
+        }
+
+        toleranceWarning = unsupported.Count == 0
+            ? null
+            : $"{string.Join(" and ", unsupported)} is not defined by ISO 286 for a {engine.NominalDiameter:F1} mm nominal size. " +
+              "Choose another fit or switch to Custom and enter the deviations manually.";
+    }
+
+    private async Task Calculate()
+    {
+        isCalculating = true;
+        StateHasChanged();
+        await Task.Delay(350);
+        try
+        {
+            // Validation
+            if (engine.NominalDiameter <= 0 || engine.FitLength <= 0 || engine.HubOuterDiameter <= engine.NominalDiameter)
+            {
+                await Analytics.TrackCalculationError("interference-fit", "validation_failed", "Invalid input parameters");
+                return;
+            }
+
+            // Perform calculation
+            engine.ShaftMaterial = materials[selectedShaftMaterialIndex];
+            engine.HubMaterial = materials[selectedHubMaterialIndex];
+
+            engine.Calculate();
+            showResults = true;
+
+            // Track successful calculation
+            await Analytics.TrackCalculationCompleted("interference-fit", new Dictionary<string, object>
+            {
+                { "nominal_diameter", engine.NominalDiameter },
+                { "fit_length", engine.FitLength },
+                { "max_contact_pressure", engine.MaxContactPressure },
+                { "safety_factor_sliding", engine.SafetyFactorSliding }
+            });
+        }
+        catch (Exception ex)
+        {
+            await Analytics.TrackCalculationError("interference-fit", "calculation_failed", ex.Message);
+            throw;
+        }
+        finally
+        {
+            isCalculating = false;
+        }
+    }
+
+    private void BackToInput() => showResults = false;
+
+    private void ClearForm()
+    {
+        engine = new();
+        selectedShaftFit = "p6";
+        selectedHubFit = "H7";
+        selectedLoadFactor = "1.0";
+        SetDefaultValues();
+        showResults = false;
+    }
+
+    // --- Helper methods for styling and formatting ---
+    private string GetSafetyRowClass(double sf) => sf < 1.0 ? "danger" : sf < 1.5 ? "warning" : sf >= 900 ? "" : "success";
+    private string GetSafetyStatus(double sf) => sf < 1.0 ? "❌ FAIL" : sf < 1.5 ? "⚠️ Marginal" : "✓ OK";
+    private string FormatSafetyFactor(double sf) => sf >= 900 ? "N/A" : sf.ToString("F2");
+
+    private async Task SaveAsPdf()
+    {
+        isSavingPdf = true;
+        StateHasChanged();
+        try
+        {
+            var fileName = $"InterferenceFit-Report-{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            await JSRuntime.InvokeVoidAsync("generatePdf", "results-content", fileName);
+
+            // Track PDF download
+            await Analytics.TrackPdfDownload("interference-fit", fileName);
+        }
+        catch (Exception ex)
+        {
+            await Analytics.TrackCalculationError("interference-fit", "pdf_generation_failed", ex.Message);
+            await JSRuntime.InvokeVoidAsync("console.error", $"PDF generation error: {ex.Message}");
+        }
+        finally
+        {
+            isSavingPdf = false;
+        }
+    }
+}
+
+<style>
+    .material-info {
+        font-size: 12px;
+        color: #6c757d;
+        margin-top: 4px;
+        padding-left: 4px;
+    }
+
+    /* Results Tables */
+    .results-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+    }
+
+    .results-table th {
+        background: #f8f9fa;
+        padding: 12px 16px;
+        text-align: left;
+        font-weight: 600;
+        color: #2c3e50;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    .results-table td {
+        padding: 10px 16px;
+        border-bottom: 1px solid #eee;
+    }
+
+    .results-table tr:hover {
+        background: #f8f9fa;
+    }
+
+    .results-table tr.highlight {
+        background: #e3f2fd;
+        font-weight: 500;
+    }
+
+    .results-table tr.warning {
+        background: #fff8e1;
+    }
+
+    .results-table tr.danger {
+        background: #ffebee;
+    }
+
+    .results-table tr.success {
+        background: #e8f5e9;
+    }
+
+    .results-table th:nth-child(1) { width: 40%; }
+    .results-table th:nth-child(2) { width: 15%; text-align: center; }
+    .results-table th:nth-child(3) { width: 25%; text-align: right; }
+    .results-table th:nth-child(4) { width: 20%; text-align: center; }
+
+    .results-table td:nth-child(2) {
+        text-align: center;
+        font-family: 'Times New Roman', serif;
+        font-style: italic;
+        color: #666;
+    }
+
+    .results-table td:nth-child(3) {
+        text-align: right;
+        font-weight: 500;
+        font-family: 'Consolas', monospace;
+    }
+
+    .results-table td:nth-child(4) {
+        text-align: center;
+        color: #666;
+    }
+
+    .table-section-header {
+        background: #e9ecef !important;
+        font-weight: 600;
+        padding: 8px 16px !important;
+        color: #495057;
+    }
+
+    .btn-info {
+        background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+        color: white;
+    }
+
+    .btn-info:hover {
+        background: linear-gradient(135deg, #138496 0%, #117a8b 100%);
+    }
+</style>

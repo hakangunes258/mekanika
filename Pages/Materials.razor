@@ -1,0 +1,349 @@
+@page "/materials"
+@inject MaterialService MaterialService
+@inject AnalyticsService Analytics
+@inject SeoService Seo
+@inject ModuleMetadataService Metadata
+
+<PageTitle>Material Database - Mekanika</PageTitle>
+
+<div class="page-header">
+    <h1>
+        <ModuleIcon Type="material" Size="large" Style="transparent" CustomStyle="margin-right: 12px;" />
+        Material Database
+    </h1>
+    <p>Engineering materials with mechanical properties for calculations</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <ModuleIcon Type="material" Size="medium" Style="solid" />
+        <h2>Engineering Materials</h2>
+    </div>
+    
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Material</th>
+                    <th>Standard</th>
+                    <th>Yield (MPa)</th>
+                    <th>Tensile (MPa)</th>
+                    <th>Surface Pressure (MPa)</th>
+                    <th>E (GPa)</th>
+                    <th>ν</th>
+                    <th>α (10⁻⁶/K)</th>
+                    <th>ρ (kg/m³)</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var mat in materials)
+                {
+                    <tr>
+                        <td><strong>@mat.Name</strong></td>
+                        <td>@mat.Standard</td>
+                        <td>@mat.YieldStrength</td>
+                        <td>@mat.TensileStrength</td>
+                        <td>@mat.PermissibleSurfacePressure</td>
+                        <td>@mat.ElasticModulus</td>
+                        <td>@mat.PoissonRatio</td>
+                        <td>@mat.ThermalExpansion</td>
+                        <td>@mat.Density</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <ModuleIcon Type="spring" Size="medium" Style="solid" />
+        <h2>Spring Materials</h2>
+    </div>
+    
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Material</th>
+                    <th>Standard</th>
+                    <th>Grade</th>
+                    <th>Rm (MPa)</th>
+                    <th>G (MPa)</th>
+                    <th>E (GPa)</th>
+                    <th>ρ (kg/m³)</th>
+                    <th>Max Temp (°C)</th>
+                    <th>Application</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var mat in springMaterials)
+                {
+                    <tr>
+                        <td><strong>@mat.Name</strong></td>
+                        <td>@mat.Standard</td>
+                        <td>@mat.Grade</td>
+                        <td>@mat.TensileStrength</td>
+                        <td>@mat.ShearModulus</td>
+                        <td>@mat.ElasticModulus</td>
+                        <td>@mat.Density</td>
+                        <td>@mat.MaxTemperature</td>
+                        <td>@mat.Application</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Educational Content Section -->
+<div class="content-section">
+    <h2><ModuleIcon Type="info" Size="medium" Style="solid" /> Understanding Engineering Materials</h2>
+    
+    <div class="content-block">
+        <h3>Material Properties Overview</h3>
+        <p>
+            Engineering material selection is fundamental to mechanical design. The properties listed in this 
+            database represent the key mechanical characteristics needed for strength calculations, interference 
+            fit design, thermal analysis, and fatigue assessment. Understanding these properties helps engineers 
+            choose appropriate materials for specific applications while maintaining safety margins.
+        </p>
+        <p>
+            <strong>Yield Strength (Re)</strong> indicates the stress at which permanent deformation begins. 
+            Design stresses should remain below this value divided by an appropriate safety factor. 
+            <strong>Tensile Strength (Rm)</strong> represents the maximum stress before fracture and is used 
+            for ultimate load calculations and safety assessments.
+        </p>
+        <p>
+            <strong>Elastic Modulus (E)</strong>, also known as Young's modulus, determines material stiffness — 
+            how much it deflects under load. Higher values mean less deflection. Steel has E ≈ 210 GPa while 
+            aluminum has E ≈ 70 GPa, meaning aluminum deflects three times more under the same load.
+            <strong>Shear Modulus (G)</strong>, or modulus of rigidity, describes resistance to shear deformation 
+            and is essential for spring and torsion calculations.
+        </p>
+        <p>
+            <strong>Poisson's Ratio (ν)</strong> describes lateral contraction when a material is stretched — 
+            typically 0.27-0.30 for steels and 0.33 for aluminum. This property is essential for interference 
+            fit analysis and multi-axial stress calculations.
+            <strong>Thermal Expansion Coefficient (α)</strong> indicates how much a material expands per degree 
+            temperature change, critical for fits operating at varying temperatures.
+        </p>
+        <p>
+            <strong>Density (ρ)</strong> is mass per unit volume, used for weight calculations and inertia analysis.
+        </p>
+    </div>
+    
+    <div class="content-block">
+        <h3>Spring Materials Selection</h3>
+        <p>
+            Spring materials require special properties: high yield strength to allow large elastic deflections, 
+            good fatigue resistance for cyclic loading, and consistent mechanical properties. The grades shown 
+            (SL, SM, SH, DH) represent increasing strength and fatigue capability per EN 10270-1.
+        </p>
+        <p>
+            For standard applications, <strong>SH grade</strong> provides excellent fatigue life and is most 
+            commonly specified. <strong>DH grade</strong> offers higher strength for valve springs and high-stress 
+            applications. Stainless grades (1.4310, 1.4568) are chosen when corrosion resistance is required, 
+            while Inconel and Monel serve high-temperature or marine environments.
+        </p>
+    </div>
+</div>
+
+<!-- Related Calculators -->
+<RelatedCalculators CurrentModule="materials" />
+
+<style>
+    /* Fix card height issue */
+    .card {
+        height: auto !important;
+    }
+
+    .content-section {
+        margin-top: 24px;
+        padding: 24px;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 16px;
+        border: 1px solid #dee2e6;
+    }
+    
+    .content-section h2 {
+        color: #2c3e50;
+        margin-bottom: 16px;
+        font-size: 22px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding-bottom: 12px;
+        border-bottom: 2px solid #3498db;
+    }
+    
+    .content-block {
+        margin-bottom: 20px;
+        padding: 16px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    
+    .content-block:last-child {
+        margin-bottom: 0;
+    }
+    
+    .content-block h3 {
+        color: #34495e;
+        margin-bottom: 12px;
+        font-size: 18px;
+        padding-left: 12px;
+        border-left: 4px solid #3498db;
+    }
+
+    .content-block p {
+        line-height: 1.7;
+        color: #495057;
+        text-align: justify;
+        margin-bottom: 10px;
+        font-size: 14px;
+    }
+    
+    .content-block p:last-child {
+        margin-bottom: 0;
+    }
+    
+    .content-block strong {
+        color: #2c3e50;
+    }
+
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+    }
+    
+    .data-table th,
+    .data-table td {
+        padding: 10px 12px;
+        text-align: left;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .data-table th {
+        background: #f8f9fa;
+        font-weight: 600;
+        color: #495057;
+        position: sticky;
+        top: 0;
+    }
+    
+    .data-table tbody tr:hover {
+        background: #f8f9fa;
+    }
+    
+    .data-table td:first-child {
+        color: #0d6efd;
+    }
+</style>
+
+@code {
+    private ModuleInfo moduleInfo = new();
+    private List<Material> materials = new();
+    private List<SpringMaterial> springMaterials = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        materials = MaterialService.GetMaterials();
+        springMaterials = GetSpringMaterials();
+
+        // Load module metadata
+        moduleInfo = Metadata.GetModule("materials");
+
+        // Set SEO metadata
+        await SetSeoMetadata();
+
+        // Set structured data
+        await SetStructuredData();
+
+        // Track page view
+        await Analytics.TrackPageView("/materials", moduleInfo.Name);
+    }
+
+    private async Task SetSeoMetadata()
+    {
+        var baseUrl = "https://mekanika.org";
+        var seo = new SeoMetadata
+        {
+            Title = $"{moduleInfo.Name} - Free Engineering Reference | Mekanika",
+            Description = moduleInfo.Description,
+            Keywords = moduleInfo.Keywords,
+            CanonicalUrl = $"{baseUrl}{moduleInfo.Route}",
+            OgTitle = moduleInfo.Name,
+            OgDescription = moduleInfo.Description,
+            OgImage = $"{baseUrl}/logo.png",
+            OgUrl = $"{baseUrl}{moduleInfo.Route}",
+            TwitterCard = "summary",
+            TwitterTitle = moduleInfo.Name,
+            TwitterDescription = moduleInfo.Description,
+            TwitterImage = $"{baseUrl}/logo.png"
+        };
+
+        await Seo.SetMetaTags(seo);
+    }
+
+    private async Task SetStructuredData()
+    {
+        var structuredData = new
+        {
+            context = "https://schema.org",
+            type = "Dataset",
+            name = moduleInfo.Name,
+            description = moduleInfo.Description,
+            keywords = moduleInfo.Keywords.Split(", "),
+            license = "https://creativecommons.org/licenses/by/4.0/",
+            creator = new
+            {
+                type = "Organization",
+                name = "Mekanika",
+                url = "https://mekanika.org"
+            },
+            spatialCoverage = "Worldwide",
+            temporalCoverage = "2024/..",
+            includedInDataCatalog = new
+            {
+                type = "DataCatalog",
+                name = "Mekanika Engineering Reference Database"
+            }
+        };
+
+        await Seo.SetStructuredData(structuredData);
+    }
+
+    private List<SpringMaterial> GetSpringMaterials()
+    {
+        return new List<SpringMaterial>
+        {
+            new SpringMaterial { Name = "Patented Spring Steel", Standard = "EN 10270-1", Grade = "SH", TensileStrength = 1700, ShearModulus = 81500, ElasticModulus = 206, Density = 7850, MaxTemperature = 120, Application = "General purpose, high fatigue" },
+            new SpringMaterial { Name = "Patented Spring Steel", Standard = "EN 10270-1", Grade = "SL", TensileStrength = 1400, ShearModulus = 81500, ElasticModulus = 206, Density = 7850, MaxTemperature = 120, Application = "Static applications" },
+            new SpringMaterial { Name = "Patented Spring Steel", Standard = "EN 10270-1", Grade = "SM", TensileStrength = 1550, ShearModulus = 81500, ElasticModulus = 206, Density = 7850, MaxTemperature = 120, Application = "Medium fatigue" },
+            new SpringMaterial { Name = "Patented Spring Steel", Standard = "EN 10270-1", Grade = "DH", TensileStrength = 1900, ShearModulus = 81500, ElasticModulus = 206, Density = 7850, MaxTemperature = 120, Application = "High stress, valve springs" },
+            new SpringMaterial { Name = "Oil Hardened Steel", Standard = "EN 10270-2", Grade = "VDC", TensileStrength = 1800, ShearModulus = 79500, ElasticModulus = 206, Density = 7850, MaxTemperature = 150, Application = "High fatigue, precision" },
+            new SpringMaterial { Name = "Stainless Steel", Standard = "EN 10270-3", Grade = "1.4310", TensileStrength = 1600, ShearModulus = 73000, ElasticModulus = 185, Density = 7900, MaxTemperature = 250, Application = "Corrosion resistant" },
+            new SpringMaterial { Name = "Stainless Steel", Standard = "EN 10270-3", Grade = "1.4568", TensileStrength = 1900, ShearModulus = 75000, ElasticModulus = 190, Density = 7800, MaxTemperature = 350, Application = "High temp, corrosion resistant" },
+            new SpringMaterial { Name = "Phosphor Bronze", Standard = "EN 12166", Grade = "CuSn8", TensileStrength = 700, ShearModulus = 42000, ElasticModulus = 110, Density = 8800, MaxTemperature = 100, Application = "Non-magnetic, conductive" },
+            new SpringMaterial { Name = "Beryllium Copper", Standard = "EN 12166", Grade = "CuBe2", TensileStrength = 1200, ShearModulus = 47000, ElasticModulus = 130, Density = 8250, MaxTemperature = 200, Application = "High conductivity, non-sparking" },
+            new SpringMaterial { Name = "Inconel X-750", Standard = "AMS 5698", Grade = "N07750", TensileStrength = 1250, ShearModulus = 77000, ElasticModulus = 214, Density = 8280, MaxTemperature = 700, Application = "High temperature" },
+            new SpringMaterial { Name = "Monel K-500", Standard = "AMS 4676", Grade = "N05500", TensileStrength = 1050, ShearModulus = 66000, ElasticModulus = 179, Density = 8470, MaxTemperature = 480, Application = "Marine, corrosive environments" },
+        };
+    }
+
+    public class SpringMaterial
+    {
+        public string Name { get; set; } = "";
+        public string Standard { get; set; } = "";
+        public string Grade { get; set; } = "";
+        public int TensileStrength { get; set; }
+        public int ShearModulus { get; set; }
+        public int ElasticModulus { get; set; }
+        public int Density { get; set; }
+        public int MaxTemperature { get; set; }
+        public string Application { get; set; } = "";
+    }
+}

@@ -1,0 +1,316 @@
+@inject FeedbackService FeedbackService
+@inject AnalyticsService Analytics
+
+@if (!hasSubmittedFeedback && !isDismissed && !isSubmitted)
+{
+    <div class="feedback-widget card">
+        <div class="feedback-header">
+            <span class="feedback-icon">💭</span>
+            <h3>How was your experience?</h3>
+            <p>Help us improve this calculator</p>
+        </div>
+
+        <div class="feedback-body">
+            <!-- Star Rating -->
+            <div class="star-rating">
+                @for (int i = 1; i <= 5; i++)
+                {
+                    int starValue = i;
+                    <span class="star @(selectedRating >= starValue ? "selected" : "") @(hoverRating >= starValue ? "hover" : "")"
+                          @onclick="() => SelectRating(starValue)"
+                          @onmouseover="() => hoverRating = starValue"
+                          @onmouseout="() => hoverRating = 0">
+                        @(selectedRating >= starValue || hoverRating >= starValue ? "★" : "☆")
+                    </span>
+                }
+            </div>
+
+            @if (selectedRating > 0)
+            {
+                <div class="rating-label">
+                    @GetRatingLabel(selectedRating)
+                </div>
+            }
+
+            <!-- Comment Field (appears after star selection) -->
+            @if (selectedRating > 0)
+            {
+                <div class="comment-section">
+                    <textarea class="comment-input"
+                              placeholder="Tell us more (optional, max 200 characters)..."
+                              maxlength="200"
+                              @bind="comment"
+                              @bind:event="oninput"
+                              rows="3"></textarea>
+                    <div class="char-counter">@comment.Length / 200</div>
+                </div>
+            }
+
+            <!-- Action Buttons -->
+            <div class="feedback-actions">
+                @if (selectedRating > 0)
+                {
+                    <button class="btn btn-success" @onclick="SubmitFeedback" disabled="@isSubmitting">
+                        @if (isSubmitting)
+                        {
+                            <span>Submitting...</span>
+                        }
+                        else
+                        {
+                            <span>✓ Submit Feedback</span>
+                        }
+                    </button>
+                }
+                <button class="btn btn-secondary btn-sm" @onclick="Skip">
+                    <span>Skip</span>
+                </button>
+            </div>
+        </div>
+    </div>
+}
+else if (isSubmitted && !isDismissed)
+{
+    <div class="feedback-widget card feedback-success">
+        <div class="feedback-header">
+            <span class="feedback-icon">✓</span>
+            <h3>Thank you for your feedback!</h3>
+            <p>Your input helps us improve Mekanika</p>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string ModuleKey { get; set; } = string.Empty;
+
+    private int selectedRating = 0;
+    private int hoverRating = 0;
+    private string comment = "";
+    private bool hasSubmittedFeedback = false;
+    private bool isDismissed = false;
+    private bool isSubmitted = false;
+    private bool isSubmitting = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Check if user already submitted feedback for this module
+        hasSubmittedFeedback = await FeedbackService.HasSubmittedFeedback(ModuleKey);
+    }
+
+    private void SelectRating(int rating)
+    {
+        selectedRating = rating;
+    }
+
+    private string GetRatingLabel(int rating)
+    {
+        return rating switch
+        {
+            1 => "😞 Poor",
+            2 => "😕 Below Average",
+            3 => "😐 Average",
+            4 => "😊 Good",
+            5 => "🤩 Excellent",
+            _ => ""
+        };
+    }
+
+    private async Task SubmitFeedback()
+    {
+        if (selectedRating == 0)
+            return;
+
+        isSubmitting = true;
+        StateHasChanged();
+
+        try
+        {
+            var feedback = new FeedbackSubmission
+            {
+                ModuleKey = ModuleKey,
+                Rating = selectedRating,
+                Comment = comment.Trim(),
+                Timestamp = DateTime.UtcNow,
+                SessionId = await Analytics.GetSessionId() // Get from analytics if available
+            };
+
+            await FeedbackService.SubmitFeedback(feedback);
+
+            isSubmitted = true;
+            StateHasChanged();
+
+            // Auto-hide after 3 seconds
+            await Task.Delay(3000);
+            isDismissed = true;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Feedback submission error: {ex.Message}");
+            isSubmitting = false;
+        }
+    }
+
+    private async Task Skip()
+    {
+        await Analytics.TrackFeedbackSkipped(ModuleKey);
+        isDismissed = true;
+    }
+}
+
+<style>
+    .feedback-widget {
+        margin: 20px 0;
+        background: linear-gradient(135deg, #0077be 0%, #005a91 100%);
+        border: none;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 6px 20px rgba(0, 119, 190, 0.25);
+    }
+
+    .feedback-success {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    }
+
+    .feedback-header {
+        text-align: center;
+        padding: 18px 20px 12px;
+        color: white;
+    }
+
+    .feedback-icon {
+        font-size: 36px;
+        display: block;
+        margin-bottom: 8px;
+    }
+
+    .feedback-header h3 {
+        margin: 0 0 8px;
+        font-size: 18px;
+        font-weight: 600;
+        color: white;
+    }
+
+    .feedback-header p {
+        margin: 0;
+        font-size: 13px;
+        color: rgba(255, 255, 255, 0.9);
+    }
+
+    .feedback-body {
+        background: white;
+        padding: 20px;
+    }
+
+    .star-rating {
+        display: flex;
+        justify-content: center;
+        gap: 6px;
+        margin-bottom: 12px;
+    }
+
+    .star {
+        font-size: 32px;
+        cursor: pointer;
+        color: #ddd;
+        transition: all 0.2s ease;
+        user-select: none;
+    }
+
+    .star.hover,
+    .star.selected {
+        color: #ffc107;
+        transform: scale(1.1);
+    }
+
+    .star:hover {
+        transform: scale(1.2);
+    }
+
+    .rating-label {
+        text-align: center;
+        font-size: 14px;
+        font-weight: 500;
+        color: #666;
+        margin-bottom: 16px;
+        min-height: 24px;
+    }
+
+    .comment-section {
+        margin-bottom: 16px;
+        animation: fadeIn 0.3s ease;
+    }
+
+    .comment-input {
+        width: 100%;
+        padding: 12px;
+        border: 2px solid #eee;
+        border-radius: 8px;
+        font-size: 14px;
+        font-family: inherit;
+        resize: vertical;
+        transition: border-color 0.2s;
+    }
+
+    .comment-input:focus {
+        outline: none;
+        border-color: #667eea;
+    }
+
+    .char-counter {
+        text-align: right;
+        font-size: 12px;
+        color: #999;
+        margin-top: 4px;
+    }
+
+    .feedback-actions {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+    }
+
+    .feedback-actions .btn {
+        padding: 10px 24px;
+        font-size: 14px;
+        font-weight: 500;
+    }
+
+    .feedback-actions .btn-sm {
+        padding: 8px 16px;
+        font-size: 13px;
+    }
+
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* Mobile responsive */
+    @@media (max-width: 600px) {
+        .star {
+            font-size: 24px;
+        }
+
+        .feedback-header h3 {
+            font-size: 16px;
+        }
+
+        .feedback-body {
+            padding: 20px;
+        }
+
+        .feedback-actions {
+            flex-direction: column;
+        }
+
+        .feedback-actions .btn {
+            width: 100%;
+        }
+    }
+</style>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" x="0px" y="0px" viewBox="0 1.636 17.294 17.167" style="enable-background:new 0 0 16 16;">
+  <g transform="matrix(1, 0, 0, 1, 0, 2)">
+    <g transform="matrix(1, 0, 0, 1, 0.647, 0.2195)">
+      <path d="M8,15c-3.86,0-7-3.141-7-7c0-3.86,3.14-7,7-7c3.859,0,7,3.14,7,7C15,11.859,11.859,15,8,15z M8,2C4.691,2,2,4.691,2,8   s2.691,6,6,6s6-2.691,6-6S11.309,2,8,2z"/>
+      <path d="M10,12H6c-0.156,0-0.303-0.073-0.397-0.196c-0.095-0.124-0.126-0.285-0.085-0.436l0.822-2.997   C5.808,7.899,5.5,7.223,5.5,6.5C5.5,5.122,6.622,4,8,4c1.379,0,2.5,1.122,2.5,2.5c0,0.722-0.309,1.398-0.839,1.871l0.821,2.997   c0.041,0.15,0.01,0.312-0.085,0.436C10.303,11.927,10.156,12,10,12z M6.655,11h2.689L8.607,8.312   C8.55,8.103,8.635,7.88,8.816,7.761C9.244,7.481,9.5,7.009,9.5,6.5C9.5,5.673,8.827,5,8,5S6.5,5.673,6.5,6.5   c0,0.51,0.256,0.981,0.684,1.261C7.366,7.88,7.45,8.103,7.393,8.312L6.655,11z"/>
+    </g>
+  </g>
+  <text x="0" y="31" fill="#000000" font-size="5px" font-weight="bold" font-family="'Helvetica Neue', Helvetica, Arial-Unicode, Arial, Sans-serif" style="white-space: pre;">Created by icon 54</text>
+  <text x="0" y="36" fill="#000000" font-size="5px" font-weight="bold" font-family="'Helvetica Neue', Helvetica, Arial-Unicode, Arial, Sans-serif" style="white-space: pre;">from the Noun Project</text>
+</svg>

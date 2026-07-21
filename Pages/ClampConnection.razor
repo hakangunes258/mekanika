@@ -1,0 +1,679 @@
+@page "/clamp-connection"
+@inject MaterialService MaterialService
+@inject AnalyticsService Analytics
+@inject SeoService Seo
+@inject ModuleMetadataService Metadata
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Clamp Connection Calculator - Mekanika</PageTitle>
+
+<div class="page-header">
+    <h1><ModuleIcon Type="clamp-connection" Size="large" Style="transparent" CustomStyle="margin-right: 12px;" /> Clamp Connection Calculator</h1>
+    <p>Shaft clamping hub design for frictional torque and axial load transmission</p>
+</div>
+
+@if (!showResults)
+{
+    <!-- INPUT FORM -->
+    <div class="form-grid">
+        <!-- Shaft & Clamp Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="geometry" Size="medium" Style="solid" />
+                <h2>Shaft & Clamp Dimensions</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Shaft Diameter (d)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="engine.ShaftDiameter" @bind:after="OnShaftDiameterChanged" placeholder="e.g. 30" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+
+            @if (recommendedClamp != null)
+            {
+                <div class="alert alert-success" style="margin: 12px 0;">
+                    <ModuleIcon Type="info" Size="small" Style="default" />
+                    <div>
+                        <strong>Recommended:</strong> Da=@recommendedClamp.OuterDia mm, L=@recommendedClamp.Length mm, M@recommendedClamp.BoltSize
+                        <button class="btn btn-primary" style="margin-left: 12px; padding: 4px 12px; font-size: 12px;" @onclick="ApplyRecommendedClamp">Apply</button>
+                    </div>
+                </div>
+            }
+
+            <div class="form-group">
+                <label>Clamp Outer Diameter (Da)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="engine.ClampOuterDiameter" placeholder="e.g. 50" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Clamp Length (L)</label>
+                <div class="input-group">
+                    <input type="number" step="1" @bind="engine.ClampLength" placeholder="e.g. 30" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Slit Width (b)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="engine.SlitWidth" placeholder="e.g. 5" />
+                    <span class="unit">mm</span>
+                </div>
+                <small style="color: #6c757d; font-size: 12px;">Gap width of the clamping slit</small>
+            </div>
+        </div>
+
+        <!-- Bolt Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="bolt" Size="medium" Style="solid" />
+                <h2>Clamping Bolt</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Bolt Diameter (M)</label>
+                <select @bind="selectedBoltSize" @bind:after="OnBoltSizeChanged">
+                    <option value="4">M4</option>
+                    <option value="5">M5</option>
+                    <option value="6">M6</option>
+                    <option value="8">M8</option>
+                    <option value="10">M10</option>
+                    <option value="12">M12</option>
+                    <option value="14">M14</option>
+                    <option value="16">M16</option>
+                    <option value="18">M18</option>
+                    <option value="20">M20</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Number of Bolts</label>
+                <select @bind="engine.NumberOfBolts">
+                    <option value="1">1 Bolt</option>
+                    <option value="2">2 Bolts</option>
+                    <option value="3">3 Bolts</option>
+                    <option value="4">4 Bolts</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Tightening Torque (MA)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="engine.BoltTighteningTorque" placeholder="e.g. 15" />
+                    <span class="unit">Nm</span>
+                </div>
+                @if (recommendedTorque > 0)
+                {
+                    <small style="color: #6c757d; font-size: 12px;">Recommended for 8.8: @recommendedTorque.ToString("F1") Nm</small>
+                }
+            </div>
+
+            <div class="form-group">
+                <label>Bolt Class</label>
+                <select @bind="selectedBoltClass" @bind:after="OnBoltClassChanged">
+                    <option value="8.8">8.8 (Rp0.2 = 640 MPa)</option>
+                    <option value="10.9">10.9 (Rp0.2 = 900 MPa)</option>
+                    <option value="12.9">12.9 (Rp0.2 = 1080 MPa)</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Loading Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="force" Size="medium" Style="solid" />
+                <h2>Loading</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Applied Torque (T)</label>
+                <div class="input-group">
+                    <input type="number" step="1" @bind="engine.AppliedTorque" placeholder="e.g. 100" />
+                    <span class="unit">Nm</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Applied Axial Force (Fa)</label>
+                <div class="input-group">
+                    <input type="number" step="10" @bind="engine.AppliedAxialForce" placeholder="e.g. 500" />
+                    <span class="unit">N</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Load Factor (φ)</label>
+                <select @bind="selectedLoadFactor" @bind:after="OnLoadFactorChanged">
+                    <option value="1.0">1.0 - Static</option>
+                    <option value="1.25">1.25 - Moderate shock</option>
+                    <option value="1.5">1.5 - Heavy shock</option>
+                    <option value="1.75">1.75 - Alternating</option>
+                    <option value="2.0">2.0 - Impact</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Friction & Materials Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="material" Size="medium" Style="solid" />
+                <h2>Friction & Materials</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Friction Coefficient (Shaft-Hub)</label>
+                <select @bind="selectedFriction" @bind:after="OnFrictionChanged">
+                    <option value="0.10">0.10 - Lubricated steel</option>
+                    <option value="0.12">0.12 - Oiled steel</option>
+                    <option value="0.15">0.15 - Dry steel (Recommended)</option>
+                    <option value="0.18">0.18 - Roughened surfaces</option>
+                    <option value="0.20">0.20 - Very rough/serrated</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Shaft Material</label>
+                <select @bind="selectedShaftMaterialIndex">
+                    @for (int i = 0; i < materials.Count; i++)
+                    {
+                        <option value="@i">@materials[i].Name</option>
+                    }
+                </select>
+                @if (materials.Any())
+                {
+                    <div class="material-info">
+                        Re = @materials[selectedShaftMaterialIndex].YieldStrength MPa | Rm = @materials[selectedShaftMaterialIndex].TensileStrength MPa
+                    </div>
+                }
+            </div>
+
+            <div class="form-group">
+                <label>Hub/Clamp Material</label>
+                <select @bind="selectedHubMaterialIndex">
+                    @for (int i = 0; i < materials.Count; i++)
+                    {
+                        <option value="@i">@materials[i].Name</option>
+                    }
+                </select>
+                @if (materials.Any())
+                {
+                    <div class="material-info">
+                        Re = @materials[selectedHubMaterialIndex].YieldStrength MPa | Rm = @materials[selectedHubMaterialIndex].TensileStrength MPa
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="button-group">
+        <button class="btn btn-success btn-lg @(isCalculating ? "btn-calculating" : "")" @onclick="Calculate" disabled="@isCalculating">
+            @if (isCalculating)
+            {
+                <span class="spinner"></span>
+                <span>Calculating...</span>
+            }
+            else
+            {
+                <ModuleIcon Type="calculate" Size="button" Style="default" />
+                <span>Calculate</span>
+            }
+        </button>
+        <button class="btn btn-secondary" @onclick="ClearForm" disabled="@isCalculating">
+            <ModuleIcon Type="clear" Size="button" Style="default" /> Clear
+        </button>
+    </div>
+}
+else
+{
+    <!-- RESULTS -->
+    <div class="button-group" style="margin-bottom: 24px;">
+        <button class="btn btn-primary" @onclick="BackToInput">
+            <ModuleIcon Type="back" Size="button" Style="default" /> Back to Input
+        </button>
+        <button class="btn btn-secondary" @onclick="ClearForm">
+            <ModuleIcon Type="new" Size="button" Style="default" /> New Calculation
+        </button>
+        <button class="btn btn-info @(isSavingPdf ? "btn-saving" : "")" @onclick="SaveAsPdf" disabled="@isSavingPdf">
+            @if (isSavingPdf)
+            {
+                <span class="spinner"></span>
+                <span>Generating PDF...</span>
+            }
+            else
+            {
+                <ModuleIcon Type="pdf" Size="button" Style="default" />
+                <span>Save as PDF</span>
+            }
+        </button>
+    </div>
+
+    <!-- Detailed Results Container -->
+    <div id="results-content">
+        <!-- Geometric Properties -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="geometry" Size="medium" Style="solid" /><h2>Geometric & Physical Properties</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Shaft Diameter</td><td>d</td><td>@engine.ShaftDiameter.ToString("F1")</td><td>mm</td></tr>
+                    <tr><td>Clamp Outer Diameter</td><td>D<sub>a</sub></td><td>@engine.ClampOuterDiameter.ToString("F1")</td><td>mm</td></tr>
+                    <tr><td>Clamp Length</td><td>L</td><td>@engine.ClampLength.ToString("F1")</td><td>mm</td></tr>
+                    <tr><td>Slit Width</td><td>b</td><td>@engine.SlitWidth.ToString("F1")</td><td>mm</td></tr>
+                    <tr class="highlight"><td>Diameter Ratio</td><td>Q<sub>a</sub></td><td>@engine.DiameterRatio.ToString("F3")</td><td>-</td></tr>
+                    <tr><td>Effective Contact Angle</td><td>β</td><td>@engine.ContactAngle.ToString("F1")</td><td>°</td></tr>
+                    <tr><td>Effective Contact Length</td><td>L<sub>eff</sub></td><td>@engine.EffectiveContactLength.ToString("F1")</td><td>mm</td></tr>
+                    <tr class="highlight"><td>Contact Area</td><td>A</td><td>@engine.ContactArea.ToString("F0")</td><td>mm²</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Bolt Properties -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="bolt" Size="medium" Style="solid" /><h2>Bolt Properties</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Bolt Diameter</td><td>M</td><td>@engine.BoltDiameter.ToString("F0")</td><td>mm</td></tr>
+                    <tr><td>Number of Bolts</td><td>n</td><td>@engine.NumberOfBolts</td><td>-</td></tr>
+                    <tr><td>Tightening Torque</td><td>M<sub>A</sub></td><td>@engine.BoltTighteningTorque.ToString("F1")</td><td>Nm</td></tr>
+                    <tr><td>Stress Area</td><td>A<sub>s</sub></td><td>@engine.BoltStressArea.ToString("F1")</td><td>mm²</td></tr>
+                    <tr class="highlight"><td>Preload Force (per bolt)</td><td>F<sub>v</sub></td><td>@engine.BoltPreloadForce.ToString("F0")</td><td>N</td></tr>
+                    <tr><td>Bolt Stress</td><td>σ<sub>b</sub></td><td>@engine.BoltStress.ToString("F0")</td><td>MPa</td></tr>
+                    <tr class="@(engine.BoltUtilization > 90 ? "warning" : engine.BoltUtilization > 100 ? "danger" : "")"><td>Bolt Utilization</td><td>-</td><td>@engine.BoltUtilization.ToString("F1")</td><td>%</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Contact Pressure -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="force" Size="medium" Style="solid" /><h2>Contact Pressure</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr class="highlight"><td>Normal Force (Clamping)</td><td>F<sub>n</sub></td><td>@engine.NormalForce.ToString("F0")</td><td>N</td></tr>
+                    <tr><td>Average Contact Pressure</td><td>p</td><td>@engine.ContactPressure.ToString("F1")</td><td>MPa</td></tr>
+                    <tr class="highlight"><td>Maximum Contact Pressure</td><td>p<sub>max</sub></td><td>@engine.MaxContactPressure.ToString("F1")</td><td>MPa</td></tr>
+                    <tr><td>Allowable Contact Pressure</td><td>p<sub>zul</sub></td><td>@engine.AllowableContactPressure.ToString("F0")</td><td>MPa</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Load Capacities -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="force" Size="medium" Style="solid" /><h2>Load Capacities</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Friction Coefficient</td><td>μ</td><td>@engine.FrictionCoefficientInterface.ToString("F2")</td><td>-</td></tr>
+                    <tr><td>Load Factor</td><td>φ</td><td>@engine.LoadFactor.ToString("F2")</td><td>-</td></tr>
+                    <tr class="highlight"><td>Torque Capacity</td><td>T<sub>max</sub></td><td>@engine.TorqueCapacity.ToString("F1")</td><td>Nm</td></tr>
+                    <tr><td>Applied Torque (with factor)</td><td>T×φ</td><td>@((engine.AppliedTorque * engine.LoadFactor).ToString("F1"))</td><td>Nm</td></tr>
+                    <tr class="highlight"><td>Axial Force Capacity</td><td>F<sub>a,max</sub></td><td>@engine.AxialForceCapacity.ToString("F0")</td><td>N</td></tr>
+                    <tr><td>Applied Axial Force (with factor)</td><td>F<sub>a</sub>×φ</td><td>@((engine.AppliedAxialForce * engine.LoadFactor).ToString("F0"))</td><td>N</td></tr>
+                    <tr><td>Required Normal Force</td><td>F<sub>n,req</sub></td><td>@engine.RequiredNormalForce.ToString("F0")</td><td>N</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Stresses -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="info" Size="medium" Style="solid" /><h2>Hub Stresses</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Tangential Stress</td><td>σ<sub>t,hub</sub></td><td>@engine.HubTangentialStress.ToString("F1")</td><td>MPa</td></tr>
+                    <tr><td>Radial Stress</td><td>σ<sub>r,hub</sub></td><td>@engine.HubRadialStress.ToString("F1")</td><td>MPa</td></tr>
+                    <tr class="highlight"><td>Von Mises Stress</td><td>σ<sub>v,hub</sub></td><td>@engine.HubVonMisesStress.ToString("F1")</td><td>MPa</td></tr>
+                    <tr><td>Hub Yield Strength</td><td>R<sub>e,hub</sub></td><td>@engine.HubMaterial.YieldStrength.ToString("F0")</td><td>MPa</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Safety Factors -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="safety" Size="medium" Style="solid" /><h2>Safety Factors</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Status</th></tr></thead>
+                <tbody>
+                    <tr class="@GetSafetyRowClass(engine.SafetyFactorSliding)"><td>Against Sliding (Torque + Axial)</td><td>SF<sub>slip</sub></td><td>@engine.SafetyFactorSliding.ToString("F2")</td><td>@GetSafetyStatus(engine.SafetyFactorSliding)</td></tr>
+                    <tr class="@GetSafetyRowClass(engine.SafetyFactorBolt)"><td>Bolt Yield</td><td>SF<sub>bolt</sub></td><td>@engine.SafetyFactorBolt.ToString("F2")</td><td>@GetSafetyStatus(engine.SafetyFactorBolt)</td></tr>
+                    <tr class="@GetSafetyRowClass(engine.SafetyFactorHubStress)"><td>Hub Yield</td><td>SF<sub>hub</sub></td><td>@engine.SafetyFactorHubStress.ToString("F2")</td><td>@GetSafetyStatus(engine.SafetyFactorHubStress)</td></tr>
+                    <tr class="@GetSafetyRowClass(engine.SafetyFactorPressure)"><td>Contact Pressure</td><td>SF<sub>p</sub></td><td>@engine.SafetyFactorPressure.ToString("F2")</td><td>@GetSafetyStatus(engine.SafetyFactorPressure)</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Design Recommendation -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="dimensions" Size="medium" Style="solid" /><h2>Design Recommendation</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr class="highlight"><td>Minimum Safety Factor</td><td>SF<sub>min</sub></td><td>@engine.SafetyFactorMin.ToString("F2")</td><td>-</td></tr>
+                    <tr><td>Torque Margin</td><td>ΔT</td><td>@((engine.TorqueCapacity - engine.AppliedTorque * engine.LoadFactor).ToString("F1"))</td><td>Nm</td></tr>
+                    <tr><td>Normal Force Margin</td><td>ΔF<sub>n</sub></td><td>@((engine.NormalForce - engine.RequiredNormalForce).ToString("F0"))</td><td>N</td></tr>
+                </tbody>
+            </table>
+
+            @if (engine.SafetyFactorMin < 1.0)
+            {
+                <div class="alert alert-danger" style="margin-top: 16px;">⚠️ <strong>Warning:</strong> Design is unsafe! Increase clamping force (higher torque or more bolts) or reduce loading.</div>
+            }
+            else if (engine.SafetyFactorMin < 1.5)
+            {
+                <div class="alert alert-warning" style="margin-top: 16px;">⚡ <strong>Note:</strong> Safety factor is marginal. Consider increasing tightening torque or using additional bolts.</div>
+            }
+            else
+            {
+                <div class="alert alert-success" style="margin-top: 16px;">✓ <strong>OK:</strong> Design meets safety requirements.</div>
+            }
+
+            @if (engine.BoltUtilization > 90)
+            {
+                <div class="alert alert-warning" style="margin-top: 8px;">⚠️ <strong>Note:</strong> Bolt utilization is high (@engine.BoltUtilization.ToString("F0")%). Consider using higher strength class bolts.</div>
+            }
+        </div>
+    </div>
+}
+
+<style>
+    .material-info {
+        font-size: 12px;
+        color: #6c757d;
+        margin-top: 4px;
+        padding-left: 4px;
+    }
+
+    .results-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .results-table th { background: #f8f9fa; padding: 12px 16px; text-align: left; font-weight: 600; color: #2c3e50; border-bottom: 2px solid #dee2e6; }
+    .results-table td { padding: 10px 16px; border-bottom: 1px solid #eee; }
+    .results-table tr:hover { background: #f8f9fa; }
+    .results-table tr.highlight { background: #e3f2fd; font-weight: 500; }
+    .results-table tr.warning { background: #fff8e1; }
+    .results-table tr.danger { background: #ffebee; }
+    .results-table tr.success { background: #e8f5e9; }
+
+    .results-table th:nth-child(1) { width: 45%; }
+    .results-table th:nth-child(2) { width: 15%; text-align: center; }
+    .results-table th:nth-child(3) { width: 25%; text-align: right; }
+    .results-table th:nth-child(4) { width: 15%; text-align: center; }
+
+    .results-table td:nth-child(2) {
+        text-align: center;
+        font-family: 'Times New Roman', serif;
+        font-style: italic;
+        color: #666;
+    }
+
+    .results-table td:nth-child(3) {
+        text-align: right;
+        font-weight: 500;
+        font-family: 'Consolas', monospace;
+    }
+
+    .results-table td:nth-child(4) {
+        text-align: center;
+        color: #666;
+    }
+
+    .btn-info {
+        background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+        color: white;
+    }
+
+    .btn-info:hover {
+        background: linear-gradient(135deg, #138496 0%, #117a8b 100%);
+    }
+</style>
+
+@code {
+    private ClampConnectionEngine engine = new();
+    private List<Material> materials = new();
+    private ModuleInfo moduleInfo = new();
+    private bool showResults = false;
+    private bool isCalculating = false;
+    private bool isSavingPdf = false;
+    private ClampDimension? recommendedClamp = null;
+
+    private string selectedLoadFactor = "1.0";
+    private string selectedFriction = "0.15";
+    private string selectedBoltSize = "8";
+    private string selectedBoltClass = "8.8";
+    private double recommendedTorque = 0;
+
+    private int selectedShaftMaterialIndex = 2;
+    private int selectedHubMaterialIndex = 2;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load materials
+        materials = MaterialService.GetMaterials();
+        engine.LoadFactor = 1.0;
+        engine.NumberOfBolts = 1;
+        engine.FrictionCoefficientInterface = 0.15;
+        engine.BoltDiameter = 8;
+        engine.BoltYieldStrength = 640; // 8.8 class
+        UpdateRecommendedTorque();
+
+        // Load module metadata
+        moduleInfo = Metadata.GetModule("clamp-connection");
+
+        // Set SEO metadata
+        await SetSeoMetadata();
+
+        // Set structured data
+        await SetStructuredData();
+
+        // Track page view
+        await Analytics.TrackPageView("/clamp-connection", moduleInfo.Name);
+    }
+
+    private async Task SetSeoMetadata()
+    {
+        var baseUrl = "https://mekanika.org";
+        var seo = new SeoMetadata
+        {
+            Title = $"{moduleInfo.Name} - Free Online Tool | Mekanika",
+            Description = moduleInfo.Description,
+            Keywords = moduleInfo.Keywords,
+            CanonicalUrl = $"{baseUrl}{moduleInfo.Route}",
+            OgTitle = moduleInfo.Name,
+            OgDescription = moduleInfo.Description,
+            OgImage = $"{baseUrl}/logo.png",
+            OgUrl = $"{baseUrl}{moduleInfo.Route}",
+            TwitterCard = "summary",
+            TwitterTitle = moduleInfo.Name,
+            TwitterDescription = moduleInfo.Description,
+            TwitterImage = $"{baseUrl}/logo.png"
+        };
+
+        await Seo.SetMetaTags(seo);
+    }
+
+    private async Task SetStructuredData()
+    {
+        try
+        {
+            var structuredData = new
+            {
+                context = "https://schema.org",
+                type = "SoftwareApplication",
+                name = moduleInfo.Name,
+                description = moduleInfo.Description,
+                applicationCategory = "EngineeringApplication",
+                operatingSystem = "Web Browser",
+                browserRequirements = "Requires JavaScript, WebAssembly support",
+                offers = new
+                {
+                    type = "Offer",
+                    price = "0",
+                    priceCurrency = "USD"
+                },
+                featureList = new[]
+                {
+                    "Standards-based calculations",
+                    "PDF export",
+                    "No registration required",
+                    "Privacy-focused (client-side)"
+                },
+                screenshot = $"https://mekanika.org/screenshots/{moduleInfo.Key}.png"
+            };
+
+            await JSRuntime.InvokeVoidAsync("setStructuredData", structuredData);
+        }
+        catch
+        {
+            // Fail silently - structured data is not critical
+        }
+    }
+
+    private void OnShaftDiameterChanged()
+    {
+        recommendedClamp = ClampConnectionEngine.GetStandardClamp(engine.ShaftDiameter);
+    }
+
+    private void ApplyRecommendedClamp()
+    {
+        if (recommendedClamp != null)
+        {
+            engine.ClampOuterDiameter = recommendedClamp.OuterDia;
+            engine.ClampLength = recommendedClamp.Length;
+            engine.SlitWidth = recommendedClamp.SlitWidth;
+            selectedBoltSize = recommendedClamp.BoltSize.ToString();
+            engine.BoltDiameter = recommendedClamp.BoltSize;
+            UpdateRecommendedTorque();
+        }
+    }
+
+    private void OnLoadFactorChanged()
+    {
+        if (double.TryParse(selectedLoadFactor, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double factor))
+            engine.LoadFactor = factor;
+    }
+
+    private void OnFrictionChanged()
+    {
+        if (double.TryParse(selectedFriction, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double mu))
+            engine.FrictionCoefficientInterface = mu;
+    }
+
+    private void OnBoltSizeChanged()
+    {
+        if (double.TryParse(selectedBoltSize, out double size))
+        {
+            engine.BoltDiameter = size;
+            UpdateRecommendedTorque();
+        }
+    }
+
+    private void OnBoltClassChanged()
+    {
+        engine.BoltYieldStrength = selectedBoltClass switch
+        {
+            "8.8" => 640,
+            "10.9" => 900,
+            "12.9" => 1080,
+            _ => 640
+        };
+        UpdateRecommendedTorque();
+    }
+
+    private void UpdateRecommendedTorque()
+    {
+        // Recommended tightening torque at 70% of yield
+        if (ClampConnectionEngine.BoltData.TryGetValue(engine.BoltDiameter, out var boltInfo))
+        {
+            double stressArea = boltInfo.StressArea;
+            double targetPreload = 0.7 * engine.BoltYieldStrength * stressArea; // N
+            // MA ≈ 0.2 × d × F for standard steel-steel contact
+            recommendedTorque = 0.2 * engine.BoltDiameter * targetPreload / 1000; // Nm
+        }
+    }
+
+    private string GetSafetyRowClass(double sf) => sf < 1.0 ? "danger" : sf < 1.5 ? "warning" : "success";
+    private string GetSafetyStatus(double sf) => sf < 1.0 ? "❌ FAIL" : sf < 1.5 ? "⚠️ Marginal" : "✓ OK";
+
+    private async Task Calculate()
+    {
+        isCalculating = true;
+        StateHasChanged();
+        await Task.Delay(350);
+        try
+        {
+            // Input validation
+            if (engine.ShaftDiameter <= 0 || engine.ClampOuterDiameter <= 0 || engine.ClampLength <= 0 || engine.BoltTighteningTorque <= 0)
+            {
+                await Analytics.TrackCalculationError("clamp-connection", "validation_error", "Invalid input values");
+                return;
+            }
+
+            // Perform calculation
+            engine.ShaftMaterial = materials[selectedShaftMaterialIndex];
+            engine.HubMaterial = materials[selectedHubMaterialIndex];
+            engine.Calculate();
+            showResults = true;
+
+            // Track successful calculation
+            await Analytics.TrackCalculationCompleted("clamp-connection", new Dictionary<string, object>
+            {
+                { "shaft_diameter", engine.ShaftDiameter },
+                { "clamp_outer_diameter", engine.ClampOuterDiameter },
+                { "number_of_bolts", engine.NumberOfBolts },
+                { "safety_factor_min", engine.SafetyFactorMin }
+            });
+        }
+        catch (Exception ex)
+        {
+            await Analytics.TrackCalculationError("clamp-connection", "calculation_failed", ex.Message);
+            throw;
+        }
+        finally
+        {
+            isCalculating = false;
+        }
+    }
+
+    private void BackToInput() => showResults = false;
+
+    private void ClearForm()
+    {
+        engine = new ClampConnectionEngine
+        {
+            LoadFactor = 1.0,
+            NumberOfBolts = 1,
+            FrictionCoefficientInterface = 0.15,
+            BoltDiameter = 8,
+            BoltYieldStrength = 640
+        };
+        recommendedClamp = null;
+        selectedLoadFactor = "1.0";
+        selectedFriction = "0.15";
+        selectedBoltSize = "8";
+        selectedBoltClass = "8.8";
+        showResults = false;
+        UpdateRecommendedTorque();
+    }
+
+    private async Task SaveAsPdf()
+    {
+        isSavingPdf = true;
+        StateHasChanged();
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("generatePdf", "results-content", $"ClampConnection-Report-{DateTime.Now:yyyyMMdd_HHmmss}.pdf");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error", $"PDF generation error: {ex.Message}");
+        }
+        finally
+        {
+            isSavingPdf = false;
+        }
+    }
+}

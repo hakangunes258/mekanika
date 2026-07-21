@@ -1,0 +1,12 @@
+# Mekanika - Engineering Calculations
+# https://mekanika.org
+
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://mekanika.org/sitemap.xml
+
+# Disallow framework files (not useful for indexing)
+Disallow: /_framework/
+Disallow: /_content/

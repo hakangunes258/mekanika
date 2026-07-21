@@ -1,0 +1,637 @@
+@page "/roller-bearing"
+@inject IJSRuntime JSRuntime
+@inject AnalyticsService Analytics
+@inject SeoService Seo
+@inject ModuleMetadataService Metadata
+
+<PageTitle>Roller Bearing Life Calculator - Mekanika</PageTitle>
+
+<div class="page-header">
+    <h1>
+        <ModuleIcon Type="roller-bearing" Size="large" Style="transparent" CustomStyle="margin-right: 12px;" />
+        Roller Bearing Life Calculator
+    </h1>
+    <p>ISO 281 bearing life calculation for cylindrical and tapered roller bearings</p>
+</div>
+
+@if (!showResults)
+{
+    <!-- INPUT FORM -->
+    <div class="form-grid">
+        <!-- Bearing Selection -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="roller-bearing" Size="medium" Style="solid" />
+                <h2>Bearing Selection</h2>
+            </div>
+
+            <!-- Bearing Type Selector -->
+            <div class="form-group">
+                <label>Bearing Type</label>
+                <select @bind="selectedBearingType" @bind:after="OnBearingTypeChanged">
+                    <option value="Cylindrical">Cylindrical Roller Bearing (NU/N series)</option>
+                    <option value="Tapered">Tapered Roller Bearing (3xxxx series)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Select Bearing</label>
+                <select @bind="selectedBearingIndex" @bind:after="OnBearingSelected">
+                    <option value="-1">-- Select bearing --</option>
+                    @if (selectedBearingType == "Cylindrical")
+                    {
+                        @for (int i = 0; i < BearingService.CylindricalRollerBearings.Count; i++)
+                        {
+                            var b = BearingService.CylindricalRollerBearings[i];
+                            <option value="@i">@b.Designation (@(b.Bore)×@(b.Outer)×@(b.Width)) C=@(b.C)kN</option>
+                        }
+                    }
+                    else
+                    {
+                        @for (int i = 0; i < BearingService.TaperedRollerBearings.Count; i++)
+                        {
+                            var b = BearingService.TaperedRollerBearings[i];
+                            <option value="@i">@b.Designation (@(b.Bore)×@(b.Outer)×@(b.Width)) C=@(b.C)kN</option>
+                        }
+                    }
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Dynamic Load Rating (C)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="dynamicRating" />
+                    <span class="unit">kN</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Static Load Rating (C₀)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="staticRating" />
+                    <span class="unit">kN</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="force" Size="medium" Style="solid" />
+                <h2>Loading</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Radial Load (Fr)</label>
+                <div class="input-group">
+                    <input type="number" step="1" @bind="radialLoad" placeholder="e.g. 5000" />
+                    <span class="unit">N</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Axial Load (Fa)</label>
+                @if (selectedBearingType == "Cylindrical")
+                {
+                    <div class="input-group">
+                        <input type="number" value="0" disabled style="background: #f8f9fa;" />
+                        <span class="unit">N</span>
+                    </div>
+                    <small style="color: #6c757d;">Cylindrical roller bearings support radial load only</small>
+                }
+                else
+                {
+                    <div class="input-group">
+                        <input type="number" step="1" @bind="axialLoad" placeholder="e.g. 2000" />
+                        <span class="unit">N</span>
+                    </div>
+                    <small style="color: #6c757d; font-size: 12px;">Tapered bearings support both radial and axial loads</small>
+                }
+            </div>
+
+            <div class="form-group">
+                <label>Rotational Speed (n)</label>
+                <div class="input-group">
+                    <input type="number" step="1" @bind="speed" placeholder="e.g. 1500" />
+                    <span class="unit">rpm</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Factors -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="info" Size="medium" Style="solid" />
+                <h2>Application Factors</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Machine Factor (fw)</label>
+                <select @bind="selectedMachineFactor">
+                    @foreach (var mf in BearingService.MachineFactors)
+                    {
+                        <option value="@mf.Value">@mf.Factor - @mf.Description</option>
+                    }
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Reliability</label>
+                <select @bind="selectedReliability">
+                    @foreach (var rf in BearingService.ReliabilityFactors)
+                    {
+                        <option value="@rf.Key">@(rf.Key)% (a₁ = @(rf.Value))</option>
+                    }
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="button-group">
+        <button class="btn btn-success btn-lg @(isCalculating ? "btn-calculating" : "")" @onclick="Calculate" disabled="@isCalculating">
+            @if (isCalculating)
+            {
+                <span class="spinner"></span>
+                <span>Calculating...</span>
+            }
+            else
+            {
+                <ModuleIcon Type="calculate" Size="button" Style="default" />
+                <span>Calculate</span>
+            }
+        </button>
+        <button class="btn btn-secondary" @onclick="ClearForm" disabled="@isCalculating">
+            <ModuleIcon Type="clear" Size="button" Style="default" /> Clear
+        </button>
+    </div>
+}
+else
+{
+    <!-- RESULTS -->
+    <div class="button-group" style="margin-bottom: 24px;">
+        <button class="btn btn-primary" @onclick="BackToInput">
+            <ModuleIcon Type="back" Size="button" Style="default" /> Back to Input
+        </button>
+        <button class="btn btn-secondary" @onclick="ClearForm">
+            <ModuleIcon Type="new" Size="button" Style="default" /> New Calculation
+        </button>
+        <button class="btn btn-info @(isSavingPdf ? "btn-saving" : "")" @onclick="SaveAsPdf" disabled="@isSavingPdf">
+            @if (isSavingPdf)
+            {
+                <span class="spinner"></span>
+                <span>Generating PDF...</span>
+            }
+            else
+            {
+                <ModuleIcon Type="pdf" Size="button" Style="default" />
+                <span>Save as PDF</span>
+            }
+        </button>
+    </div>
+
+    <div id="results-content">
+
+        <!-- Bearing Data -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="roller-bearing" Size="medium" Style="solid" />
+                <h2>Bearing Data</h2>
+            </div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr class="highlight"><td>Bearing Designation</td><td>-</td><td>@selectedBearingName</td><td>-</td></tr>
+                    <tr><td>Bearing Type</td><td>-</td><td>@(selectedBearingType == "Tapered" ? "Tapered Roller" : "Cylindrical Roller")</td><td>-</td></tr>
+                    <tr><td>Bore Diameter</td><td>d</td><td>@bearingBore</td><td>mm</td></tr>
+                    <tr><td>Outer Diameter</td><td>D</td><td>@bearingOuter</td><td>mm</td></tr>
+                    <tr><td>Width</td><td>@(selectedBearingType == "Tapered" ? "T" : "B")</td><td>@bearingWidth</td><td>mm</td></tr>
+                    <tr class="highlight"><td>Dynamic Load Rating</td><td>C</td><td>@(dynamicRating.ToString("F1"))</td><td>kN</td></tr>
+                    <tr><td>Static Load Rating</td><td>C₀</td><td>@(staticRating.ToString("F1"))</td><td>kN</td></tr>
+                    @if (selectedBearingType == "Tapered" && selectedTaperedBearing != null)
+                    {
+                        <tr><td>e Factor (Limit Value from catalog)</td><td>e</td><td>@(selectedTaperedBearing.e.ToString("F2"))</td><td>-</td></tr>
+                        <tr><td>Dynamic Axial Factor (from catalog)</td><td>Y₁</td><td>@(selectedTaperedBearing.Y.ToString("F2"))</td><td>-</td></tr>
+                        <tr><td>Static Axial Factor (from catalog)</td><td>Y₀</td><td>@(selectedTaperedBearing.Y0.ToString("F2"))</td><td>-</td></tr>
+                    }
+                    <tr class="@(speed > bearingLimitSpeed && bearingLimitSpeed > 0 ? "warning" : "")">
+                        <td>Limiting Speed</td><td>n<sub>limit</sub></td><td>@bearingLimitSpeed</td><td>rpm</td>
+                    </tr>
+                    <tr><td>Life Exponent (Roller Bearing)</td><td>p</td><td>3.33</td><td>10/3</td></tr>
+                </tbody>
+            </table>
+
+            @if (bearingLimitSpeed > 0 && speed > bearingLimitSpeed)
+            {
+                <div class="alert alert-warning" style="margin-top: 16px;">
+                    ⚠️ <strong>Speed Warning:</strong> Operating speed (@speed rpm) exceeds limiting speed (@bearingLimitSpeed rpm).
+                </div>
+            }
+        </div>
+
+        <!-- Load Factor Calculation -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="force" Size="medium" Style="solid" />
+                <h2>Load Factor Calculation</h2>
+            </div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Radial Load</td><td>F<sub>r</sub></td><td>@(radialLoad.ToString("F0"))</td><td>N</td></tr>
+                    @if (selectedBearingType == "Cylindrical")
+                    {
+                        <tr><td>Axial Load (Not Supported)</td><td>F<sub>a</sub></td><td>0</td><td>N</td></tr>
+                    }
+                    else
+                    {
+                        <tr><td>Axial Load</td><td>F<sub>a</sub></td><td>@(axialLoad.ToString("F0"))</td><td>N</td></tr>
+                        <tr><td>Fa / Fr Ratio</td><td>-</td><td>@(faFrRatio.ToString("F3"))</td><td>-</td></tr>
+                        <tr><td>Load Condition</td><td>-</td><td>Fa/Fr @(faFrRatio <= eFactor ? "≤" : ">") e (@eFactor.ToString("F2"))</td><td>-</td></tr>
+                        <tr class="highlight"><td>Radial Factor</td><td>X</td><td>@(xFactor.ToString("F2"))</td><td>-</td></tr>
+                        <tr class="highlight"><td>Axial Factor (used in P calculation)</td><td>Y₁</td><td>@(yFactorUsed.ToString("F2"))</td><td>-</td></tr>
+                    }
+                    <tr><td>Machine Factor</td><td>f<sub>w</sub></td><td>@selectedMachineFactor</td><td>-</td></tr>
+                    <tr><td>Rotational Speed</td><td>n</td><td>@(speed.ToString("F0"))</td><td>rpm</td></tr>
+                    <tr class="highlight">
+                        <td>Equivalent Dynamic Load @(selectedBearingType == "Tapered" ? "(P = fw × (XFr + Y₁Fa))" : "(P = fw × Fr)")</td>
+                        <td>P</td><td>@(equivalentLoad.ToString("F0"))</td><td>N</td>
+                    </tr>
+                    <tr><td>P (in kN)</td><td>P</td><td>@((equivalentLoad / 1000.0).ToString("F2"))</td><td>kN</td></tr>
+                    <tr><td>Load Ratio</td><td>C / P</td><td>@((dynamicRating / (equivalentLoad / 1000.0)).ToString("F2"))</td><td>-</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Life Calculation -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="life-time" Size="medium" Style="solid" />
+                <h2>Bearing Life Calculation</h2>
+            </div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Basic Rating Life (Revolutions)</td><td>L<sub>10</sub></td><td>@(basicLifeRevolutions.ToString("F2"))</td><td>×10⁶ rev</td></tr>
+                    <tr class="@(basicLifeHours < 3000 ? "warning" : "highlight")">
+                        <td>Basic Rating Life (Hours)</td><td>L<sub>10h</sub></td><td>@FormatLife(basicLifeHours)</td><td>hours</td>
+                    </tr>
+                    <tr><td>Reliability Factor (@selectedReliability%)</td><td>a<sub>1</sub></td><td>@(reliabilityFactor.ToString("F2"))</td><td>-</td></tr>
+                    <tr class="highlight"><td>Modified Rating Life</td><td>L<sub>nah</sub></td><td>@FormatLife(modifiedLifeHours)</td><td>hours</td></tr>
+                </tbody>
+            </table>
+
+            @if (basicLifeHours < 3000)
+            {
+                <div class="alert alert-warning" style="margin-top: 16px;">
+                    ⚠️ <strong>Short Life:</strong> Consider using a bearing with higher load rating.
+                </div>
+            }
+            else if (basicLifeHours >= 20000)
+            {
+                <div class="alert alert-success" style="margin-top: 16px;">
+                    ✓ <strong>Good:</strong> Bearing life is adequate for most applications.
+                </div>
+            }
+        </div>
+
+        <!-- Static Safety -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="safety" Size="medium" Style="solid" />
+                <h2>Static Safety</h2>
+            </div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Status</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td>Static Equivalent Load @(selectedBearingType == "Tapered" ? "(P₀ = 0.5Fr + Y₀Fa)" : "(P₀ = Fr)")</td>
+                        <td>P₀</td>
+                        <td>@((staticEquivalentLoad / 1000.0).ToString("F2")) kN</td>
+                        <td>-</td>
+                    </tr>
+                    <tr class="@(staticSafety < 1.0 ? "danger" : staticSafety < 2.0 ? "warning" : "success")">
+                        <td>Static Safety Factor</td><td>S₀</td><td>@(staticSafety.ToString("F2"))</td>
+                        <td>@(staticSafety < 1.0 ? "❌ FAIL" : staticSafety < 2.0 ? "⚠️ Marginal" : "✓ OK")</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            @if (staticSafety < 1.0)
+            {
+                <div class="alert alert-danger" style="margin-top: 16px;">
+                    ❌ <strong>Danger:</strong> Static safety below 1.0 - risk of brinelling.
+                </div>
+            }
+            else if (staticSafety < 2.0)
+            {
+                <div class="alert alert-warning" style="margin-top: 16px;">
+                    ⚠️ <strong>Note:</strong> Static safety is marginal. Consider higher load rating for shock loads.
+                </div>
+            }
+        </div>
+
+    </div>
+
+    <RelatedCalculators CurrentModuleKey="roller-bearing" />
+}
+
+<style>
+    .results-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .results-table th { background: #f8f9fa; padding: 12px 16px; text-align: left; font-weight: 600; color: #2c3e50; border-bottom: 2px solid #dee2e6; }
+    .results-table td { padding: 10px 16px; border-bottom: 1px solid #eee; }
+    .results-table tr:hover { background: #f8f9fa; }
+    .results-table tr.highlight { background: #e3f2fd; font-weight: 500; }
+    .results-table tr.warning { background: #fff8e1; }
+    .results-table tr.danger { background: #ffebee; }
+    .results-table tr.success { background: #e8f5e9; }
+    .results-table th:nth-child(1) { width: 40%; }
+    .results-table th:nth-child(2) { width: 15%; text-align: center; }
+    .results-table th:nth-child(3) { width: 25%; text-align: right; }
+    .results-table th:nth-child(4) { width: 20%; text-align: center; }
+    .results-table td:nth-child(2) { text-align: center; font-family: 'Times New Roman', serif; font-style: italic; color: #666; }
+    .results-table td:nth-child(3) { text-align: right; font-weight: 500; font-family: 'Consolas', monospace; }
+    .results-table td:nth-child(4) { text-align: center; color: #666; }
+
+    .btn-info { background: linear-gradient(135deg, #17a2b8 0%, #138496 100%); color: white; }
+    .btn-info:hover { background: linear-gradient(135deg, #138496 0%, #117a8b 100%); }
+</style>
+
+@code {
+    // Bearing type selection
+    private string selectedBearingType = "Cylindrical";
+
+    // Input
+    private int selectedBearingIndex = -1;
+    private double dynamicRating = 0;
+    private double staticRating = 0;
+    private double radialLoad = 0;
+    private double axialLoad = 0;
+    private double speed = 0;
+    private string selectedMachineFactor = "1.0";
+    private int selectedReliability = 90;
+
+    // Tapered-specific catalog values
+    private double eFactor = 0;
+    private double yFactor = 0;
+
+    // Calculated
+    private double faFrRatio = 0;
+    private double xFactor = 1;
+    private double yFactorUsed = 0;
+    private double equivalentLoad = 0;
+    private double basicLifeRevolutions = 0;
+    private double basicLifeHours = 0;
+    private double modifiedLifeHours = 0;
+    private double reliabilityFactor = 1.0;
+    private double staticEquivalentLoad = 0;
+    private double staticSafety = 0;
+
+    private bool showResults = false;
+    private bool isCalculating = false;
+    private bool isSavingPdf = false;
+    private Bearing? selectedCylindricalBearing;    // Cylindrical roller bearing
+    private TaperedBearing? selectedTaperedBearing;  // Tapered roller bearing
+    private string selectedBearingName = "";
+    private ModuleInfo moduleInfo = new();
+
+    // Common display fields
+    private double bearingBore => selectedBearingType == "Cylindrical"
+        ? (selectedCylindricalBearing?.Bore ?? 0)
+        : (selectedTaperedBearing?.Bore ?? 0);
+    private double bearingOuter => selectedBearingType == "Cylindrical"
+        ? (selectedCylindricalBearing?.Outer ?? 0)
+        : (selectedTaperedBearing?.Outer ?? 0);
+    private double bearingWidth => selectedBearingType == "Cylindrical"
+        ? (selectedCylindricalBearing?.Width ?? 0)
+        : (selectedTaperedBearing?.Width ?? 0);
+    private int bearingLimitSpeed => selectedBearingType == "Cylindrical"
+        ? (selectedCylindricalBearing?.LimitSpeed ?? 0)
+        : (selectedTaperedBearing?.LimitSpeed ?? 0);
+
+    // Life exponent for roller bearings
+    private const double LifeExponent = 10.0 / 3.0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        moduleInfo = Metadata.GetModule("roller-bearing");
+        await SetSeoMetadata();
+        await SetStructuredData();
+        await Analytics.TrackPageView("/roller-bearing", moduleInfo.Name);
+    }
+
+    private void OnBearingTypeChanged()
+    {
+        selectedBearingIndex = -1;
+        selectedCylindricalBearing = null;
+        selectedTaperedBearing = null;
+        selectedBearingName = "";
+        dynamicRating = 0;
+        staticRating = 0;
+        eFactor = 0;
+        yFactor = 0;
+        axialLoad = 0;
+    }
+
+    private void OnBearingSelected()
+    {
+        if (selectedBearingIndex < 0) return;
+
+        if (selectedBearingType == "Cylindrical")
+        {
+            if (selectedBearingIndex >= BearingService.CylindricalRollerBearings.Count) return;
+            selectedCylindricalBearing = BearingService.CylindricalRollerBearings[selectedBearingIndex];
+            selectedTaperedBearing = null;
+            dynamicRating = selectedCylindricalBearing.C;
+            staticRating = selectedCylindricalBearing.C0;
+            selectedBearingName = selectedCylindricalBearing.Designation;
+        }
+        else
+        {
+            if (selectedBearingIndex >= BearingService.TaperedRollerBearings.Count) return;
+            selectedTaperedBearing = BearingService.TaperedRollerBearings[selectedBearingIndex];
+            selectedCylindricalBearing = null;
+            dynamicRating = selectedTaperedBearing.C;
+            staticRating = selectedTaperedBearing.C0;
+            eFactor = selectedTaperedBearing.e;
+            yFactor = selectedTaperedBearing.Y;
+            selectedBearingName = selectedTaperedBearing.Designation;
+        }
+    }
+
+    private async Task Calculate()
+    {
+        isCalculating = true;
+        StateHasChanged();
+        await Task.Delay(350);
+        try
+        {
+            if (dynamicRating <= 0 || staticRating <= 0 || radialLoad <= 0 || speed <= 0)
+            {
+                await Analytics.TrackCalculationError("roller-bearing", "validation_failed", "Invalid input parameters");
+                return;
+            }
+
+            // Tapered requires e and Y factors
+            if (selectedBearingType == "Tapered" && (eFactor <= 0 || yFactor <= 0))
+            {
+                await Analytics.TrackCalculationError("roller-bearing", "validation_failed", "Tapered bearing factors missing");
+                return;
+            }
+
+            double fw = double.Parse(selectedMachineFactor, System.Globalization.CultureInfo.InvariantCulture);
+            reliabilityFactor = BearingService.ReliabilityFactors.GetValueOrDefault(selectedReliability, 1.0);
+
+            if (selectedBearingType == "Cylindrical")
+            {
+                // Cylindrical: radial load only
+                equivalentLoad = fw * radialLoad;
+                staticEquivalentLoad = radialLoad;
+                faFrRatio = 0;
+                xFactor = 1;
+                yFactorUsed = 0;
+            }
+            else
+            {
+                // Tapered: combined radial and axial loads
+                faFrRatio = radialLoad > 0 ? axialLoad / radialLoad : 0;
+
+                if (faFrRatio <= eFactor)
+                {
+                    xFactor = 1.0;
+                    yFactorUsed = 0;
+                }
+                else
+                {
+                    xFactor = 0.4;
+                    yFactorUsed = yFactor;
+                }
+
+                equivalentLoad = fw * (xFactor * radialLoad + yFactorUsed * axialLoad);
+                if (equivalentLoad < fw * radialLoad)
+                    equivalentLoad = fw * radialLoad;
+
+                // Static: P0 = 0.5*Fr + Y0*Fa
+                double y0 = selectedTaperedBearing?.Y0 ?? 0;
+                staticEquivalentLoad = 0.5 * radialLoad + y0 * axialLoad;
+                if (staticEquivalentLoad < radialLoad)
+                    staticEquivalentLoad = radialLoad;
+            }
+
+            // Convert to kN
+            double P_kN = equivalentLoad / 1000.0;
+
+            // Basic life (L10) with p = 10/3 for roller bearings
+            double cpRatio = dynamicRating / P_kN;
+            basicLifeRevolutions = Math.Pow(cpRatio, LifeExponent);
+
+            // Convert to hours
+            basicLifeHours = (basicLifeRevolutions * 1_000_000) / (60 * speed);
+            modifiedLifeHours = reliabilityFactor * basicLifeHours;
+
+            // Static safety
+            double P0_kN = staticEquivalentLoad / 1000.0;
+            staticSafety = staticRating / P0_kN;
+
+            showResults = true;
+
+            await Analytics.TrackCalculationCompleted("roller-bearing", new Dictionary<string, object>
+            {
+                { "bearing_type", selectedBearingType },
+                { "dynamic_rating", dynamicRating },
+                { "radial_load", radialLoad },
+                { "axial_load", axialLoad },
+                { "speed", speed },
+                { "basic_life_hours", basicLifeHours },
+                { "static_safety", staticSafety }
+            });
+        }
+        catch (Exception ex)
+        {
+            await Analytics.TrackCalculationError("roller-bearing", "calculation_failed", ex.Message);
+            throw;
+        }
+        finally
+        {
+            isCalculating = false;
+        }
+    }
+
+    private void BackToInput() => showResults = false;
+
+    private void ClearForm()
+    {
+        selectedBearingType = "Cylindrical";
+        selectedBearingIndex = -1;
+        selectedCylindricalBearing = null;
+        selectedTaperedBearing = null;
+        selectedBearingName = "";
+        dynamicRating = 0;
+        staticRating = 0;
+        eFactor = 0;
+        yFactor = 0;
+        radialLoad = 0;
+        axialLoad = 0;
+        speed = 0;
+        selectedMachineFactor = "1.0";
+        selectedReliability = 90;
+        showResults = false;
+    }
+
+    private string FormatLife(double hours)
+    {
+        if (hours >= 100000) return (hours / 1000).ToString("F0") + "k";
+        if (hours >= 10000) return (hours / 1000).ToString("F1") + "k";
+        return hours.ToString("F0");
+    }
+
+    private async Task SaveAsPdf()
+    {
+        isSavingPdf = true;
+        StateHasChanged();
+        try
+        {
+            var fileName = $"RollerBearing-Report-{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            await JSRuntime.InvokeVoidAsync("generatePdf", "results-content", fileName);
+            await Analytics.TrackPdfDownload("roller-bearing", fileName);
+        }
+        catch (Exception ex)
+        {
+            await Analytics.TrackCalculationError("roller-bearing", "pdf_generation_failed", ex.Message);
+        }
+    }
+
+    private async Task SetSeoMetadata()
+    {
+        var baseUrl = "https://mekanika.org";
+        var seo = new SeoMetadata
+        {
+            Title = $"{moduleInfo.Name} - Free Online Tool | Mekanika",
+            Description = moduleInfo.Description,
+            Keywords = moduleInfo.Keywords,
+            CanonicalUrl = $"{baseUrl}{moduleInfo.Route}",
+            OgTitle = moduleInfo.Name,
+            OgDescription = moduleInfo.Description,
+            OgImage = $"{baseUrl}/images/og-image.png",
+            OgUrl = $"{baseUrl}{moduleInfo.Route}",
+            TwitterTitle = moduleInfo.Name,
+            TwitterDescription = moduleInfo.Description,
+            TwitterImage = $"{baseUrl}/images/og-image.png"
+        };
+        await Seo.SetMetaTags(seo);
+    }
+
+    private async Task SetStructuredData()
+    {
+        var structuredData = new
+        {
+            context = "https://schema.org",
+            type = "SoftwareApplication",
+            name = moduleInfo.Name,
+            description = moduleInfo.Description,
+            applicationCategory = "EngineeringApplication",
+            operatingSystem = "Web Browser",
+            offers = new { type = "Offer", price = "0", priceCurrency = "USD" }
+        };
+        await Seo.SetStructuredData(structuredData);
+    }
+}

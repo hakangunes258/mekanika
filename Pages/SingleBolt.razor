@@ -1,0 +1,2770 @@
+@page "/single-bolt"
+@using MechanicalCalculatorWeb.Services
+@using MechanicalCalculatorWeb.Models
+@using static MechanicalCalculatorWeb.Services.BoltService
+@inject MaterialService MaterialService
+@inject AnalyticsService Analytics
+@inject SeoService Seo
+@inject ModuleMetadataService Metadata
+@inject FeedbackService Feedback
+@inject IJSRuntime JSRuntime
+
+@* Note: BoltService is used via static using directive above *@
+
+<PageTitle>Single Bolt Calculator - Mekanika</PageTitle>
+
+<div class="page-header">
+    <h1>
+        <ModuleIcon Type="bolt" Size="large" Style="transparent" CustomStyle="margin-right: 12px;" />
+        Single Bolt Calculator
+    </h1>
+    <p>VDI 2230 systematic calculation of preloaded bolted joints</p>
+</div>
+
+@if (!showResults)
+{
+    <div class="form-grid">
+        <!-- Bolt Specification Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="bolt" Size="medium" Style="solid" />
+                <h2>Bolt Specification</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Bolt Type (DIN Standard)</label>
+                <select @bind="boltStandard" @bind:after="OnBoltStandardChanged">
+                    <option value="ISO4014">ISO 4014 / DIN 931 (Hex Head, Partial Thread)</option>
+                    <option value="DIN912">DIN 912 / ISO 4762 (Socket Head Cap Screw)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Bolt Size</label>
+                <div class="input-group">
+                    <select @bind="input.BoltSize" @bind:after="OnBoltSizeChanged" style="flex: 1;">
+                        @foreach (var bolt in MetricBolts)
+                        {
+                            <option value="@bolt.Size">@bolt.Size</option>
+                        }
+                    </select>
+                    <button class="btn btn-sm btn-secondary" @onclick="PreSizeBolt" style="margin-left: 8px;" title="Pre-size bolt based on VDI 2230 Table A7">
+                        <ModuleIcon Type="gear" Size="small" Style="default" />
+                    </button>
+                </div>
+                <small class="hint">Click ⚙️ to auto-size based on applied load (VDI 2230)</small>
+            </div>
+
+
+
+            <div class="form-group">
+                <label>Strength Class</label>
+                <select @bind="input.StrengthClass" @bind:after="OnStrengthClassChanged">
+                    @foreach (var cls in StrengthClasses)
+                    {
+                        <option value="@cls.Class">@cls.Class</option>
+                    }
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Thread Configuration</label>
+                <select @bind="threadConfig" @bind:after="OnThreadConfigChanged">
+                    <option value="Full">Fully Threaded</option>
+                    <option value="Partial">Partially Threaded</option>
+                </select>
+            </div>
+
+            @if (threadConfig == "Partial")
+            {
+                <div class="form-group">
+                    <label>Unthreaded Shank Length</label>
+                    <div class="input-group">
+                        <input type="number" step="0.5" @bind="input.ShankLength" />
+                        <span class="unit">mm</span>
+                    </div>
+                </div>
+            }
+
+            <div class="form-group">
+                <label>Bolt Length</label>
+                <div class="input-group">
+                    <input type="number" step="1" min="10" @bind="boltLength" />
+                    <span class="unit">mm</span>
+                    <button class="btn btn-sm btn-secondary" @onclick="AutoSizeBoltLength" style="margin-left: 8px;">
+                        <ModuleIcon Type="gear" Size="small" Style="default" />
+                    </button>
+                </div>
+                <small class="hint">Click ⚙️ to auto-size based on clamped parts, washers and nuts</small>
+            </div>
+
+            @if (selectedBolt != null)
+            {
+                <div class="info-box small" style="margin-top: 12px;">
+                    <div style="font-weight: 600; margin-bottom: 6px; color: #1565c0;">Bolt Dimensions</div>
+                    <div class="info-row">
+                        <span>Nominal Diameter (d):</span>
+                        <strong>@selectedBolt.d.ToString("F1") mm</strong>
+                    </div>
+                    <div class="info-row">
+                        <span>Thread Pitch (P):</span>
+                        <strong>@selectedBolt.P_coarse.ToString("F2") mm</strong>
+                    </div>
+                    <div class="info-row">
+                        <span>Head Height (k):</span>
+                        <strong>@selectedBolt.k.ToString("F1") mm</strong>
+                    </div>
+                    <div class="info-row">
+                        <span>Head Diameter (dw):</span>
+                        <strong>@selectedBolt.dw.ToString("F1") mm</strong>
+                    </div>
+                    @if (selectedStrength != null)
+                    {
+                        <div class="info-row">
+                            <span>Yield Strength (Rp0.2):</span>
+                            <strong>@selectedStrength.Rp02 MPa</strong>
+                        </div>
+                        <div class="info-row">
+                            <span>Tensile Strength (Rm):</span>
+                            <strong>@selectedStrength.Rm MPa</strong>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        <!-- Joint Configuration Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="geometry" Size="medium" Style="solid" />
+                <h2>Joint Configuration</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Joint Type</label>
+                <select @bind="input.JointType" @bind:after="OnJointTypeChanged">
+                    <option value="@JointType.ThroughHole">Through Hole (with Nut)</option>
+                    <option value="@JointType.TappedHole">Blind Hole (Tapped)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Washers</label>
+                <div class="checkbox-row">
+                    <label class="checkbox-label">
+                        <input type="checkbox" @bind="input.UseWasherUnderHead" />
+                        <span>Under Head</span>
+                    </label>
+                    @if (input.JointType == JointType.ThroughHole)
+                    {
+                        <label class="checkbox-label">
+                            <input type="checkbox" @bind="input.UseWasherUnderNut" />
+                            <span>Under Nut</span>
+                        </label>
+                    }
+                </div>
+                @if ((input.UseWasherUnderHead || input.UseWasherUnderNut) && selectedWasher != null)
+                {
+                    <div style="margin-top: 8px; display: flex; align-items: center; justify-content: space-between;">
+                        <small class="hint" style="flex: 1;">
+                            @if (isCustomWasher)
+                            {
+                                <span style="color: #ff9800; font-weight: 500;">⚙️ Custom:</span>
+                            }
+                            d₁=@selectedWasher.d1.ToString("F2") mm, d₂=@selectedWasher.d2.ToString("F2") mm, h=@selectedWasher.h.ToString("F1") mm
+                        </small>
+                        <button type="button" class="btn btn-sm btn-outline" @onclick="OpenWasherCustomize" style="padding: 4px 8px; font-size: 11px;">
+                            ⚙️ Customize
+                        </button>
+                    </div>
+                }
+            </div>
+
+            <div class="form-group">
+                <label>Hole Diameter (dh)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="holeDiameter" @bind:after="OnHoleDiameterChanged" />
+                    <span class="unit">mm</span>
+                    <button class="btn btn-sm btn-secondary" @onclick="AutoSizeHoleDiameter" style="margin-left: 8px;">
+                        <ModuleIcon Type="gear" Size="small" Style="default" />
+                    </button>
+                </div>
+                <small class="hint">Clearance hole through clamped parts</small>
+            </div>
+
+            <div class="form-group">
+                <label>Chamfer Diameter (dc)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" min="0" @bind="chamferDepth" />
+                    <span class="unit">mm</span>
+                </div>
+                <small class="hint">Diameter at chamfer surface (typically hole dia + 1-2mm)</small>
+            </div>
+
+            <div class="form-group">
+                <label>Outer Diameter of Clamped Parts (DA)</label>
+                <div class="input-group">
+                    <input type="number" step="1" min="0" @bind="clampedPartsOuterDiameter" />
+                    <span class="unit">mm</span>
+                </div>
+                <small class="hint">Outer diameter of clamped assembly (0 = auto calculate from cone angle)</small>
+            </div>
+
+            <div class="form-group">
+                <label>Clamped Parts</label>
+                @for (int i = 0; i < clampedParts.Count; i++)
+                {
+                    var index = i;
+                    <div class="part-row">
+                        <span class="part-num">@(index + 1)</span>
+                        <input type="text" inputmode="decimal" class="thickness-input"
+                               value="@clampedParts[index].Thickness.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)"
+                               @onchange="@(e => OnThicknessChanged(index, e))" />
+                        <span class="unit-small">mm</span>
+                        <select class="material-select" value="@clampedParts[index].MaterialName"
+                                @onchange="@(e => OnMaterialChanged(index, e))">
+                            @foreach (var mat in materials)
+                            {
+                                <option value="@mat.Name">@mat.Name</option>
+                            }
+                        </select>
+                        @if (clampedParts.Count > 1)
+                        {
+                            <button class="btn-remove" @onclick="@(() => RemovePart(index))">✕</button>
+                        }
+                    </div>
+                }
+                @if (clampedParts.Count < 5)
+                {
+                    <button class="btn btn-sm btn-outline" @onclick="AddPart" style="margin-top: 8px;">+ Add Part</button>
+                }
+            </div>
+
+            <div class="info-highlight">
+                <span>Clamping Length (lK):</span>
+                <strong>@CalculateClampLength().ToString("F1") mm</strong>
+            </div>
+        </div>
+
+        <!-- Surface & Friction & Assembly Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="surface" Size="medium" Style="solid" />
+                <h2>Surface & Friction</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Surface Roughness (Rz)
+                    <button type="button" class="info-btn" @onclick="ToggleRoughnessInfo" title="Show roughness values table">ℹ️</button>
+                </label>
+                <div class="input-group">
+                    <input type="number" step="0.5" min="1" max="40" @bind="roughnessThread" />
+                    <span class="unit">μm</span>
+                </div>
+                <small class="hint">Thread roughness (typical: 6.3 μm for rolled threads)</small>
+            </div>
+
+            <div class="form-group">
+                <label>Head/Nut Roughness</label>
+                <div class="input-group">
+                    <input type="number" step="0.5" min="1" max="40" @bind="roughnessHead" />
+                    <span class="unit">μm</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Clamped Parts Roughness</label>
+                <div class="input-group">
+                    <input type="number" step="0.5" min="1" max="40" @bind="roughnessParts" />
+                    <span class="unit">μm</span>
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 20px;">
+                <label>Bolt Friction Coefficients
+                    <button type="button" class="info-btn" @onclick="ToggleFrictionInfo" title="Show friction values table">ℹ️</button>
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label>Thread (μG)</label>
+                <div class="input-group">
+                    <input type="number" step="0.01" min="0.04" max="0.40" @bind="frictionThread" class="no-spinner" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Head/Nut (μK)</label>
+                <div class="input-group">
+                    <input type="number" step="0.01" min="0.04" max="0.40" @bind="frictionHead" class="no-spinner" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Interface Friction (Clamped Parts)</label>
+                <div class="input-group">
+                    <input type="number" step="0.01" min="0.05" max="0.50" @bind="input.InterfaceFriction" class="no-spinner" />
+                </div>
+            </div>
+        </div>
+
+        <!-- Assembly Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="gear" Size="medium" Style="solid" />
+                <h2>Assembly</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Tightening Method</label>
+                <select @bind="input.TighteningMethod" @bind:after="OnTighteningMethodChanged">
+                    @foreach (var method in TighteningMethods)
+                    {
+                        <option value="@method.Method">@method.Method</option>
+                    }
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Yield Strength Utilization Limit</label>
+                <div class="input-group">
+                    <input type="number" step="1" min="50" max="100" @bind="yieldUtilizationLimit" />
+                    <span class="unit">%</span>
+                </div>
+                <small class="hint">Maximum allowable utilization of bolt yield strength (typical: 90%)</small>
+            </div>
+
+            <div class="form-group">
+                <label>Bolting Type (VDI 2230)
+                    <button type="button" class="info-btn" @onclick="ToggleBoltingTypeInfo" title="Show bolting type info">ℹ️</button>
+                </label>
+                <select @bind="selectedBoltingType" @bind:after="OnBoltingTypeChanged">
+                    @if (input.JointType == JointType.ThroughHole)
+                    {
+                        <option value="SV1">SV 1 - Load at bolt head</option>
+                        <option value="SV2">SV 2 - Load at nut</option>
+                        <option value="SV3">SV 3 - Load in middle</option>
+                    }
+                    else
+                    {
+                        <option value="SV4">SV 4 - Load at head (tapped)</option>
+                        <option value="SV5">SV 5 - Load in middle (tapped)</option>
+                        <option value="SV6">SV 6 - Load at thread (tapped)</option>
+                    }
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Load Eccentricity (e)</label>
+                <div class="input-group">
+                    <input type="number" step="0.5" min="0" @bind="input.Eccentricity" />
+                    <span class="unit">mm</span>
+                </div>
+                <small class="hint">Distance from bolt axis to load point (0 = concentric)</small>
+            </div>
+
+            <div class="form-group">
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                    <label style="margin: 0;">Load Factor (n)</label>
+                    <label class="checkbox-label" style="margin: 0;">
+                        <input type="checkbox" @bind="autoLoadFactor" @bind:after="OnAutoLoadFactorChanged" />
+                        <span>Auto (Table 5.2/1)</span>
+                    </label>
+                </div>
+                @if (!autoLoadFactor)
+                {
+                    <div class="input-group">
+                        <input type="number" step="0.01" min="0" max="1" @bind="input.LoadIntroductionFactor" />
+                        <span class="unit">-</span>
+                    </div>
+                }
+                <small class="hint">From VDI 2230 Table 5.2/1 based on bolting type and geometry</small>
+            </div>
+        </div>
+
+        <!-- Loading Card (VDI 2230 / KISSsoft Style) -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="force" Size="medium" Style="solid" />
+                <h2>Loading</h2>
+            </div>
+
+            <!-- Axial Force Input -->
+            <div class="load-section">
+                <span class="section-label">Axial & Transverse Loads</span>
+                <div class="form-group">
+                    <label>Min Axial Force (FA,min)</label>
+                    <div class="input-group">
+                        <input type="number" step="100" @bind="input.AxialForceMin" />
+                        <span class="unit">N</span>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Max Axial Force (FA,max)</label>
+                    <div class="input-group">
+                        <input type="number" step="100" @bind="input.AxialForceMax" />
+                        <span class="unit">N</span>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Transverse Force (FQ)</label>
+                    <div class="input-group">
+                        <input type="number" step="100" @bind="input.ShearForce" />
+                        <span class="unit">N</span>
+                    </div>
+                    <small class="hint">Shear force perpendicular to bolt axis</small>
+                </div>
+
+                <div class="form-group">
+                    <label>Bending Moment (MB)</label>
+                    <div class="input-group">
+                        <input type="number" step="100" @bind="input.BendingMoment" />
+                        <span class="unit">Nmm</span>
+                    </div>
+                    <small class="hint">Working moment at the joint</small>
+                </div>
+                
+                <div class="form-group">
+                    <label>Number of Load Cycles (N)</label>
+                    <div class="input-group">
+                        <input type="number" step="1000000" min="1000" @bind="input.DesignLoadCycles" />
+                        <span class="unit">cycles</span>
+                    </div>
+                    <small class="hint">Design life in load cycles (typical: 10⁶ - 10⁷)</small>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="button-group">
+        <button class="btn btn-success btn-lg @(isCalculating ? "btn-calculating" : "")" @onclick="Calculate" disabled="@isCalculating">
+            @if (isCalculating)
+            {
+                <span class="spinner"></span>
+                <span>Calculating...</span>
+            }
+            else
+            {
+                <ModuleIcon Type="calculate" Size="button" Style="default" />
+                <span>Calculate</span>
+            }
+        </button>
+        <button class="btn btn-secondary" @onclick="ClearForm" disabled="@isCalculating">
+            <ModuleIcon Type="clear" Size="button" Style="default" />
+            Clear
+        </button>
+    </div>
+
+    <!-- Roughness Info Modal -->
+    @if (showRoughnessInfo)
+    {
+        <div class="modal-overlay" @onclick="ToggleRoughnessInfo">
+            <div class="modal-content" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h3>Surface Roughness (Rz) by Manufacturing Method</h3>
+                    <button class="close-btn" @onclick="ToggleRoughnessInfo">×</button>
+                </div>
+                <div class="modal-body">
+                    <table class="roughness-table">
+                        <thead>
+                            <tr>
+                                <th>Manufacturing Method</th>
+                                <th>Typical Rz (μm)</th>
+                                <th>Range (μm)</th>
+                                <th>Application</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Ground</strong></td>
+                                <td>2.5</td>
+                                <td>1-4</td>
+                                <td>Precision surfaces, tight tolerances</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Rolled (Thread)</strong></td>
+                                <td>6.3</td>
+                                <td>4-10</td>
+                                <td>Standard thread rolling, good finish</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Machined / Milled</strong></td>
+                                <td>6.3-10</td>
+                                <td>4-16</td>
+                                <td>Machined heads, milled surfaces</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Turned</strong></td>
+                                <td>12</td>
+                                <td>8-20</td>
+                                <td>Turned shafts, general machining</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Cut (Thread)</strong></td>
+                                <td>16</td>
+                                <td>10-25</td>
+                                <td>Cut threads, conventional machining</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Forged</strong></td>
+                                <td>16</td>
+                                <td>10-25</td>
+                                <td>Forged bolt heads, as-forged surfaces</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div class="roughness-note">
+                        <p><strong>Note:</strong> These are typical values. Actual roughness depends on tooling condition, cutting parameters, and material properties.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Bolting Type Info Modal -->
+    @if (showBoltingTypeInfo)
+    {
+        <div class="modal-overlay" @onclick="ToggleBoltingTypeInfo">
+            <div class="modal-content" @onclick:stopPropagation="true" style="max-width: 950px;">
+                <div class="modal-header">
+                    <h3>VDI 2230 - Bolting Types & Load Introduction Factor</h3>
+                    <button class="close-btn" @onclick="ToggleBoltingTypeInfo">×</button>
+                </div>
+                <div class="modal-body">
+                    <p style="margin-bottom: 16px; color: #495057;">
+                        The bolting type (SV 1 - SV 6) defines where the external load enters the joint. The load introduction factor <strong>n</strong> is calculated from <strong>Table 5.2/1</strong> based on:
+                    </p>
+                    <ul style="margin-bottom: 16px; padding-left: 24px;">
+                        <li><strong>lA/h</strong> - Ratio of load eccentricity to clamping length</li>
+                        <li><strong>ak/h</strong> - Ratio of edge distance to clamping length, where ak = (DA - dW)/2</li>
+                    </ul>
+
+                    <div style="background: #e3f2fd; padding: 16px; border-radius: 8px; margin-bottom: 20px;">
+                        <h4 style="margin-top: 0; color: #1565c0;">Through-Bolt Connections (DSV)</h4>
+                        <table style="width: 100%; border-collapse: collapse; margin-top: 12px;">
+                            <tr style="background: #bbdefb;">
+                                <th style="padding: 8px; text-align: left; border: 1px solid #90caf9;">Type</th>
+                                <th style="padding: 8px; text-align: left; border: 1px solid #90caf9;">Description</th>
+                                <th style="padding: 8px; text-align: center; border: 1px solid #90caf9;">Load Point</th>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0;"><strong>SV 1</strong></td>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0;">Load introduced at bolt head side</td>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0; text-align: center;">Top (head)</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0;"><strong>SV 2</strong></td>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0;">Load introduced at nut side</td>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0; text-align: center;">Bottom (nut)</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0;"><strong>SV 3</strong></td>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0;">Load introduced in the middle of clamped parts</td>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0; text-align: center;">Middle</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <div style="background: #fff3e0; padding: 16px; border-radius: 8px; margin-bottom: 20px;">
+                        <h4 style="margin-top: 0; color: #e65100;">Tapped Hole Connections (ESV)</h4>
+                        <table style="width: 100%; border-collapse: collapse; margin-top: 12px;">
+                            <tr style="background: #ffe0b2;">
+                                <th style="padding: 8px; text-align: left; border: 1px solid #ffcc80;">Type</th>
+                                <th style="padding: 8px; text-align: left; border: 1px solid #ffcc80;">Description</th>
+                                <th style="padding: 8px; text-align: center; border: 1px solid #ffcc80;">Load Point</th>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0;"><strong>SV 4</strong></td>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0;">Load introduced at bolt head side</td>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0; text-align: center;">Top (head)</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0;"><strong>SV 5</strong></td>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0;">Load introduced in the middle</td>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0; text-align: center;">Middle</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0;"><strong>SV 6</strong></td>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0;">Load introduced at thread engagement</td>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0; text-align: center;">Bottom (thread)</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <div style="background: #e8f5e9; padding: 16px; border-radius: 8px;">
+                        <h4 style="margin-top: 0; color: #2e7d32;">Table 5.2/1 - Load Introduction Factor n</h4>
+                        <p style="margin: 8px 0; font-size: 13px;">The factor <strong>n</strong> is determined by interpolation from the table based on:</p>
+                        <ul style="margin: 8px 0; padding-left: 24px; font-size: 13px;">
+                            <li><strong>Bolting type</strong> (SV 1 - SV 6)</li>
+                            <li><strong>lA/h ratio</strong> = Eccentricity / Clamping length (0 to ≥0.30)</li>
+                            <li><strong>ak/h ratio</strong> = Edge distance / Clamping length (0 to ≥0.50)</li>
+                        </ul>
+                        <p style="margin: 8px 0; font-size: 13px; color: #1b5e20;">
+                            <strong>Effective force ratio:</strong> Φn = n × Φ<br/>
+                            Lower n → More load relief of clamped parts<br/>
+                            Higher n → More additional bolt force
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Friction Info Modal -->
+    @if (showFrictionInfo)
+    {
+        <div class="modal-overlay" @onclick="ToggleFrictionInfo">
+            <div class="modal-content" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h3>Friction Coefficients (acc. to VDI 2230)</h3>
+                    <button class="close-btn" @onclick="ToggleFrictionInfo">×</button>
+                </div>
+                <div class="modal-body">
+                    <table class="roughness-table">
+                        <thead>
+                            <tr>
+                                <th>Material / Surface Combination</th>
+                                <th>Lubricant</th>
+                                <th>Friction Range (μ)</th>
+                                <th>Typical μ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Steel (non-coated, degreased)</td>
+                                <td>None</td>
+                                <td>0.18 - 0.25</td>
+                                <td>0.20</td>
+                            </tr>
+                            <tr>
+                                <td>Steel (manganese phosphated)</td>
+                                <td>Oiled</td>
+                                <td>0.12 - 0.18</td>
+                                <td>0.14</td>
+                            </tr>
+                             <tr>
+                                <td>Steel (zinc phosphated)</td>
+                                <td>Oiled</td>
+                                <td>0.10 - 0.18</td>
+                                <td>0.12</td>
+                            </tr>
+                            <tr>
+                                <td>Steel (electro-galvanized)</td>
+                                <td>None (passivated)</td>
+                                <td>0.14 - 0.24</td>
+                                <td>0.18</td>
+                            </tr>
+                            <tr>
+                                <td>Steel (hot-dip galvanized)</td>
+                                <td>None</td>
+                                <td>0.16 - 0.25</td>
+                                <td>0.20</td>
+                            </tr>
+                             <tr>
+                                <td>Steel (cadmium plated)</td>
+                                <td>None (passivated)</td>
+                                <td>0.10 - 0.18</td>
+                                <td>0.14</td>
+                            </tr>
+                            <tr>
+                                <td>Steel (Dacromet/Geomet)</td>
+                                <td>None</td>
+                                <td>0.08 - 0.14</td>
+                                <td>0.11</td>
+                            </tr>
+                             <tr>
+                                <td>Steel (with MoS₂ lubricant)</td>
+                                <td>Solid</td>
+                                <td>0.05 - 0.12</td>
+                                <td>0.08</td>
+                            </tr>
+                             <tr>
+                                <td>Stainless Steel A2/A4 (non-coated)</td>
+                                <td>Clean</td>
+                                <td>0.18 - 0.30</td>
+                                <td>0.24</td>
+                            </tr>
+                            <tr>
+                                <td>Stainless Steel A2/A4 (lubricated)</td>
+                                <td>Wax/solid lubricant</td>
+                                <td>0.12 - 0.18</td>
+                                <td>0.15</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Washer Customize Modal -->
+    @if (showWasherCustomize)
+    {
+        <div class="modal-overlay" @onclick="CloseWasherCustomize">
+            <div class="modal-content" @onclick:stopPropagation="true" style="max-width: 500px;">
+                <div class="modal-header">
+                    <h3>⭕ Customize Washer Dimensions</h3>
+                    <button class="close-btn" @onclick="CloseWasherCustomize">×</button>
+                </div>
+                <div class="modal-body">
+                    <p style="margin-bottom: 16px; color: #495057; font-size: 14px;">
+                        Adjust washer dimensions to match your specific requirements. Default values are from DIN 125A standard.
+                    </p>
+
+                    <div class="form-group">
+                        <label>Inner Diameter (d₁)</label>
+                        <div class="input-group">
+                            <input type="number" step="0.01" min="1" @bind="customWasher.d1" />
+                            <span class="unit">mm</span>
+                        </div>
+                        <small class="hint">Washer inner diameter (clearance for bolt)</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Outer Diameter (d₂)</label>
+                        <div class="input-group">
+                            <input type="number" step="0.01" min="1" @bind="customWasher.d2" />
+                            <span class="unit">mm</span>
+                        </div>
+                        <small class="hint">Washer outer diameter (bearing surface)</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Thickness (h)</label>
+                        <div class="input-group">
+                            <input type="number" step="0.1" min="0.1" @bind="customWasher.h" />
+                            <span class="unit">mm</span>
+                        </div>
+                        <small class="hint">Washer thickness</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Washer Material</label>
+                        <select @bind="input.WasherMaterial" class="form-control" style="width: 100%; padding: 8px; border: 1px solid #dee2e6; border-radius: 4px;">
+                            @foreach (var mat in materials)
+                            {
+                                <option value="@mat.Name">@mat.Name</option>
+                            }
+                        </select>
+                        <small class="hint">Select the washer material from the library.</small>
+                    </div>
+
+
+                    <div style="display: flex; gap: 12px; margin-top: 20px;">
+                        <button class="btn btn-primary" @onclick="ApplyCustomWasher" style="flex: 1;">
+                            ✓ Apply
+                        </button>
+                        <button class="btn btn-secondary" @onclick="ResetToStandardWasher" style="flex: 1;">
+                            ↺ Reset to Standard
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+else
+{
+    <!-- RESULTS -->
+    <div class="button-group" style="margin-bottom: 24px;">
+        <button class="btn btn-primary" @onclick="BackToInput">
+            <ModuleIcon Type="back" Size="button" Style="default" />
+            Back to Input
+        </button>
+        <button class="btn btn-secondary" @onclick="ClearForm">
+            <ModuleIcon Type="new" Size="button" Style="default" />
+            New Calculation
+        </button>
+        <button class="btn btn-info @(isSavingPdf ? "btn-saving" : "")" @onclick="SaveAsPdf" disabled="@isSavingPdf">
+            @if (isSavingPdf)
+            {
+                <span class="spinner"></span>
+                <span>Generating PDF...</span>
+            }
+            else
+            {
+                <ModuleIcon Type="pdf" Size="button" Style="default" />
+                <span>Save as PDF</span>
+            }
+        </button>
+    </div>
+
+    <div id="results-content">
+
+        @if (result.Errors.Any())
+        {
+            <div class="alert alert-danger"><ModuleIcon Type="error" Size="small" Style="default" /> @string.Join(", ", result.Errors)</div>
+        }
+        @if (result.Warnings.Any())
+        {
+            <div class="alert alert-warning"><ModuleIcon Type="warning" Size="small" Style="default" /> @string.Join(", ", result.Warnings)</div>
+        }
+    
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="bolt" Size="medium" Style="solid" /><h2>Bolt Specifications</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Bolt Size</td><td>-</td><td>@input.BoltSize</td><td>-</td></tr>
+                    <tr><td>Bolt Type</td><td>-</td><td>@result.BoltType</td><td>-</td></tr>
+                    <tr><td>Strength Class</td><td>-</td><td>@input.StrengthClass</td><td>-</td></tr>
+                    <tr><td>Nominal Diameter</td><td>d</td><td>@result.d.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Pitch Diameter</td><td>d<sub>2</sub></td><td>@result.d2.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Minor Diameter</td><td>d<sub>3</sub></td><td>@result.d3.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Pitch</td><td>P</td><td>@result.P.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Flank Angle</td><td>β</td><td>@result.FlankAngle.ToString("F0")</td><td>°</td></tr>
+                    <tr><td>Head Diameter</td><td>d<sub>w</sub></td><td>@result.HeadDiameter.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Head Thickness</td><td>k</td><td>@result.HeadThickness.ToString("F1")</td><td>mm</td></tr>
+                    <tr><td>Head Friction Factor</td><td>μ<sub>K</sub></td><td>@result.FrictionHead.ToString("F2")</td><td>-</td></tr>
+                    <tr><td>Shank Diameter</td><td>d<sub>s</sub></td><td>@result.ShankDiameter.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Shank Length</td><td>l<sub>s</sub></td><td>@result.ShankLength.ToString("F1")</td><td>mm</td></tr>
+                    <tr><td>Thread Surface Roughness</td><td>R<sub>z</sub></td><td>@result.ThreadRoughness.ToString("F1")</td><td>μm</td></tr>
+                    <tr><td>Thread Friction Factor</td><td>μ<sub>G</sub></td><td>@result.FrictionThread.ToString("F2")</td><td>-</td></tr>
+                    <tr><td>Tensile Strength</td><td>R<sub>m</sub></td><td>@result.Rm.ToString("F0")</td><td>MPa</td></tr>
+                    <tr><td>Yield Strength</td><td>R<sub>p0.2</sub></td><td>@result.Rp02.ToString("F0")</td><td>MPa</td></tr>
+                    <tr><td>Young's Modulus</td><td>E<sub>bolt</sub></td><td>@((result.YoungModulusBolt/1000).ToString("F0"))</td><td>GPa</td></tr>
+                    <tr class="highlight"><td>Stress Area</td><td>A<sub>s</sub></td><td>@result.As.ToString("F1")</td><td>mm²</td></tr>
+                    <tr><td>Required Bolt Length</td><td>L<sub>req</sub></td><td>@result.BoltLength.ToString("F0")</td><td>mm</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="gear" Size="medium" Style="solid" /><h2>Bolt Assembly</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Bolting Type</td><td>-</td><td>@GetBoltingTypeName()</td><td>-</td></tr>
+                    <tr><td>Load Factor</td><td>n</td><td>@input.LoadIntroductionFactor.ToString("F2")</td><td>-</td></tr>
+                    <tr><td>Force Application Height</td><td>h<sub>n</sub></td><td>@((input.LoadIntroductionFactor * result.ClampLength).ToString("F2"))</td><td>mm</td></tr>
+                    <tr><td>Tightening Technique</td><td>-</td><td>@input.TighteningMethod</td><td>-</td></tr>
+                    <tr><td>Tightening Factor</td><td>α<sub>A</sub></td><td>@result.AlphaA.ToString("F2")</td><td>-</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        @if (input.JointType == JointType.ThroughHole)
+        {
+            <div class="card">
+                <div class="card-header"><ModuleIcon Type="bolt" Size="medium" Style="solid" /><h2>Nut Specifications</h2></div>
+                <table class="results-table">
+                    <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                    <tbody>
+                        <tr><td>Nut Material</td><td>-</td><td>@result.NutMaterial</td><td>-</td></tr>
+                        <tr><td>Nut Thickness</td><td>m</td><td>@result.NutThickness.ToString("F1")</td><td>mm</td></tr>
+                        <tr><td>Nut Diameter</td><td>d<sub>w,nut</sub></td><td>@result.NutDiameter.ToString("F1")</td><td>mm</td></tr>
+                        <tr><td>Nut Surface Roughness</td><td>R<sub>z</sub></td><td>@result.NutRoughness.ToString("F1")</td><td>μm</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="dimensions" Size="medium" Style="solid" /><h2>Clamped Parts</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    @foreach (var part in input.ClampedParts)
+                    {
+                        <tr><td>Part Material</td><td>-</td><td>@part.MaterialName</td><td>-</td></tr>
+                        <tr><td>Part Thickness</td><td>t</td><td>@part.Thickness.ToString("F1")</td><td>mm</td></tr>
+                        <tr><td>Young's Modulus</td><td>E<sub>p</sub></td><td>@((part.ElasticModulus/1000).ToString("F0"))</td><td>GPa</td></tr>
+                        <tr><td colspan="4" style="border-bottom: 2px solid #dee2e6;"></td></tr>
+                    }
+                    <tr class="highlight"><td>Total Clamping Length</td><td>l<sub>K</sub></td><td>@result.ClampLength.ToString("F1")</td><td>mm</td></tr>
+                    <tr><td>Parts Friction Factor</td><td>μ<sub>T</sub></td><td>@result.FrictionParts.ToString("F2")</td><td>-</td></tr>
+                    <tr><td>Hole Diameter</td><td>d<sub>h</sub></td><td>@result.HoleDiameter.ToString("F1")</td><td>mm</td></tr>
+                    @if (result.ChamferDiameter > 0)
+                    {
+                        <tr><td>Chamfer Diameter</td><td>d<sub>c</sub></td><td>@result.ChamferDiameter.ToString("F1")</td><td>mm</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (input.UseWasherUnderHead || input.UseWasherUnderNut)
+        {
+            <div class="card">
+                <div class="card-header"><ModuleIcon Type="diameter" Size="medium" Style="solid" /><h2>Washer Specifications</h2></div>
+                <table class="results-table">
+                    <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                    <tbody>
+                        <tr><td>Washer Material</td><td>-</td><td>@result.WasherMaterial</td><td>-</td></tr>
+                        <tr><td>Washer Thickness</td><td>h</td><td>@result.WasherThickness.ToString("F2")</td><td>mm</td></tr>
+                        <tr><td>Inner Diameter</td><td>d<sub>1</sub></td><td>@result.WasherDiameterInner.ToString("F2")</td><td>mm</td></tr>
+                        <tr><td>Outer Diameter</td><td>d<sub>2</sub></td><td>@result.WasherDiameterOuter.ToString("F2")</td><td>mm</td></tr>
+                        <tr><td>Washer Surface Roughness</td><td>R<sub>z</sub></td><td>@result.WasherRoughness.ToString("F1")</td><td>μm</td></tr>
+                        @if (input.UseWasherUnderHead)
+                        {
+                            <tr><td>Location</td><td>-</td><td colspan="2">Under Head</td></tr>
+                        }
+                        @if (input.UseWasherUnderNut && input.JointType == JointType.ThroughHole)
+                        {
+                            <tr><td>Location</td><td>-</td><td colspan="2">Under Nut</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="force" Size="medium" Style="solid" /><h2>Compliance & Force Distribution</h2></div>
+            <table class="results-table">
+                 <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                 <tbody>
+                    <tr><td>Substitutional Diameter (Interface)</td><td>D<sub>A</sub></td><td>@result.DA.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Substitutional Diameter (Solid)</td><td>D<sub>An</sub></td><td>@result.DAn.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Limiting Diameter (Max Cone)</td><td>D<sub>A,Gr</sub></td><td>@result.DA_Gr.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Cone Angle</td><td>φ</td><td>@result.ConeAngle.ToString("F2")</td><td>°</td></tr>
+                    <tr><td>Elastic Resilience (Bolt)</td><td>δ<sub>S</sub></td><td>@((result.DeltaS).ToString("0.0000000e+00"))</td><td>mm/N</td></tr>
+                    <tr><td>Elastic Resilience (Parts)</td><td>δ<sub>P</sub></td><td>@((result.DeltaP).ToString("0.0000000e+00"))</td><td>mm/N</td></tr>
+                    @if (result.DeltaPWasher > 0)
+                    {
+                        <tr><td>Elastic Resilience (Washer)</td><td>δ<sub>Pzu</sub></td><td>@((result.DeltaPWasher).ToString("0.0000000e+00"))</td><td>mm/N</td></tr>
+                    }
+                    <tr><td>Load Factor (Φ)</td><td>Φ</td><td>@result.Phi.ToString("F3")</td><td>-</td></tr>
+                    <tr class="highlight"><td>Load Introduction Factor (Table 5.2/1)</td><td>n</td><td>@result.LoadIntroductionFactor.ToString("F3")</td><td>-</td></tr>
+                    <tr><td>Ratio ak/h</td><td>a<sub>k</sub>/h</td><td>@result.AkOverH.ToString("F2")</td><td>-</td></tr>
+                    <tr><td>Ratio lA/h</td><td>l<sub>A</sub>/h</td><td>@result.LAOverH.ToString("F2")</td><td>-</td></tr>
+                    <tr><td>Effective Load Factor</td><td>Φ<sub>n</sub></td><td>@result.PhiN.ToString("F4")</td><td>-</td></tr>
+                    <tr><td>Embedding (Total)</td><td>f<sub>Z</sub></td><td>@result.FZ_total_um.ToString("F1")</td><td>μm</td></tr>
+                    <tr><td>Preload Loss (Settling)</td><td>F<sub>Z</sub></td><td>@result.FZ.ToString("F0")</td><td>N</td></tr>
+                    <tr><td>Required Minimum Preload (Service)</td><td>F<sub>KR</sub></td><td>@((result.FKR_min / 1000).ToString("F2"))</td><td>kN</td></tr>
+                    <tr><td>Additional Bolt Force</td><td>F<sub>SA</sub></td><td>@((result.FSA / 1000).ToString("F2"))</td><td>kN</td></tr>
+                    <tr><td>Clamp Force Reduction</td><td>F<sub>PA</sub></td><td>@((result.FPA / 1000).ToString("F2"))</td><td>kN</td></tr>
+                 </tbody>
+            </table>
+        </div>
+
+        <!-- Three Force Scenarios Section -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="gear" Size="medium" Style="solid" /><h2>Assembly Preload Analysis</h2></div>
+            <p style="padding: 0 16px; color: #666; font-size: 13px; margin-bottom: 16px;">
+                Results calculated for three critical force scenarios according to VDI 2230
+            </p>
+
+            <!-- Scenario 1: Maximum Pretension Force -->
+            <div class="scenario-section">
+                <h3 class="scenario-title">1. Maximum Pretension Force (F<sub>0.9,max</sub>)</h3>
+                <p class="scenario-desc">Maximum preload achievable at 90% yield strength utilization</p>
+                <table class="results-table">
+                    <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                    <tbody>
+                        <tr class="highlight"><td>Maximum Pretension Force</td><td>F<sub>0.9,max</sub></td><td>@((result.F09_max / 1000).ToString("F2"))</td><td>kN</td></tr>
+                        <tr><td>Working Bolt Force</td><td>F<sub>S</sub></td><td>@((result.FS_at_F09max / 1000).ToString("F2"))</td><td>kN</td></tr>
+                        <tr><td>Working Clamp Force</td><td>F<sub>K</sub></td><td>@((result.FK_at_F09max / 1000).ToString("F2"))</td><td>kN</td></tr>
+                        <tr><td>Additional Plate Force</td><td>F<sub>PA</sub></td><td>@((result.AdditionalPlateForce / 1000).ToString("F2"))</td><td>kN</td></tr>
+                        <tr><td>Bolt Extension</td><td>f<sub>S</sub></td><td>@result.BoltExtension_at_F09max.ToString("F1")</td><td>μm</td></tr>
+                        <tr><td>Part Compression</td><td>f<sub>P</sub></td><td>@result.PartExtension_at_F09max.ToString("F1")</td><td>μm</td></tr>
+                        <tr><td>Surface Pressure (Head)</td><td>p<sub>head</sub></td><td>@result.PressureHead_at_F09max.ToString("F1")</td><td>MPa</td></tr>
+                        @if (input.JointType == JointType.ThroughHole)
+                        {
+                            <tr><td>Surface Pressure (Nut)</td><td>p<sub>nut</sub></td><td>@result.PressureNut_at_F09max.ToString("F1")</td><td>MPa</td></tr>
+                        }
+                        <tr><td>Tensile Stress</td><td>σ<sub>z</sub></td><td>@result.SigmaZ_at_F09max.ToString("F0")</td><td>MPa</td></tr>
+                        <tr><td>Torsional Stress</td><td>τ</td><td>@result.Tau_at_F09max.ToString("F0")</td><td>MPa</td></tr>
+                        <tr><td>Equivalent Stress</td><td>σ<sub>red</sub></td><td>@result.SigmaRed_at_F09max.ToString("F0")</td><td>MPa</td></tr>
+                        <tr class="@(result.Utilization_at_F09max > 90 ? "warning" : "success")"><td>Yield Utilization</td><td>f<sub>y</sub></td><td>@result.Utilization_at_F09max.ToString("F1")</td><td>%</td></tr>
+                        <tr><td>Embedding (Settling)</td><td>f<sub>Z</sub></td><td>@result.FZ_um_at_F09max.ToString("F1")</td><td>μm</td></tr>
+                        <tr><td>Preload Loss (Settling)</td><td>F<sub>Z</sub></td><td>@((result.FZ_at_F09max / 1000).ToString("F2"))</td><td>kN</td></tr>
+                        <tr class="highlight"><td>Tightening Torque (Total)</td><td>M<sub>A</sub></td><td>@result.MA_at_F09max.ToString("F1")</td><td>Nm</td></tr>
+                        <tr><td>Thread Friction Torque</td><td>M<sub>G</sub></td><td>@result.MG_at_F09max.ToString("F1")</td><td>Nm</td></tr>
+                        <tr><td>Head Friction Torque</td><td>M<sub>K</sub></td><td>@result.MK_at_F09max.ToString("F1")</td><td>Nm</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Scenario 2: Minimum Required Assembly Preload -->
+            <div class="scenario-section">
+                <h3 class="scenario-title">2. Minimum Required Assembly Preload (F<sub>M,min</sub>)</h3>
+                <p class="scenario-desc">Minimum preload required to maintain clamp force under service conditions</p>
+                <table class="results-table">
+                    <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                    <tbody>
+                        <tr class="highlight"><td>Minimum Required Preload</td><td>F<sub>M,min</sub></td><td>@((result.FM_min / 1000).ToString("F2"))</td><td>kN</td></tr>
+                        <tr><td>Working Bolt Force</td><td>F<sub>S</sub></td><td>@((result.FS_at_FMmin / 1000).ToString("F2"))</td><td>kN</td></tr>
+                        <tr><td>Working Clamp Force</td><td>F<sub>K</sub></td><td>@((result.FK_at_FMmin / 1000).ToString("F2"))</td><td>kN</td></tr>
+                        <tr><td>Additional Plate Force</td><td>F<sub>PA</sub></td><td>@((result.AdditionalPlateForce / 1000).ToString("F2"))</td><td>kN</td></tr>
+                        <tr><td>Bolt Extension</td><td>f<sub>S</sub></td><td>@result.BoltExtension_at_FMmin.ToString("F1")</td><td>μm</td></tr>
+                        <tr><td>Part Compression</td><td>f<sub>P</sub></td><td>@result.PartExtension_at_FMmin.ToString("F1")</td><td>μm</td></tr>
+                        <tr><td>Surface Pressure (Head)</td><td>p<sub>head</sub></td><td>@result.PressureHead_at_FMmin.ToString("F1")</td><td>MPa</td></tr>
+                        @if (input.JointType == JointType.ThroughHole)
+                        {
+                            <tr><td>Surface Pressure (Nut)</td><td>p<sub>nut</sub></td><td>@result.PressureNut_at_FMmin.ToString("F1")</td><td>MPa</td></tr>
+                        }
+                        <tr><td>Tensile Stress</td><td>σ<sub>z</sub></td><td>@result.SigmaZ_at_FMmin.ToString("F0")</td><td>MPa</td></tr>
+                        <tr><td>Torsional Stress</td><td>τ</td><td>@result.Tau_at_FMmin.ToString("F0")</td><td>MPa</td></tr>
+                        <tr><td>Equivalent Stress</td><td>σ<sub>red</sub></td><td>@result.SigmaRed_at_FMmin.ToString("F0")</td><td>MPa</td></tr>
+                        <tr class="@(result.Utilization_at_FMmin > 90 ? "warning" : "success")"><td>Yield Utilization</td><td>f<sub>y</sub></td><td>@result.Utilization_at_FMmin.ToString("F1")</td><td>%</td></tr>
+                        <tr><td>Embedding (Settling)</td><td>f<sub>Z</sub></td><td>@result.FZ_um_at_FMmin.ToString("F1")</td><td>μm</td></tr>
+                        <tr><td>Preload Loss (Settling)</td><td>F<sub>Z</sub></td><td>@((result.FZ_at_FMmin / 1000).ToString("F2"))</td><td>kN</td></tr>
+                        <tr class="highlight"><td>Tightening Torque (Total)</td><td>M<sub>A</sub></td><td>@result.MA_at_FMmin.ToString("F1")</td><td>Nm</td></tr>
+                        <tr><td>Thread Friction Torque</td><td>M<sub>G</sub></td><td>@result.MG_at_FMmin.ToString("F1")</td><td>Nm</td></tr>
+                        <tr><td>Head Friction Torque</td><td>M<sub>K</sub></td><td>@result.MK_at_FMmin.ToString("F1")</td><td>Nm</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Scenario 3: Maximum Required Assembly Preload -->
+            <div class="scenario-section">
+                <h3 class="scenario-title">3. Maximum Required Assembly Preload (F<sub>M,max</sub>)</h3>
+                <p class="scenario-desc">Maximum preload considering tightening factor (α<sub>A</sub> = @result.AlphaA.ToString("F2"))</p>
+                <table class="results-table">
+                    <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                    <tbody>
+                        <tr class="highlight"><td>Maximum Required Preload</td><td>F<sub>M,max</sub></td><td>@((result.FM_max / 1000).ToString("F2"))</td><td>kN</td></tr>
+                        <tr><td>Working Bolt Force</td><td>F<sub>S,max</sub></td><td>@((result.FS_max / 1000).ToString("F2"))</td><td>kN</td></tr>
+                        <tr><td>Working Clamp Force</td><td>F<sub>K,min</sub></td><td>@((result.FK_min / 1000).ToString("F2"))</td><td>kN</td></tr>
+                        <tr><td>Additional Plate Force</td><td>F<sub>PA</sub></td><td>@((result.AdditionalPlateForce / 1000).ToString("F2"))</td><td>kN</td></tr>
+                        <tr><td>Bolt Extension</td><td>f<sub>S</sub></td><td>@((result.BoltExtension * 1000).ToString("F1"))</td><td>μm</td></tr>
+                        <tr><td>Part Compression</td><td>f<sub>P</sub></td><td>@((result.PartsExtension * 1000).ToString("F1"))</td><td>μm</td></tr>
+                        <tr><td>Surface Pressure (Head)</td><td>p<sub>head</sub></td><td>@result.PressureHead_at_FMmax.ToString("F1")</td><td>MPa</td></tr>
+                        @if (input.JointType == JointType.ThroughHole)
+                        {
+                            <tr><td>Surface Pressure (Nut)</td><td>p<sub>nut</sub></td><td>@result.PressureNut_at_FMmax.ToString("F1")</td><td>MPa</td></tr>
+                        }
+                        <tr><td>Tensile Stress</td><td>σ<sub>z</sub></td><td>@result.SigmaZ_assembly.ToString("F0")</td><td>MPa</td></tr>
+                        <tr><td>Torsional Stress</td><td>τ</td><td>@result.Tau_assembly.ToString("F0")</td><td>MPa</td></tr>
+                        <tr><td>Equivalent Stress</td><td>σ<sub>red</sub></td><td>@result.SigmaRed_assembly.ToString("F0")</td><td>MPa</td></tr>
+                        <tr class="@(result.Utilization > 90 ? "warning" : "success")"><td>Yield Utilization</td><td>f<sub>y</sub></td><td>@result.Utilization.ToString("F1")</td><td>%</td></tr>
+                        <tr><td>Embedding (Settling)</td><td>f<sub>Z</sub></td><td>@result.FZ_um_at_FMmax.ToString("F1")</td><td>μm</td></tr>
+                        <tr><td>Preload Loss (Settling)</td><td>F<sub>Z</sub></td><td>@((result.FZ_at_FMmax / 1000).ToString("F2"))</td><td>kN</td></tr>
+                        <tr class="highlight"><td>Tightening Torque (Total)</td><td>M<sub>A</sub></td><td>@result.MA.ToString("F1")</td><td>Nm</td></tr>
+                        <tr><td>Thread Friction Torque</td><td>M<sub>G</sub></td><td>@result.MG_at_FMmax.ToString("F1")</td><td>Nm</td></tr>
+                        <tr><td>Head Friction Torque</td><td>M<sub>K</sub></td><td>@result.MK_at_FMmax.ToString("F1")</td><td>Nm</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Allowable Values Card -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="info" Size="medium" Style="solid" /><h2>Allowable Values</h2></div>
+            <table class="results-table">
+                 <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                 <tbody>
+                    <tr><td>Allowable Surface Pressure</td><td>p<sub>allow</sub></td><td>@result.PressureAllowable.ToString("F1")</td><td>MPa</td></tr>
+                    <tr><td>Yield Strength</td><td>R<sub>p0.2</sub></td><td>@result.Rp02.ToString("F0")</td><td>MPa</td></tr>
+                    <tr><td>Tensile Strength</td><td>R<sub>m</sub></td><td>@result.Rm.ToString("F0")</td><td>MPa</td></tr>
+                    <tr><td>Loosening Torque</td><td>M<sub>L</sub></td><td>@result.ML.ToString("F1")</td><td>Nm</td></tr>
+                 </tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="safety" Size="medium" Style="solid" /><h2>Safety Factors</h2></div>
+            <table class="results-table">
+                 <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Status</th></tr></thead>
+                 <tbody>
+                    <tr class="@(GetSafetyRowClass(result.SF_yield, 1.1))">
+                        <td>Yielding (Assembly)</td>
+                        <td>SF<sub>yield</sub></td>
+                        <td>@result.SF_yield.ToString("F2")</td>
+                        <td>@GetStatus(result.SF_yield, 1.1)</td>
+                    </tr>
+                    <tr class="@(GetSafetyRowClass(result.SF_clamp, 1.2))">
+                        <td>Loss of Clamp</td>
+                        <td>SF<sub>clamp</sub></td>
+                        <td>@(result.SF_clamp > 990 ? "∞" : result.SF_clamp.ToString("F2"))</td>
+                        <td>@GetStatus(result.SF_clamp, 1.2)</td>
+                    </tr>
+                    @if (input.ShearForce > 0)
+                    {
+                        <tr class="@(GetSafetyRowClass(result.SF_slip, 1.1))">
+                            <td>Slipping</td>
+                            <td>SF<sub>slip</sub></td>
+                            <td>@result.SF_slip.ToString("F2")</td>
+                             <td>@GetStatus(result.SF_slip, 1.1)</td>
+                        </tr>
+                    }
+                    <tr class="@(GetSafetyRowClass(result.SF_pressure, 1.0))">
+                        <td>Surface Pressure</td>
+                        <td>SF<sub>p</sub></td>
+                        <td>@result.SF_pressure.ToString("F2")</td>
+                        <td>@GetStatus(result.SF_pressure, 1.0)</td>
+                    </tr>
+                    @if (input.DesignLoadCycles > 1)
+                    {
+                         <tr class="@(GetSafetyRowClass(result.SF_fatigue, 1.2))">
+                            <td>Fatigue Failure</td>
+                            <td>SF<sub>fatigue</sub></td>
+                            <td>@result.SF_fatigue.ToString("F2")</td>
+                            <td>@GetStatus(result.SF_fatigue, 1.2)</td>
+                        </tr>
+                    }
+                 </tbody>
+            </table>
+        </div>
+
+        @if (input.DesignLoadCycles > 1)
+        {
+            <div class="card">
+                <div class="card-header"><ModuleIcon Type="loading" Size="medium" Style="solid" /><h2>Fatigue Analysis</h2></div>
+                 <table class="results-table">
+                     <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                     <tbody>
+                        <tr class="highlight"><td>Fatigue Load (Amplitude)</td><td>F<sub>a</sub></td><td>@((result.FatigueLoad / 1000).ToString("F2"))</td><td>kN</td></tr>
+                        <tr><td>Stress Amplitude</td><td>σ<sub>a</sub></td><td>@result.SigmaA.ToString("F1")</td><td>MPa</td></tr>
+                        <tr><td>Mean Stress</td><td>σ<sub>m</sub></td><td>@result.SigmaM.ToString("F1")</td><td>MPa</td></tr>
+                        <tr class="highlight"><td>Allowable Stress Amplitude</td><td>σ<sub>ASV</sub></td><td>@result.SigmaASV.ToString("F1")</td><td>MPa</td></tr>
+                        <tr><td>Design Load Cycles</td><td>N<sub>design</sub></td><td>@FormatCycles(result.NumberOfLoadCycles)</td><td>cycles</td></tr>
+                        <tr class="highlight"><td>Estimated Fatigue Life</td><td>N<sub>f</sub></td><td>@FormatCycles(result.FatigueLife)</td><td>cycles</td></tr>
+                        <tr class="@(result.FatigueDamage > 1 ? "danger" : result.FatigueDamage > 0.5 ? "warning" : "success")"><td>Fatigue Damage</td><td>D</td><td>@result.FatigueDamage.ToString("F3")</td><td>-</td></tr>
+                        <tr class="@(GetSafetyRowClass(result.SF_fatigue, 1.2))"><td>Fatigue Safety Factor</td><td>SF<sub>fatigue</sub></td><td>@result.SF_fatigue.ToString("F2")</td><td>-</td></tr>
+                     </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
+    <!-- Feedback Widget -->
+    <FeedbackWidget ModuleKey="single-bolt" />
+}
+
+<style>
+
+    /* Grid layout follows global form-grid (2-column default) */
+
+
+    /* PDF Results - prevent empty first page */
+
+    #results-content {
+
+        display: block;
+
+    }
+
+
+    #results-content > .card:first-child {
+
+        margin-top: 0;
+
+        padding-top: 0;
+
+    }
+
+
+    #results-content .results-table {
+
+        width: 100%;
+
+        table-layout: fixed;
+
+    }
+
+
+
+    .info-box { margin-top: 12px; padding: 10px; background: #e8f4fc; border-radius: 8px; border: 1px solid #b8daef; }
+
+    .info-box.small { padding: 8px; }
+
+    .info-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
+
+    .info-row:last-child { margin-bottom: 0; }
+
+    .info-row strong { color: #1565c0; }
+
+    .info-highlight { margin-top: 12px; padding: 10px; background: #e3f2fd; border-radius: 6px; display: flex; justify-content: space-between; font-size: 14px; }
+
+    .info-highlight strong { color: #1565c0; font-size: 16px; }
+
+
+
+    .checkbox-row { display: flex; gap: 20px; }
+
+    .checkbox-label { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 14px; }
+
+
+
+    /* Form row for side-by-side inputs */
+
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+    @@media (max-width: 768px) { .form-row { grid-template-columns: 1fr; } }
+
+
+
+    .part-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+
+    .part-num { width: 22px; height: 22px; background: #3498db; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; }
+
+    .thickness-input { width: 80px; padding: 6px; border: 1px solid #dee2e6; border-radius: 4px; font-size: 14px; text-align: right; }
+
+    /* Remove spinner arrows from number input */
+
+    .thickness-input::-webkit-outer-spin-button,
+
+    .thickness-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+    .thickness-input[type=number] { -moz-appearance: textfield; }
+
+
+
+    /* Remove spinner arrows from friction coefficient inputs */
+
+    .no-spinner::-webkit-outer-spin-button,
+
+    .no-spinner::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+    .no-spinner[type=number] { -moz-appearance: textfield; }
+
+    .unit-small { font-size: 12px; color: #666; }
+
+    .material-select { flex: 1; min-width: 90px; max-width: 110px; padding: 6px; border: 1px solid #dee2e6; border-radius: 4px; font-size: 12px; }
+
+    .btn-remove { width: 26px; height: 26px; border: none; background: #fee; color: #c00; border-radius: 4px; cursor: pointer; }
+
+    .btn-outline { background: transparent; border: 1px dashed #3498db; color: #3498db; }
+
+    .hint { display: block; font-size: 11px; color: #888; margin-top: 4px; }
+
+
+
+    .friction-section { margin-top: 16px; padding-top: 16px; border-top: 1px solid #e0e0e0; }
+
+    .section-label { display: block; font-weight: 600; color: #2c3e50; margin-bottom: 10px; font-size: 14px; }
+
+
+
+    /* Load section styling */
+
+    .load-section {
+
+        background: #f8f9fa;
+
+        padding: 12px;
+
+        border-radius: 8px;
+
+        margin-top: 12px;
+
+    }
+
+    .load-section .section-label {
+
+        color: #3498db;
+
+        font-size: 13px;
+
+        margin-bottom: 12px;
+
+        display: flex;
+
+        align-items: center;
+
+        gap: 6px;
+
+    }
+
+    .load-section .section-label::before {
+
+        content: "●";
+
+        font-size: 8px;
+
+    }
+
+    .friction-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+
+    .form-group.compact { margin-bottom: 0; }
+
+    .form-group.compact label { font-size: 11px; margin-bottom: 4px; }
+
+    .form-group.compact input { padding: 6px; font-size: 13px; }
+
+
+
+    /* Results Tables */
+
+    .results-table {
+
+        width: 100%;
+
+        border-collapse: collapse;
+
+        font-size: 14px;
+
+        margin-bottom: 0;
+
+    }
+
+
+
+    .results-table th {
+
+        background: #f8f9fa;
+
+        padding: 12px 16px;
+
+        text-align: left;
+
+        font-weight: 600;
+
+        color: #2c3e50;
+
+        border-bottom: 2px solid #dee2e6;
+
+    }
+
+
+
+    .results-table td {
+
+        padding: 10px 16px;
+
+        border-bottom: 1px solid #eee;
+
+    }
+
+
+
+    .results-table tr:hover {
+
+        background: #f8f9fa;
+
+    }
+
+
+
+    .results-table tr.highlight {
+
+        background: #e3f2fd;
+
+        font-weight: 500;
+
+    }
+
+
+
+    .results-table tr.warning {
+
+        background: #fff8e1;
+
+    }
+
+
+
+    .results-table tr.danger {
+
+        background: #ffebee;
+
+    }
+
+
+
+    .results-table tr.success {
+
+        background: #e8f5e9;
+
+    }
+
+
+
+    .results-table th:nth-child(1) { width: 40%; }
+
+    .results-table th:nth-child(2) { width: 15%; text-align: center; }
+
+    .results-table th:nth-child(3) { width: 25%; text-align: right; }
+
+    .results-table th:nth-child(4) { width: 20%; text-align: center; }
+
+
+
+    .results-table td:nth-child(2) {
+
+        text-align: center;
+
+        font-family: 'Times New Roman', serif;
+
+        font-style: italic;
+
+        color: #666;
+
+    }
+
+
+
+    .results-table td:nth-child(3) {
+
+        text-align: right;
+
+        font-weight: 500;
+
+        font-family: 'Consolas', 'Courier New', monospace;
+
+    }
+
+
+
+    .results-table td:nth-child(4) {
+
+        text-align: center;
+
+        color: #666;
+
+    }
+
+
+
+    .btn-info {
+
+        background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+
+        color: white;
+
+    }
+
+
+
+    .btn-info:hover {
+
+        background: linear-gradient(135deg, #138496 0%, #117a8b 100%);
+
+    }
+
+
+
+    /* Info Button & Modal */
+
+    .info-btn {
+
+        background: none;
+
+        border: none;
+
+        cursor: pointer;
+
+        font-size: 16px;
+
+        margin-left: 6px;
+
+        padding: 0;
+
+        vertical-align: middle;
+
+    }
+
+
+
+    .info-btn:hover {
+
+        opacity: 0.7;
+
+    }
+
+
+
+    .modal-overlay {
+
+        position: fixed;
+
+        top: 0;
+
+        left: 0;
+
+        right: 0;
+
+        bottom: 0;
+
+        background: rgba(0, 0, 0, 0.5);
+
+        display: flex;
+
+        align-items: center;
+
+        justify-content: center;
+
+        z-index: 1000;
+
+    }
+
+
+
+    .modal-content {
+
+        background: white;
+
+        border-radius: 12px;
+
+        max-width: 800px;
+
+        max-height: 90vh;
+
+        overflow-y: auto;
+
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+
+    }
+
+
+
+    .modal-header {
+
+        padding: 20px 24px;
+
+        border-bottom: 1px solid #e0e0e0;
+
+        display: flex;
+
+        justify-content: space-between;
+
+        align-items: center;
+
+    }
+
+
+
+    .modal-header h3 {
+
+        margin: 0;
+
+        font-size: 20px;
+
+        color: #2c3e50;
+
+    }
+
+
+
+    .close-btn {
+
+        background: none;
+
+        border: none;
+
+        font-size: 28px;
+
+        cursor: pointer;
+
+        color: #666;
+
+        line-height: 1;
+
+        padding: 0;
+
+        width: 32px;
+
+        height: 32px;
+
+    }
+
+
+
+    .close-btn:hover {
+
+        color: #333;
+
+    }
+
+
+
+    .modal-body {
+
+        padding: 24px;
+
+    }
+
+
+
+    .roughness-table {
+
+        width: 100%;
+
+        border-collapse: collapse;
+
+        margin-bottom: 20px;
+
+    }
+
+
+
+    .roughness-table th,
+
+    .roughness-table td {
+
+        padding: 12px;
+
+        text-align: left;
+
+        border: 1px solid #dee2e6;
+
+    }
+
+
+
+    .roughness-table th {
+
+        background: #f8f9fa;
+
+        font-weight: 600;
+
+        color: #2c3e50;
+
+    }
+
+
+
+    .roughness-table tbody tr:hover {
+
+        background: #f8f9fa;
+
+    }
+
+
+
+    .roughness-table td:nth-child(2),
+
+    .roughness-table td:nth-child(3) {
+
+        text-align: center;
+
+        font-family: 'Consolas', monospace;
+
+    }
+
+
+
+    .roughness-note {
+
+        background: #fff3cd;
+
+        border: 1px solid #ffc107;
+
+        border-radius: 6px;
+
+        padding: 12px;
+
+        font-size: 13px;
+
+    }
+
+
+
+    .roughness-note p {
+
+        margin: 0;
+
+    }
+
+
+
+    /* Scenario Sections */
+
+    .scenario-section {
+
+        margin: 0 16px 24px 16px;
+
+        padding: 16px;
+
+        background: #f8f9fa;
+
+        border-radius: 8px;
+
+        border-left: 4px solid #3498db;
+
+    }
+
+
+
+    .scenario-title {
+
+        margin: 0 0 8px 0;
+
+        font-size: 16px;
+
+        color: #2c3e50;
+
+        font-weight: 600;
+
+    }
+
+
+
+    .scenario-desc {
+
+        margin: 0 0 16px 0;
+
+        font-size: 13px;
+
+        color: #666;
+
+    }
+
+
+
+    .scenario-section .results-table {
+
+        background: white;
+
+        border-radius: 4px;
+
+    }
+
+
+
+    /* Comparison Table */
+
+    .comparison-table th:not(:first-child),
+
+    .comparison-table td:not(:first-child) {
+
+        text-align: center !important;
+
+    }
+
+
+
+    .comparison-table th:nth-child(2),
+
+    .comparison-table td:nth-child(2) {
+
+        background: rgba(52, 152, 219, 0.1);
+
+    }
+
+
+
+    .comparison-table th:nth-child(3),
+
+    .comparison-table td:nth-child(3) {
+
+        background: rgba(46, 204, 113, 0.1);
+
+    }
+
+
+
+    .comparison-table th:nth-child(4),
+
+    .comparison-table td:nth-child(4) {
+
+        background: rgba(155, 89, 182, 0.1);
+
+    }
+
+
+
+</style>
+
+<!-- Related Calculators -->
+<RelatedCalculators CurrentModuleKey="single-bolt" />
+
+@code {
+
+    private SingleBoltInput input = new();
+    private ModuleInfo moduleInfo = new();
+
+    private SingleBoltResult result = new();
+
+    private bool showResults = false;
+    private bool isCalculating = false;
+    private bool isSavingPdf = false;
+
+    private bool showRoughnessInfo = false;
+
+    private bool showFrictionInfo = false;
+
+    private bool showBoltingTypeInfo = false;
+
+    private List<Material> materials = new();
+
+    private List<ClampedPartUI> clampedParts = new();
+
+
+
+    private string boltStandard = "ISO4014";
+
+    private string threadConfig = "Full";
+
+    private string selectedBoltingType = "SV1";
+
+    private double frictionThread = 0.12;
+
+    private double frictionHead = 0.12;
+
+
+
+    // New inputs
+
+    private double boltLength = 65; // mm
+
+    private double holeDiameter = 11; // mm
+
+    private double chamferDepth = 0; // mm - typical chamfer depth at hole entry
+
+    private double clampedPartsOuterDiameter = 0; // mm - DA (0 = auto calculate)
+
+    private double roughnessThread = 16; // μm (Rz)
+
+    private double roughnessHead = 16; // μm (Rz)
+
+    private double roughnessParts = 16; // μm (Rz)
+
+    private double yieldUtilizationLimit = 90.0;
+
+    private bool autoLoadFactor = true; // Auto calculate load factor based on bolting type
+
+
+
+    private BoltDimension? selectedBolt;
+
+    private BoltStrengthClass? selectedStrength;
+
+    private TighteningMethod? selectedTightening;
+
+    private WasherDimension? selectedWasher;
+
+
+
+    // Washer customization
+
+    private bool showWasherCustomize = false;
+
+    private bool isCustomWasher = false;
+
+    private WasherDimension customWasher = new();
+
+
+
+    // Data sources - switches between hex head and socket head based on selected standard
+
+    private IEnumerable<BoltDimension> MetricBolts => boltStandard == "DIN912"
+
+        ? BoltService.SocketHeadBolts
+
+        : BoltService.MetricBolts;
+
+    private IEnumerable<BoltStrengthClass> StrengthClasses => BoltService.StrengthClasses;
+
+    private IEnumerable<TighteningMethod> TighteningMethods => BoltService.TighteningMethods;
+
+
+
+    private class ClampedPartUI
+
+    {
+
+        public double Thickness { get; set; } = 15;
+
+        public string MaterialName { get; set; } = "S235JR";
+
+        public double ElasticModulus { get; set; } = 210000;
+
+        public double ThermalExpansion { get; set; } = 11.5e-6;
+
+    }
+
+
+
+    protected override async Task OnInitializedAsync()
+
+    {
+
+        materials = MaterialService.GetAllMaterials();
+
+        // Load module metadata
+        moduleInfo = Metadata.GetModule("single-bolt");
+
+        // Set SEO metadata
+        await SetSeoMetadata();
+
+        // Set structured data
+        await SetStructuredData();
+
+        // Track page view
+        await Analytics.TrackPageView("/single-bolt", moduleInfo.Name);
+
+        input.BoltSize = "M10";
+
+        input.StrengthClass = "8.8";
+
+        input.TighteningMethod = "Torque wrench";
+
+        input.LoadIntroductionFactor = 0.0; // SV1 default
+
+        input.InterfaceFriction = 0.12;
+
+        input.NumberOfInterfaces = 1;
+
+        input.LoadApplicationFactorValue = 1.0;
+
+        input.BoltingType = BoltingType.SV1_ThroughBolt_LoadAtHead;
+
+
+
+        var defaultMat = materials.FirstOrDefault(m => m.Name == "S235JR") ?? materials.FirstOrDefault();
+
+        if (defaultMat != null)
+
+        {
+
+            clampedParts.Add(new ClampedPartUI { Thickness = 15, MaterialName = defaultMat.Name, ElasticModulus = defaultMat.ElasticModulus * 1000, ThermalExpansion = defaultMat.ThermalExpansion * 1e-6 });
+
+            clampedParts.Add(new ClampedPartUI { Thickness = 15, MaterialName = defaultMat.Name, ElasticModulus = defaultMat.ElasticModulus * 1000, ThermalExpansion = defaultMat.ThermalExpansion * 1e-6 });
+
+        }
+
+        RefreshSelections();
+
+
+
+        // Initialize hole diameter to standard clearance
+
+        holeDiameter = GetHoleClearance(input.BoltSize, "medium");
+
+
+
+        // Auto-size bolt length on init
+
+        AutoSizeBoltLength();
+
+    }
+
+
+
+    private void RefreshSelections()
+
+    {
+
+        selectedBolt = GetBoltBySize(input.BoltSize);
+
+        selectedStrength = GetStrengthClass(input.StrengthClass);
+
+        selectedTightening = GetTighteningMethod(input.TighteningMethod);
+
+        selectedWasher = GetWasherBySize(input.BoltSize);
+
+        input.UseFineThread = false; // Only coarse threads supported
+
+    }
+
+
+
+    private void OnJointTypeChanged()
+
+    {
+
+        // Update bolting type based on joint type
+
+        if (input.JointType == JointType.ThroughHole)
+
+        {
+
+            selectedBoltingType = "SV1";
+
+            input.BoltingType = BoltingType.SV1_ThroughBolt_LoadAtHead;
+
+        }
+
+        else
+
+        {
+
+            selectedBoltingType = "SV4";
+
+            input.BoltingType = BoltingType.SV4_TappedHole_LoadAtHead;
+
+        }
+
+        UpdateLoadIntroductionFactor();
+
+    }
+
+
+
+    private void OnBoltingTypeChanged()
+
+    {
+
+        // Map selected bolting type string to enum
+
+        input.BoltingType = selectedBoltingType switch
+
+        {
+
+            "SV1" => BoltingType.SV1_ThroughBolt_LoadAtHead,
+
+            "SV2" => BoltingType.SV2_ThroughBolt_LoadAtNut,
+
+            "SV3" => BoltingType.SV3_ThroughBolt_LoadInMiddle,
+
+            "SV4" => BoltingType.SV4_TappedHole_LoadAtHead,
+
+            "SV5" => BoltingType.SV5_TappedHole_LoadInMiddle,
+
+            "SV6" => BoltingType.SV6_TappedHole_LoadAtThread,
+
+            _ => BoltingType.SV1_ThroughBolt_LoadAtHead
+
+        };
+
+        UpdateLoadIntroductionFactor();
+
+    }
+
+
+
+    private void UpdateLoadIntroductionFactor()
+
+    {
+
+        // Only update if auto mode is enabled
+
+        if (!autoLoadFactor) return;
+
+
+
+        // Set load introduction factor based on VDI 2230 bolting type
+
+        input.LoadIntroductionFactor = selectedBoltingType switch
+
+        {
+
+            "SV1" => 0.0,   // Load at head
+
+            "SV2" => 1.0,   // Load at nut
+
+            "SV3" => 0.5,   // Load in middle
+
+            "SV4" => 0.0,   // Load at head (tapped)
+
+            "SV5" => 0.5,   // Load in middle (tapped)
+
+            "SV6" => 1.0,   // Load at thread (tapped)
+
+            _ => 0.5
+
+        };
+
+    }
+
+    private void OnAutoLoadFactorChanged()
+    {
+        // When auto mode is enabled, n will be calculated from Table 5.2/1 during calculation
+        // No need to set a default value here as it will be computed based on geometry
+    }
+
+
+    private void OnBoltStandardChanged()
+
+    {
+
+        // Reset to first available bolt in the new standard
+
+        var firstBolt = MetricBolts.FirstOrDefault();
+
+        if (firstBolt != null)
+
+        {
+
+            input.BoltSize = firstBolt.Size;
+
+            OnBoltSizeChanged();
+
+        }
+
+    }
+
+
+
+    private void OnBoltSizeChanged() { selectedBolt = GetBoltBySize(input.BoltSize); selectedWasher = GetWasherBySize(input.BoltSize); }
+
+    private void OnStrengthClassChanged() { selectedStrength = GetStrengthClass(input.StrengthClass); }
+
+    private void OnTighteningMethodChanged() => selectedTightening = GetTighteningMethod(input.TighteningMethod);
+
+    private void OnThreadConfigChanged() { if (threadConfig == "Full") input.ShankLength = 0; }
+
+
+
+    private void OnThicknessChanged(int index, ChangeEventArgs e)
+    {
+        var str = e.Value?.ToString()?.Replace(',', '.');
+        if (double.TryParse(str, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double v))
+            clampedParts[index].Thickness = v;
+    }
+
+    private void OnMaterialChanged(int index, ChangeEventArgs e)
+
+    {
+
+        var matName = e.Value?.ToString() ?? "S235JR";
+
+        clampedParts[index].MaterialName = matName;
+
+        var mat = materials.FirstOrDefault(m => m.Name == matName);
+
+        if (mat != null) { clampedParts[index].ElasticModulus = mat.ElasticModulus * 1000; clampedParts[index].ThermalExpansion = mat.ThermalExpansion * 1e-6; }
+
+    }
+
+
+
+    private double CalculateClampLength()
+
+    {
+
+        double lK = clampedParts.Sum(p => p.Thickness);
+
+        if (selectedWasher != null)
+
+        {
+
+            if (input.UseWasherUnderHead) lK += selectedWasher.h;
+
+            if (input.UseWasherUnderNut && input.JointType == JointType.ThroughHole) lK += selectedWasher.h;
+
+        }
+
+        return lK;
+
+    }
+
+
+
+    private void AddPart()
+
+    {
+
+        if (clampedParts.Count < 5)
+
+        {
+
+            var mat = materials.FirstOrDefault(m => m.Name == "S235JR") ?? materials.FirstOrDefault();
+
+            clampedParts.Add(new ClampedPartUI { Thickness = 10, MaterialName = mat?.Name ?? "S235JR", ElasticModulus = (mat?.ElasticModulus ?? 210) * 1000, ThermalExpansion = (mat?.ThermalExpansion ?? 12) * 1e-6 });
+
+        }
+
+    }
+
+
+
+    private void RemovePart(int index) { if (clampedParts.Count > 1) clampedParts.RemoveAt(index); }
+
+
+
+    private void AutoSizeBoltLength()
+    {
+        // Calculate required bolt length based on clamped parts + nut/engagement
+        double lK = CalculateClampLength();
+        double threadEngagement;
+
+        if (input.JointType == JointType.ThroughHole)
+        {
+            // Through hole: nut height + 2 pitches protrusion
+            threadEngagement = (selectedBolt?.m_nut ?? 0) + 2 * (selectedBolt?.P_coarse ?? 1.5);
+        }
+        else
+        {
+            // Blind hole (tapped): thread engagement into last part
+            double d = selectedBolt?.d ?? 10;
+            double P = selectedBolt?.P_coarse ?? 1.5;
+            var lastPart = clampedParts.LastOrDefault();
+            double lastPartThickness = lastPart?.Thickness ?? 0;
+
+            // Thread engagement factor based on last part material
+            string lastPartMat = lastPart?.MaterialName?.ToLower() ?? "steel";
+            double engagementFactor = (lastPartMat.Contains("alumin") ||
+                                       lastPartMat.Contains("cast") ||
+                                       lastPartMat.Contains("gj") ||
+                                       lastPartMat.Contains("al")) ? 1.5 : 1.0;
+
+            double minEngagement = engagementFactor * d;
+
+            if (lastPartThickness >= minEngagement)
+                threadEngagement = 0;
+            else
+                threadEngagement = minEngagement - lastPartThickness;
+
+            threadEngagement += 2 * P; // Safety margin
+        }
+
+        boltLength = Math.Ceiling((lK + threadEngagement) / 5.0) * 5.0;
+    }
+
+
+
+    private void AutoSizeHoleDiameter()
+
+    {
+
+        // Get standard medium clearance for bolt size
+
+        holeDiameter = GetHoleClearance(input.BoltSize, "medium");
+
+    }
+
+
+
+    private void OnHoleDiameterChanged()
+
+    {
+
+        // Update all clamped parts with same hole diameter
+
+        foreach (var part in clampedParts)
+
+        {
+
+            // Store hole diameter for each part (will be used in calculation)
+
+        }
+
+    }
+
+
+
+    private void PreSizeBolt()
+
+    {
+
+        // Pre-size bolt based on VDI 2230 Table A7
+
+        if (input.AxialForceMax <= 0)
+
+        {
+
+            // No load specified, can't pre-size
+
+            return;
+
+        }
+
+
+
+        double loadKN = input.AxialForceMax / 1000.0;
+
+        // Basic bolt size estimation based on load
+
+        // Assumes stress ~50% of proof stress for safety
+
+        var strengthClass = BoltService.GetStrengthClass(input.StrengthClass);
+
+        if (strengthClass != null)
+
+        {
+
+            double allowableStress = strengthClass.Rp02 * 0.5; // 50% of proof stress
+
+            double requiredAs = (loadKN * 1000) / allowableStress; // mm²
+
+
+
+            // Find smallest bolt with sufficient stress area
+
+            foreach (var bolt in BoltService.MetricBolts)
+
+            {
+
+                double As = Math.PI / 4.0 * Math.Pow((bolt.d2_coarse + bolt.d3_coarse) / 2.0, 2);
+
+                if (As >= requiredAs)
+
+                {
+
+                    input.BoltSize = bolt.Size;
+
+                    OnBoltSizeChanged();
+
+                    break;
+
+                }
+
+            }
+
+        }
+
+    }
+
+
+
+    private async Task Calculate()
+    {
+        isCalculating = true;
+        StateHasChanged();
+        await Task.Delay(350); // let the spinner render + feel responsive
+
+        try
+        {
+            // Validation
+            if (string.IsNullOrEmpty(input.BoltSize) || input.AxialForceMax <= 0)
+            {
+                await Analytics.TrackCalculationError("single-bolt", "validation_failed", "Invalid input parameters");
+                return;
+            }
+
+            input.ClampedParts.Clear();
+
+            foreach (var p in clampedParts)
+
+            {
+
+                input.ClampedParts.Add(new ClampedPart
+
+                {
+
+                    Thickness = p.Thickness,
+
+                    MaterialName = p.MaterialName,
+
+                    ElasticModulus = p.ElasticModulus,
+
+                    ThermalExpansion = p.ThermalExpansion,
+
+                    HoleDiameter = holeDiameter, // Use same hole diameter for all parts
+
+                    SurfaceFinish = GetSurfaceFinishFromRoughness(roughnessParts)
+
+                });
+
+            }
+
+
+
+            input.SurfaceCondition = "Custom";
+
+            input.FrictionThread = frictionThread;
+
+            input.FrictionHead = frictionHead;
+
+
+
+            // Add roughness and other parameters
+
+            input.ThreadRoughness = roughnessThread;
+
+            input.HeadRoughness = roughnessHead;
+
+            input.PartsRoughness = roughnessParts;
+
+            input.ChamferDiameter = chamferDepth;
+
+            // Set outer diameter for first clamped part (used for DA calculation)
+            if (input.ClampedParts.Count > 0 && clampedPartsOuterDiameter > 0)
+            {
+                input.ClampedParts[0].OuterDiameter = clampedPartsOuterDiameter;
+            }
+
+            // Note: Eccentricity is used as lA for Table 5.2/1 calculation in the engine
+
+            input.AutoCalculateLoadIntroductionFactor = autoLoadFactor;
+
+            input.BoltStandard = boltStandard;
+
+            input.BoltLength = boltLength;
+
+
+
+            if (input.LoadCase == LoadCaseType.AxialOnly)
+
+            {
+
+                input.ShearForce = 0;
+
+                input.BendingMoment = 0;
+
+            }
+
+
+
+            // Pass custom washer data if used
+
+            if (isCustomWasher)
+
+            {
+
+                input.IsCustomWasher = true;
+
+                input.CustomWasherD1 = customWasher.d1;
+
+                input.CustomWasherD2 = customWasher.d2;
+
+                input.CustomWasherH = customWasher.h;
+
+            }
+
+            else
+
+            {
+
+                input.IsCustomWasher = false;
+
+            }
+
+
+
+            // Always use load application factor = 1.0
+
+            input.LoadApplicationFactorValue = 1.0;
+
+
+
+            result = new BoltCalculationEngine().Calculate(input);
+
+            showResults = true;
+
+            // Track successful calculation
+            await Analytics.TrackCalculationCompleted("single-bolt", new Dictionary<string, object>
+            {
+                { "bolt_size", input.BoltSize },
+                { "strength_class", input.StrengthClass },
+                { "axial_force_max", input.AxialForceMax },
+                { "load_case", input.LoadCase.ToString() }
+            });
+        }
+        catch (Exception ex)
+        {
+            await Analytics.TrackCalculationError("single-bolt", "calculation_failed", ex.Message);
+            throw;
+        }
+        finally
+        {
+            isCalculating = false;
+        }
+    }
+
+
+
+    private string GetSurfaceFinishFromRoughness(double ra)
+
+    {
+
+        // Convert Ra (μm) to surface finish category for settling calculation
+
+        if (ra <= 1.6) return "Ground";
+
+        if (ra <= 10) return "Machined";
+
+        if (ra <= 40) return "Rolled";
+
+        return "As-cast";
+
+    }
+
+
+
+    private void BackToInput() => showResults = false;
+
+
+
+    private void ToggleRoughnessInfo() => showRoughnessInfo = !showRoughnessInfo;
+
+
+
+    private void ToggleFrictionInfo() => showFrictionInfo = !showFrictionInfo;
+
+
+
+    private void ToggleBoltingTypeInfo() => showBoltingTypeInfo = !showBoltingTypeInfo;
+
+
+
+    private string GetBoltingTypeName()
+
+    {
+
+        return selectedBoltingType switch
+
+        {
+
+            "SV1" => "SV1 - Through Bolt, Load at Head",
+
+            "SV2" => "SV2 - Through Bolt, Load at Nut",
+
+            "SV3" => "SV3 - Through Bolt, Load in Middle",
+
+            "SV4" => "SV4 - Tapped Hole, Load at Head",
+
+            "SV5" => "SV5 - Tapped Hole, Load in Middle",
+
+            "SV6" => "SV6 - Tapped Hole, Load at Thread",
+
+            _ => "Unknown"
+
+        };
+
+    }
+
+
+
+    private void ClearForm()
+
+    {
+
+        input = new SingleBoltInput();
+
+        clampedParts.Clear();
+
+        threadConfig = "Full";
+
+        selectedBoltingType = "SV1";
+
+        frictionThread = 0.12;
+
+        frictionHead = 0.12;
+
+        roughnessThread = 16;
+
+        roughnessHead = 16;
+
+        roughnessParts = 16;
+
+        clampedPartsOuterDiameter = 0;
+
+        yieldUtilizationLimit = 90.0;
+
+        autoLoadFactor = true;
+
+        input.BoltSize = "M10";
+
+        input.StrengthClass = "8.8";
+
+        input.TighteningMethod = "Torque wrench";
+
+        input.LoadIntroductionFactor = 0.0;
+
+        input.InterfaceFriction = 0.12;
+
+        input.LoadApplicationFactorValue = 1.0;
+
+        input.BoltingType = BoltingType.SV1_ThroughBolt_LoadAtHead;
+
+
+
+
+
+        var mat = materials.FirstOrDefault(m => m.Name == "S235JR") ?? materials.FirstOrDefault();
+
+        if (mat != null)
+
+        {
+
+            clampedParts.Add(new ClampedPartUI { Thickness = 15, MaterialName = mat.Name, ElasticModulus = mat.ElasticModulus, ThermalExpansion = mat.ThermalExpansion });
+
+            clampedParts.Add(new ClampedPartUI { Thickness = 15, MaterialName = mat.Name, ElasticModulus = mat.ElasticModulus, ThermalExpansion = mat.ThermalExpansion });
+
+        }
+
+        RefreshSelections();
+
+        showResults = false;
+
+    }
+
+
+
+    // Helper methods to access BoltService data
+
+    private BoltDimension? GetBoltBySize(string size) => MetricBolts.FirstOrDefault(b => b.Size == size);
+
+    private BoltStrengthClass? GetStrengthClass(string className) => BoltService.GetStrengthClass(className);
+
+    private TighteningMethod? GetTighteningMethod(string method) => BoltService.GetTighteningMethod(method);
+
+    private WasherDimension? GetWasherBySize(string size)
+
+    {
+
+        if (isCustomWasher)
+
+            return customWasher;
+
+        return BoltService.GetWasherBySize(size);
+
+    }
+
+
+
+    private double GetHoleClearance(string size, string fitType) => BoltService.GetHoleClearance(size, fitType);
+
+
+
+    private void OpenWasherCustomize()
+
+    {
+
+        // Initialize custom washer with current values
+
+        var stdWasher = BoltService.GetWasherBySize(input.BoltSize);
+
+        if (stdWasher != null)
+
+        {
+
+            customWasher = new WasherDimension
+
+            {
+
+                Size = stdWasher.Size,
+
+                d1 = stdWasher.d1,
+
+                d2 = stdWasher.d2,
+
+                h = stdWasher.h
+
+            };
+
+        }
+
+        showWasherCustomize = true;
+
+    }
+
+
+
+    private void CloseWasherCustomize()
+
+    {
+
+        showWasherCustomize = false;
+
+    }
+
+
+
+    private void ApplyCustomWasher()
+
+    {
+
+        isCustomWasher = true;
+
+        customWasher.Size = input.BoltSize;
+
+        selectedWasher = customWasher;
+
+        showWasherCustomize = false;
+
+    }
+
+
+
+    private void ResetToStandardWasher()
+
+    {
+
+        isCustomWasher = false;
+
+        selectedWasher = BoltService.GetWasherBySize(input.BoltSize);
+
+        if (selectedWasher != null)
+
+        {
+
+            customWasher = new WasherDimension
+
+            {
+
+                Size = selectedWasher.Size,
+
+                d1 = selectedWasher.d1,
+
+                d2 = selectedWasher.d2,
+
+                h = selectedWasher.h
+
+            };
+
+        }
+
+        showWasherCustomize = false;
+
+    }
+
+
+
+    private async Task SaveAsPdf()
+
+    {
+
+        try
+
+        {
+
+            var boltId = $"{input.BoltSize}-{input.StrengthClass}".Replace("\"", "in");
+
+            var fileName = $"SingleBolt-{boltId}-{DateTime.Now:yyyyMMdd}.pdf";
+
+            await JSRuntime.InvokeVoidAsync("generatePdf", "results-content", fileName);
+
+            await Analytics.TrackPdfDownload("single-bolt", fileName);
+
+        }
+
+        catch (Exception ex)
+
+        {
+
+            await Analytics.TrackCalculationError("single-bolt", "pdf_generation_failed", ex.Message);
+
+        }
+
+    }
+
+
+
+    private string GetSafetyRowClass(double sf, double min) => sf < min ? "danger" : sf < min * 1.2 ? "warning" : "success";
+
+    private string GetStatus(double sf, double min) => sf < min ? "❌ FAIL" : sf < min * 1.2 ? "⚠️ Low" : "✓ OK";
+
+
+
+    private string FormatCycles(double cycles)
+
+    {
+
+        if (cycles >= 1e10) return "∞ (Infinite)";
+
+        if (cycles >= 1e9) return $"{cycles / 1e9:F1} × 10⁹";
+
+        if (cycles >= 1e6) return $"{cycles / 1e6:F1} × 10⁶";
+
+        if (cycles >= 1e3) return $"{cycles / 1e3:F1} × 10³";
+
+        return cycles.ToString("F0");
+
+    }
+
+    private async Task SetSeoMetadata()
+    {
+        var baseUrl = "https://mekanika.org";
+        var seo = new SeoMetadata
+        {
+            Title = $"{moduleInfo.Name} - Free Online Tool | Mekanika",
+            Description = moduleInfo.Description,
+            Keywords = moduleInfo.Keywords,
+            CanonicalUrl = $"{baseUrl}{moduleInfo.Route}",
+            OgTitle = moduleInfo.Name,
+            OgDescription = moduleInfo.Description,
+            OgImage = $"{baseUrl}/images/og-image.png",
+            OgUrl = $"{baseUrl}{moduleInfo.Route}",
+            TwitterTitle = moduleInfo.Name,
+            TwitterDescription = moduleInfo.Description,
+            TwitterImage = $"{baseUrl}/images/og-image.png"
+        };
+        await Seo.SetMetaTags(seo);
+    }
+
+    private async Task SetStructuredData()
+    {
+        var structuredData = new
+        {
+            context = "https://schema.org",
+            type = "SoftwareApplication",
+            name = moduleInfo.Name,
+            description = moduleInfo.Description,
+            applicationCategory = "EngineeringApplication",
+            operatingSystem = "Web Browser",
+            offers = new
+            {
+                type = "Offer",
+                price = "0",
+                priceCurrency = "USD"
+            }
+        };
+        await Seo.SetStructuredData(structuredData);
+    }
+
+}

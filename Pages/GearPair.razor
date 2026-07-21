@@ -1,0 +1,728 @@
+@page "/gear-pair"
+@using MechanicalCalculatorWeb.Services
+@inject AnalyticsService Analytics
+@inject SeoService Seo
+@inject ModuleMetadataService Metadata
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Cylindrical Gear Pair Calculator - Mekanika</PageTitle>
+
+<div class="page-header">
+    <h1><ModuleIcon Type="gear-pair" Size="large" Style="transparent" CustomStyle="margin-right: 12px;" /> Cylindrical Gear Pair Calculator</h1>
+    <p>Spur and helical gear pair design according to ISO 6336 / DIN 3990</p>
+</div>
+
+@if (!showResults)
+{
+    <!-- INPUT FORM -->
+    <div class="form-grid">
+        <!-- Power Data Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="force" Size="medium" Style="solid" />
+                <h2>Power Data</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Power (P)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="engine.Power" placeholder="e.g. 3.5" />
+                    <span class="unit">kW</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Pinion Speed (n<sub>1</sub>)</label>
+                <div class="input-group">
+                    <input type="number" step="1" @bind="engine.Speed1" placeholder="e.g. 2500" />
+                    <span class="unit">rpm</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Application Factor (K<sub>A</sub>)</label>
+                <select @bind="selectedApplicationFactor" @bind:after="OnApplicationFactorChanged">
+                    <option value="1.0">1.00 - Uniform</option>
+                    <option value="1.25">1.25 - Light shock</option>
+                    <option value="1.35">1.35 - Moderate shock</option>
+                    <option value="1.5">1.50 - Heavy shock</option>
+                    <option value="1.75">1.75 - Very heavy shock</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Required Service Life (H)</label>
+                <div class="input-group">
+                    <input type="number" step="100" @bind="engine.RequiredServiceLife" placeholder="e.g. 10000" />
+                    <span class="unit">h</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Basic Geometry Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="geometry" Size="medium" Style="solid" />
+                <h2>Basic Geometry</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Normal Module (m<sub>n</sub>)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="engine.NormalModule" placeholder="e.g. 1.5" />
+                    <span class="unit">mm</span>
+                </div>
+                <small style="color: #6c757d; font-size: 12px;">Standard: 1, 1.25, 1.5, 2, 2.5, 3, 4, 5...</small>
+            </div>
+
+            <div class="form-group">
+                <label>Pressure Angle (&#945;<sub>n</sub>)</label>
+                <div class="input-group">
+                    <input type="number" step="0.5" @bind="engine.PressureAngle" placeholder="e.g. 20" />
+                    <span class="unit">&#176;</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Helix Angle (&#946;)</label>
+                <div class="input-group">
+                    <input type="number" step="1" @bind="engine.HelixAngle" placeholder="e.g. 0 or 25" />
+                    <span class="unit">&#176;</span>
+                </div>
+                <small style="color: #6c757d; font-size: 12px;">0&#176; for spur gear, 15-30&#176; for helical</small>
+            </div>
+
+            <div class="form-group">
+                <label>Center Distance (a)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="engine.CenterDistance" placeholder="e.g. 48.9" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gear 1 (Pinion) Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="gear" Size="medium" Style="solid" />
+                <h2>Gear 1 (Pinion)</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Number of Teeth (z<sub>1</sub>)</label>
+                <div class="input-group">
+                    <input type="number" step="1" @bind="engine.NumberOfTeeth1" @bind:after="OnGeometryChanged" placeholder="e.g. 16" />
+                    <span class="unit">-</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Face Width (b<sub>1</sub>)</label>
+                <div class="input-group">
+                    <input type="number" step="0.5" @bind="engine.FaceWidth1" placeholder="e.g. 14" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Profile Shift Coefficient (x<sub>1</sub>)</label>
+                <div class="input-group">
+                    <input type="number" step="0.01" @bind="engine.ProfileShiftCoeff1" @bind:after="OnGeometryChanged" placeholder="e.g. 0.3" />
+                    <span class="unit">-</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Quality Grade (ISO 1328)</label>
+                <select @bind="engine.QualityGrade1">
+                    <option value="5">5 - Very High</option>
+                    <option value="6">6 - High</option>
+                    <option value="7">7 - Medium</option>
+                    <option value="8">8 - Normal</option>
+                    <option value="9">9 - Low</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Gear 2 (Wheel) Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="gear" Size="medium" Style="solid" />
+                <h2>Gear 2 (Wheel)</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Number of Teeth (z<sub>2</sub>)</label>
+                <div class="input-group">
+                    <input type="number" step="1" @bind="engine.NumberOfTeeth2" @bind:after="OnGeometryChanged" placeholder="e.g. 43" />
+                    <span class="unit">-</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Face Width (b<sub>2</sub>)</label>
+                <div class="input-group">
+                    <input type="number" step="0.5" @bind="engine.FaceWidth2" placeholder="e.g. 14.5" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Profile Shift Coefficient (x<sub>2</sub>)</label>
+                <div class="input-group">
+                    <input type="number" step="0.01" @bind="engine.ProfileShiftCoeff2" readonly />
+                    <span class="unit">-</span>
+                </div>
+                <small style="color: #6c757d; font-size: 12px;">Auto-calculated from center distance</small>
+            </div>
+
+            <div class="form-group">
+                <label>Quality Grade (ISO 1328)</label>
+                <select @bind="engine.QualityGrade2">
+                    <option value="5">5 - Very High</option>
+                    <option value="6">6 - High</option>
+                    <option value="7">7 - Medium</option>
+                    <option value="8">8 - Normal</option>
+                    <option value="9">9 - Low</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Reference Profile Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="dimensions" Size="medium" Style="solid" />
+                <h2>Reference Profile (ISO 53)</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Addendum Coefficient (h*<sub>aP</sub>)</label>
+                <div class="input-group">
+                    <input type="number" step="0.05" @bind="engine.AddendumCoeff" />
+                    <span class="unit">-</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Dedendum Coefficient (h*<sub>fP</sub>)</label>
+                <div class="input-group">
+                    <input type="number" step="0.05" @bind="engine.DedendumCoeff" />
+                    <span class="unit">-</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Root Radius Coefficient (&#961;*<sub>fP</sub>)</label>
+                <div class="input-group">
+                    <input type="number" step="0.05" @bind="engine.RootRadiusCoeff" />
+                    <span class="unit">-</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Materials Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="material" Size="medium" Style="solid" />
+                <h2>Materials</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Pinion Material</label>
+                <select @bind="selectedMaterial1Index">
+                    @for (int i = 0; i < gearMaterials.Count; i++)
+                    {
+                        <option value="@i">@gearMaterials[i].Name - @gearMaterials[i].HeatTreatment</option>
+                    }
+                </select>
+                @if (gearMaterials.Any())
+                {
+                    <div class="material-info">
+                        &#963;<sub>Flim</sub> = @gearMaterials[selectedMaterial1Index].BendingFatigueLimit MPa |
+                        &#963;<sub>Hlim</sub> = @gearMaterials[selectedMaterial1Index].ContactFatigueLimit MPa
+                    </div>
+                }
+            </div>
+
+            <div class="form-group">
+                <label>Wheel Material</label>
+                <select @bind="selectedMaterial2Index">
+                    @for (int i = 0; i < gearMaterials.Count; i++)
+                    {
+                        <option value="@i">@gearMaterials[i].Name - @gearMaterials[i].HeatTreatment</option>
+                    }
+                </select>
+                @if (gearMaterials.Any())
+                {
+                    <div class="material-info">
+                        &#963;<sub>Flim</sub> = @gearMaterials[selectedMaterial2Index].BendingFatigueLimit MPa |
+                        &#963;<sub>Hlim</sub> = @gearMaterials[selectedMaterial2Index].ContactFatigueLimit MPa
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="button-group">
+        <button class="btn btn-success btn-lg @(isCalculating ? "btn-calculating" : "")" @onclick="Calculate" disabled="@isCalculating">
+            @if (isCalculating)
+            {
+                <span class="spinner"></span>
+                <span>Calculating...</span>
+            }
+            else
+            {
+                <ModuleIcon Type="calculate" Size="button" Style="default" />
+                <span>Calculate</span>
+            }
+        </button>
+        <button class="btn btn-secondary" @onclick="ClearForm" disabled="@isCalculating">
+            <ModuleIcon Type="clear" Size="button" Style="default" /> Clear
+        </button>
+    </div>
+}
+else
+{
+    <!-- RESULTS -->
+    <div class="button-group" style="margin-bottom: 24px;">
+        <button class="btn btn-primary" @onclick="BackToInput">
+            <ModuleIcon Type="back" Size="button" Style="default" /> Back to Input
+        </button>
+        <button class="btn btn-secondary" @onclick="ClearForm">
+            <ModuleIcon Type="new" Size="button" Style="default" /> New Calculation
+        </button>
+        <button class="btn btn-info @(isSavingPdf ? "btn-saving" : "")" @onclick="SaveAsPdf" disabled="@isSavingPdf">
+            @if (isSavingPdf)
+            {
+                <span class="spinner"></span>
+                <span>Generating PDF...</span>
+            }
+            else
+            {
+                <ModuleIcon Type="pdf" Size="button" Style="default" />
+                <span>Save as PDF</span>
+            }
+        </button>
+    </div>
+
+    <!-- Detailed Results Container -->
+    <div id="results-content">
+        <!-- Basic Geometry Results -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="geometry" Size="medium" Style="solid" /><h2>Basic Geometry</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Gear 1</th><th>Gear 2</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Number of Teeth</td><td>z</td><td>@engine.NumberOfTeeth1</td><td>@engine.NumberOfTeeth2</td><td>-</td></tr>
+                    <tr><td>Normal Module</td><td>m<sub>n</sub></td><td colspan="2">@engine.NormalModule.ToString("F3")</td><td>mm</td></tr>
+                    <tr><td>Transverse Module</td><td>m<sub>t</sub></td><td colspan="2">@engine.TransverseModule.ToString("F3")</td><td>mm</td></tr>
+                    <tr><td>Pressure Angle (Normal)</td><td>&#945;<sub>n</sub></td><td colspan="2">@engine.PressureAngle.ToString("F2")</td><td>&#176;</td></tr>
+                    <tr><td>Pressure Angle (Transverse)</td><td>&#945;<sub>t</sub></td><td colspan="2">@engine.TransversePressureAngle.ToString("F3")</td><td>&#176;</td></tr>
+                    <tr><td>Working Pressure Angle</td><td>&#945;<sub>wt</sub></td><td colspan="2">@engine.WorkingPressureAngle.ToString("F3")</td><td>&#176;</td></tr>
+                    <tr><td>Helix Angle</td><td>&#946;</td><td colspan="2">@engine.HelixAngle.ToString("F2")</td><td>&#176;</td></tr>
+                    <tr><td>Base Helix Angle</td><td>&#946;<sub>b</sub></td><td colspan="2">@engine.BaseHelixAngle.ToString("F3")</td><td>&#176;</td></tr>
+                    <tr class="highlight"><td>Center Distance</td><td>a</td><td colspan="2">@engine.CenterDistance.ToString("F3")</td><td>mm</td></tr>
+                    <tr><td>Gear Ratio</td><td>u</td><td colspan="2">@engine.GearRatio.ToString("F3")</td><td>-</td></tr>
+                    <tr><td>Profile Shift Coefficient</td><td>x</td><td>@engine.ProfileShiftCoeff1.ToString("F4")</td><td>@engine.ProfileShiftCoeff2.ToString("F4")</td><td>-</td></tr>
+                    <tr><td>Sum of Profile Shifts</td><td>&#931;x</td><td colspan="2">@engine.SumProfileShift.ToString("F4")</td><td>-</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Diameters -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="diameter" Size="medium" Style="solid" /><h2>Diameters</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Gear 1</th><th>Gear 2</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Reference Diameter</td><td>d</td><td>@engine.ReferenceDiameter1.ToString("F3")</td><td>@engine.ReferenceDiameter2.ToString("F3")</td><td>mm</td></tr>
+                    <tr><td>Base Diameter</td><td>d<sub>b</sub></td><td>@engine.BaseDiameter1.ToString("F3")</td><td>@engine.BaseDiameter2.ToString("F3")</td><td>mm</td></tr>
+                    <tr class="highlight"><td>Tip Diameter</td><td>d<sub>a</sub></td><td>@engine.TipDiameter1.ToString("F3")</td><td>@engine.TipDiameter2.ToString("F3")</td><td>mm</td></tr>
+                    <tr class="highlight"><td>Root Diameter</td><td>d<sub>f</sub></td><td>@engine.RootDiameter1.ToString("F3")</td><td>@engine.RootDiameter2.ToString("F3")</td><td>mm</td></tr>
+                    <tr><td>Working Pitch Diameter</td><td>d<sub>w</sub></td><td>@engine.WorkingPitchDiameter1.ToString("F3")</td><td>@engine.WorkingPitchDiameter2.ToString("F3")</td><td>mm</td></tr>
+                    <tr><td>Addendum</td><td>h<sub>a</sub></td><td>@engine.Addendum1.ToString("F3")</td><td>@engine.Addendum2.ToString("F3")</td><td>mm</td></tr>
+                    <tr><td>Dedendum</td><td>h<sub>f</sub></td><td>@engine.Dedendum1.ToString("F3")</td><td>@engine.Dedendum2.ToString("F3")</td><td>mm</td></tr>
+                    <tr><td>Tooth Height</td><td>h</td><td colspan="2">@engine.ToothHeight.ToString("F3")</td><td>mm</td></tr>
+                    <tr><td>Tip Clearance</td><td>c</td><td colspan="2">@engine.TipClearance.ToString("F3")</td><td>mm</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Contact Ratios -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="contact" Size="medium" Style="solid" /><h2>Contact Ratios</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Min. Req.</th><th>Status</th></tr></thead>
+                <tbody>
+                    <tr class="@(engine.TransverseContactRatio >= 1.2 ? "success" : engine.TransverseContactRatio >= 1.0 ? "warning" : "danger")">
+                        <td>Transverse Contact Ratio</td><td>&#949;<sub>&#945;</sub></td><td>@engine.TransverseContactRatio.ToString("F3")</td><td>&#8805; 1.2</td><td>@(engine.TransverseContactRatio >= 1.2 ? "&#10003; OK" : engine.TransverseContactRatio >= 1.0 ? "&#9888; Marginal" : "&#10060; FAIL")</td></tr>
+                    <tr><td>Overlap Ratio</td><td>&#949;<sub>&#946;</sub></td><td>@engine.OverlapRatio.ToString("F3")</td><td>-</td><td>-</td></tr>
+                    <tr class="highlight"><td>Total Contact Ratio</td><td>&#949;<sub>&#947;</sub></td><td>@engine.TotalContactRatio.ToString("F3")</td><td>-</td><td>-</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Kinematics & Forces -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="force" Size="medium" Style="solid" /><h2>Kinematics & Forces</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Gear 1</th><th>Gear 2</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Speed</td><td>n</td><td>@engine.Speed1.ToString("F1")</td><td>@engine.Speed2.ToString("F1")</td><td>rpm</td></tr>
+                    <tr><td>Torque</td><td>T</td><td>@engine.Torque1.ToString("F2")</td><td>@engine.Torque2.ToString("F2")</td><td>Nm</td></tr>
+                    <tr><td>Pitch Line Velocity</td><td>v</td><td colspan="2">@engine.PitchLineVelocity.ToString("F2")</td><td>m/s</td></tr>
+                    <tr class="highlight"><td>Tangential Force</td><td>F<sub>t</sub></td><td colspan="2">@engine.TangentialForce.ToString("F0")</td><td>N</td></tr>
+                    <tr><td>Radial Force</td><td>F<sub>r</sub></td><td colspan="2">@engine.RadialForce.ToString("F0")</td><td>N</td></tr>
+                    <tr><td>Axial Force</td><td>F<sub>a</sub></td><td colspan="2">@engine.AxialForce.ToString("F0")</td><td>N</td></tr>
+                    <tr><td>Normal Force</td><td>F<sub>n</sub></td><td colspan="2">@engine.NormalForce.ToString("F0")</td><td>N</td></tr>
+                    <tr><td>Specific Load</td><td>w</td><td colspan="2">@engine.SpecificLoad.ToString("F1")</td><td>N/mm</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Load Factors -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="force" Size="medium" Style="solid" /><h2>Load Factors (ISO 6336)</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Application Factor</td><td>K<sub>A</sub></td><td>@engine.ApplicationFactor.ToString("F2")</td><td>-</td></tr>
+                    <tr><td>Dynamic Factor</td><td>K<sub>V</sub></td><td>@engine.DynamicFactor.ToString("F3")</td><td>-</td></tr>
+                    <tr><td>Face Load Factor (Flank)</td><td>K<sub>H&#946;</sub></td><td>@engine.FaceLoadFactorFlank.ToString("F3")</td><td>-</td></tr>
+                    <tr><td>Face Load Factor (Root)</td><td>K<sub>F&#946;</sub></td><td>@engine.FaceLoadFactorRoot.ToString("F3")</td><td>-</td></tr>
+                    <tr><td>Transverse Load Factor (Flank)</td><td>K<sub>H&#945;</sub></td><td>@engine.TransverseLoadFactorFlank.ToString("F3")</td><td>-</td></tr>
+                    <tr><td>Transverse Load Factor (Root)</td><td>K<sub>F&#945;</sub></td><td>@engine.TransverseLoadFactorRoot.ToString("F3")</td><td>-</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Tooth Root Strength -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="force" Size="medium" Style="solid" /><h2>Tooth Root Strength (Bending)</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Gear 1</th><th>Gear 2</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Tooth Form Factor</td><td>Y<sub>F</sub></td><td>@engine.ToothFormFactor1.ToString("F3")</td><td>@engine.ToothFormFactor2.ToString("F3")</td><td>-</td></tr>
+                    <tr><td>Stress Correction Factor</td><td>Y<sub>S</sub></td><td>@engine.StressCorrectionFactor1.ToString("F3")</td><td>@engine.StressCorrectionFactor2.ToString("F3")</td><td>-</td></tr>
+                    <tr><td>Helix Angle Factor</td><td>Y<sub>&#946;</sub></td><td colspan="2">@engine.HelixAngleFactorRoot.ToString("F3")</td><td>-</td></tr>
+                    <tr><td>Contact Ratio Factor</td><td>Y<sub>&#949;</sub></td><td colspan="2">@engine.ContactRatioFactorRoot.ToString("F3")</td><td>-</td></tr>
+                    <tr><td>Nominal Root Stress</td><td>&#963;<sub>F0</sub></td><td>@engine.NominalRootStress1.ToString("F1")</td><td>@engine.NominalRootStress2.ToString("F1")</td><td>MPa</td></tr>
+                    <tr class="highlight"><td>Root Stress</td><td>&#963;<sub>F</sub></td><td>@engine.RootStress1.ToString("F1")</td><td>@engine.RootStress2.ToString("F1")</td><td>MPa</td></tr>
+                    <tr><td>Permissible Root Stress</td><td>&#963;<sub>FP</sub></td><td>@engine.PermissibleRootStress1.ToString("F1")</td><td>@engine.PermissibleRootStress2.ToString("F1")</td><td>MPa</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Tooth Flank Strength -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="surface" Size="medium" Style="solid" /><h2>Tooth Flank Strength (Pitting)</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Zone Factor</td><td>Z<sub>H</sub></td><td>@engine.ZoneFactorH.ToString("F3")</td><td>-</td></tr>
+                    <tr><td>Elasticity Factor</td><td>Z<sub>E</sub></td><td>@engine.ElasticityFactor.ToString("F3")</td><td>&#8730;N/mm&#178;</td></tr>
+                    <tr><td>Contact Ratio Factor</td><td>Z<sub>&#949;</sub></td><td>@engine.ContactRatioFactorFlank.ToString("F3")</td><td>-</td></tr>
+                    <tr><td>Helix Angle Factor</td><td>Z<sub>&#946;</sub></td><td>@engine.HelixAngleFactorFlank.ToString("F3")</td><td>-</td></tr>
+                    <tr><td>Nominal Contact Stress</td><td>&#963;<sub>H0</sub></td><td>@engine.NominalContactStress.ToString("F1")</td><td>MPa</td></tr>
+                    <tr class="highlight"><td>Contact Stress</td><td>&#963;<sub>H</sub></td><td>@engine.ContactStress.ToString("F1")</td><td>MPa</td></tr>
+                </tbody>
+            </table>
+            <table class="results-table" style="margin-top: 16px;">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Gear 1</th><th>Gear 2</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Single Tooth Contact Factor</td><td>Z<sub>B</sub>/Z<sub>D</sub></td><td>@engine.SingleToothContactFactor1.ToString("F3")</td><td>@engine.SingleToothContactFactor2.ToString("F3")</td><td>-</td></tr>
+                    <tr class="highlight"><td>Contact Stress (Individual)</td><td>&#963;<sub>HB</sub>/&#963;<sub>HD</sub></td><td>@engine.ContactStress1.ToString("F1")</td><td>@engine.ContactStress2.ToString("F1")</td><td>MPa</td></tr>
+                    <tr><td>Permissible Contact Stress</td><td>&#963;<sub>HP</sub></td><td>@engine.PermissibleContactStress1.ToString("F1")</td><td>@engine.PermissibleContactStress2.ToString("F1")</td><td>MPa</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Safety Factors -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="safety" Size="medium" Style="solid" /><h2>Safety Factors</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Gear 1</th><th>Gear 2</th><th>Required</th><th>Status</th></tr></thead>
+                <tbody>
+                    <tr class="@GetSafetyRowClass(engine.RootSafetyFactor1, 1.3)">
+                        <td>Root Safety Factor</td><td>S<sub>F</sub></td>
+                        <td>@engine.RootSafetyFactor1.ToString("F2")</td>
+                        <td>@engine.RootSafetyFactor2.ToString("F2")</td>
+                        <td>&#8805; 1.30</td>
+                        <td>@GetSafetyStatus(Math.Min(engine.RootSafetyFactor1, engine.RootSafetyFactor2), 1.3)</td>
+                    </tr>
+                    <tr class="@GetSafetyRowClass(engine.FlankSafetyFactor1, 1.0)">
+                        <td>Flank Safety Factor</td><td>S<sub>H</sub></td>
+                        <td>@engine.FlankSafetyFactor1.ToString("F2")</td>
+                        <td>@engine.FlankSafetyFactor2.ToString("F2")</td>
+                        <td>&#8805; 1.00</td>
+                        <td>@GetSafetyStatus(Math.Min(engine.FlankSafetyFactor1, engine.FlankSafetyFactor2), 1.0)</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Design Assessment -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="design" Size="medium" Style="solid" /><h2>Design Assessment</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Load Cycles (Pinion)</td><td>N<sub>L1</sub></td><td>@(engine.LoadCycles1.ToString("F2")) &#215; 10&#8310;</td><td>-</td></tr>
+                    <tr><td>Load Cycles (Wheel)</td><td>N<sub>L2</sub></td><td>@(engine.LoadCycles2.ToString("F2")) &#215; 10&#8310;</td><td>-</td></tr>
+                    <tr class="highlight"><td>Minimum Root Safety</td><td>S<sub>F,min</sub></td><td>@engine.MinRootSafety.ToString("F2")</td><td>-</td></tr>
+                    <tr class="highlight"><td>Minimum Flank Safety</td><td>S<sub>H,min</sub></td><td>@engine.MinFlankSafety.ToString("F2")</td><td>-</td></tr>
+                </tbody>
+            </table>
+
+            @if (engine.MinRootSafety < 1.0 || engine.MinFlankSafety < 1.0)
+            {
+                <div class="alert alert-danger" style="margin-top: 16px;"><ModuleIcon Type="warning" Size="small" Style="default" CustomStyle="margin-right: 8px;" /> <strong>Warning:</strong> Design is unsafe! Safety factor below minimum requirement.</div>
+            }
+            else if (engine.MinRootSafety < 1.3 || engine.MinFlankSafety < 1.0)
+            {
+                <div class="alert alert-warning" style="margin-top: 16px;"><ModuleIcon Type="warning" Size="small" Style="default" CustomStyle="margin-right: 8px;" /> <strong>Note:</strong> Safety factors are marginal. Consider increasing module or face width.</div>
+            }
+            else if (engine.TransverseContactRatio < 1.2)
+            {
+                <div class="alert alert-warning" style="margin-top: 16px;"><ModuleIcon Type="warning" Size="small" Style="default" CustomStyle="margin-right: 8px;" /> <strong>Note:</strong> Contact ratio is below 1.2. Smooth operation may be affected.</div>
+            }
+            else
+            {
+                <div class="alert alert-success" style="margin-top: 16px;"><ModuleIcon Type="check" Size="small" Style="default" CustomStyle="margin-right: 8px;" /> <strong>OK:</strong> Design meets all safety requirements according to ISO 6336.</div>
+            }
+        </div>
+    </div>
+}
+
+<style>
+    .material-info {
+        font-size: 11px;
+        color: #6c757d;
+        margin-top: 4px;
+        padding-left: 4px;
+    }
+
+    .results-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+
+    .results-table th {
+        background: #f8f9fa;
+        padding: 10px 12px;
+        text-align: left;
+        font-weight: 600;
+        color: #2c3e50;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    .results-table td {
+        padding: 8px 12px;
+        border-bottom: 1px solid #eee;
+    }
+
+    .results-table tr:hover {
+        background: #f8f9fa;
+    }
+
+    .results-table tr.highlight {
+        background: #e3f2fd;
+        font-weight: 500;
+    }
+
+    .results-table tr.warning {
+        background: #fff8e1;
+    }
+
+    .results-table tr.danger {
+        background: #ffebee;
+    }
+
+    .results-table tr.success {
+        background: #e8f5e9;
+    }
+
+    /* 5-column layout for gear comparison tables */
+    .results-table th:nth-child(1) { width: 35%; }
+    .results-table th:nth-child(2) { width: 12%; text-align: center; }
+    .results-table th:nth-child(3) { width: 18%; text-align: right; }
+    .results-table th:nth-child(4) { width: 18%; text-align: right; }
+    .results-table th:nth-child(5) { width: 17%; text-align: center; }
+
+    .results-table td:nth-child(2) {
+        text-align: center;
+        font-family: 'Times New Roman', serif;
+        font-style: italic;
+        color: #666;
+    }
+
+    .results-table td:nth-child(3),
+    .results-table td:nth-child(4) {
+        text-align: right;
+        font-weight: 500;
+        font-family: 'Consolas', monospace;
+    }
+
+    .results-table td:nth-child(5) {
+        text-align: center;
+        color: #666;
+    }
+
+    .results-table td[colspan="2"] {
+        text-align: center !important;
+    }
+
+    .btn-info {
+        background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+        color: white;
+    }
+
+    .btn-info:hover {
+        background: linear-gradient(135deg, #138496 0%, #117a8b 100%);
+    }
+</style>
+
+@code {
+    private GearPairEngine engine = new();
+    private List<GearMaterial> gearMaterials = new();
+    private ModuleInfo moduleInfo = new();
+    private bool showResults = false;
+    private bool isCalculating = false;
+    private bool isSavingPdf = false;
+    private string selectedApplicationFactor = "1.0";
+    private int selectedMaterial1Index = 5; // 18CrNiMo7-6 Case-hardened
+    private int selectedMaterial2Index = 5;
+
+    protected override void OnInitialized()
+    {
+        gearMaterials = GearMaterial.StandardMaterials;
+
+        // Default values (based on KISSsoft tutorial example)
+        engine.Power = 3.5;
+        engine.Speed1 = 2500;
+        engine.ApplicationFactor = 1.0;
+        engine.RequiredServiceLife = 10000;
+        engine.NormalModule = 1.5;
+        engine.PressureAngle = 20.0;
+        engine.HelixAngle = 0.0;
+        engine.CenterDistance = 50.0;
+        engine.NumberOfTeeth1 = 20;
+        engine.NumberOfTeeth2 = 40;
+        engine.FaceWidth1 = 15;
+        engine.FaceWidth2 = 15;
+        engine.ProfileShiftCoeff1 = 0.0;
+        engine.AddendumCoeff = 1.0;
+        engine.DedendumCoeff = 1.25;
+        engine.RootRadiusCoeff = 0.3;
+        engine.QualityGrade1 = 6;
+        engine.QualityGrade2 = 6;
+    }
+
+    private void OnApplicationFactorChanged()
+    {
+        if (double.TryParse(selectedApplicationFactor, System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out double factor))
+        {
+            engine.ApplicationFactor = factor;
+        }
+    }
+
+    private void OnGeometryChanged()
+    {
+        // Auto-calculate profile shift coefficient for gear 2
+        if (engine.NumberOfTeeth1 > 0 && engine.NumberOfTeeth2 > 0 &&
+            engine.NormalModule > 0 && engine.CenterDistance > 0)
+        {
+            engine.CalculateProfileShift2();
+        }
+    }
+
+    private string GetSafetyRowClass(double sf, double minRequired)
+    {
+        if (sf < minRequired * 0.8) return "danger";
+        if (sf < minRequired) return "warning";
+        return "success";
+    }
+
+    private string GetSafetyStatus(double sf, double minRequired)
+    {
+        if (sf < minRequired * 0.8) return "&#10060; FAIL";
+        if (sf < minRequired) return "&#9888; Marginal";
+        return "&#10003; OK";
+    }
+
+    private async Task Calculate()
+    {
+        isCalculating = true;
+        StateHasChanged();
+        await Task.Delay(350);
+        // Validation
+        if (engine.Power <= 0 || engine.Speed1 <= 0 || engine.NormalModule <= 0 ||
+            engine.NumberOfTeeth1 <= 0 || engine.NumberOfTeeth2 <= 0 ||
+            engine.FaceWidth1 <= 0 || engine.FaceWidth2 <= 0 ||
+            engine.CenterDistance <= 0 || engine.RequiredServiceLife <= 0)
+        {
+            isCalculating = false;
+            return;
+        }
+
+        // Set materials
+        engine.Material1 = gearMaterials[selectedMaterial1Index];
+        engine.Material2 = gearMaterials[selectedMaterial2Index];
+
+        // Run calculation
+        engine.Calculate();
+
+        showResults = true;
+        isCalculating = false;
+    }
+
+    private void BackToInput() => showResults = false;
+
+    private void ClearForm()
+    {
+        engine = new GearPairEngine
+        {
+            Power = 3.5,
+            Speed1 = 2500,
+            ApplicationFactor = 1.0,
+            RequiredServiceLife = 10000,
+            NormalModule = 1.5,
+            PressureAngle = 20.0,
+            HelixAngle = 0.0,
+            CenterDistance = 50.0,
+            NumberOfTeeth1 = 20,
+            NumberOfTeeth2 = 40,
+            FaceWidth1 = 15,
+            FaceWidth2 = 15,
+            ProfileShiftCoeff1 = 0.0,
+            AddendumCoeff = 1.0,
+            DedendumCoeff = 1.25,
+            RootRadiusCoeff = 0.3,
+            QualityGrade1 = 6,
+            QualityGrade2 = 6
+        };
+        selectedApplicationFactor = "1.0";
+        showResults = false;
+    }
+
+    private async Task SaveAsPdf()
+    {
+        isSavingPdf = true;
+        StateHasChanged();
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("generatePdf", "results-content",
+                $"GearPair-Report-{DateTime.Now:yyyyMMdd_HHmmss}.pdf");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error", $"PDF generation error: {ex.Message}");
+        }
+        finally
+        {
+            isSavingPdf = false;
+        }
+    }
+}

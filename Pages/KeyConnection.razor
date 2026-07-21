@@ -1,0 +1,609 @@
+@page "/key-connection"
+@inject MaterialService MaterialService
+@inject AnalyticsService Analytics
+@inject SeoService Seo
+@inject ModuleMetadataService Metadata
+@inject FeedbackService Feedback
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Parallel Key Calculator - Mekanika</PageTitle>
+
+<div class="page-header">
+    <h1>
+        <ModuleIcon Type="key-connection" Size="large" Style="transparent" CustomStyle="margin-right: 12px;" />
+        Parallel Key Calculator
+    </h1>
+    <p>Parallel key connection design according to DIN 6885</p>
+</div>
+
+@if (!showResults)
+{
+    <!-- INPUT FORM -->
+    <div class="form-grid">
+        <!-- Shaft & Key Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="geometry" Size="medium" Style="solid" />
+                <h2>Shaft & Key Dimensions</h2>
+            </div>
+            
+            <div class="form-group">
+                <label>Shaft Diameter (d)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="engine.ShaftDiameter" @bind:after="OnShaftDiameterChanged" placeholder="e.g. 40" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+            
+            @if (recommendedKey != null)
+            {
+                <div class="alert alert-success" style="margin: 12px 0;">
+                    <ModuleIcon Type="info" Size="small" Style="default" />
+                    <div>
+                        <strong>Recommended:</strong> Key @recommendedKey.Width×@recommendedKey.Height mm
+                        <button class="btn btn-primary" style="margin-left: 12px; padding: 4px 12px; font-size: 12px;" @onclick="ApplyRecommendedKey">Apply</button>
+                    </div>
+                </div>
+            }
+            
+            <div class="form-group">
+                <label>Key Width (b)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="engine.KeyWidth" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Key Height (h)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="engine.KeyHeight" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Key Length - Total (l)</label>
+                <div class="input-group">
+                    <input type="number" step="1" @bind="engine.KeyLength" placeholder="e.g. 50" />
+                    <span class="unit">mm</span>
+                </div>
+                <small style="color: #6c757d; font-size: 12px;">Effective length = l - b</small>
+            </div>
+        </div>
+
+        <!-- Keyway Depths Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="depth" Size="medium" Style="solid" />
+                <h2>Keyway Depths</h2>
+            </div>
+            
+            <div class="form-group">
+                <label>Keyway Depth in Shaft (t₁)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="engine.KeywayDepthShaft" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Keyway Depth in Hub (t₂)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="engine.KeywayDepthHub" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Number of Keys</label>
+                <select @bind="engine.NumberOfKeys">
+                    <option value="1">1 Key</option>
+                    <option value="2">2 Keys (180°)</option>
+                    <option value="3">3 Keys (120°)</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Loading Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="force" Size="medium" Style="solid" />
+                <h2>Loading</h2>
+            </div>
+            
+            <div class="form-group">
+                <label>Applied Torque (T)</label>
+                <div class="input-group">
+                    <input type="number" step="1" @bind="engine.AppliedTorque" placeholder="e.g. 500" />
+                    <span class="unit">Nm</span>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Load Factor (φ)</label>
+                <select @bind="selectedLoadFactor" @bind:after="OnLoadFactorChanged">
+                    <option value="1.0">1.0 - Static</option>
+                    <option value="1.25">1.25 - Moderate shock</option>
+                    <option value="1.5">1.5 - Heavy shock</option>
+                    <option value="1.75">1.75 - Alternating</option>
+                    <option value="2.0">2.0 - Impact</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Materials Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="material" Size="medium" Style="solid" />
+                <h2>Materials</h2>
+            </div>
+            
+            <div class="form-group">
+                <label>Shaft Material</label>
+                <select @bind="selectedShaftMaterialIndex">
+                    @for (int i = 0; i < materials.Count; i++)
+                    {
+                        <option value="@i">@materials[i].Name</option>
+                    }
+                </select>
+                @if (materials.Any())
+                {
+                    <div class="material-info">
+                        Re = @materials[selectedShaftMaterialIndex].YieldStrength MPa | Rm = @materials[selectedShaftMaterialIndex].TensileStrength MPa
+                    </div>
+                }
+            </div>
+            
+            <div class="form-group">
+                <label>Hub Material</label>
+                <select @bind="selectedHubMaterialIndex">
+                    @for (int i = 0; i < materials.Count; i++)
+                    {
+                        <option value="@i">@materials[i].Name</option>
+                    }
+                </select>
+                @if (materials.Any())
+                {
+                    <div class="material-info">
+                        Re = @materials[selectedHubMaterialIndex].YieldStrength MPa | Rm = @materials[selectedHubMaterialIndex].TensileStrength MPa
+                    </div>
+                }
+            </div>
+            
+            <div class="form-group">
+                <label>Key Material</label>
+                <select @bind="selectedKeyMaterialIndex">
+                    @for (int i = 0; i < materials.Count; i++)
+                    {
+                        <option value="@i">@materials[i].Name</option>
+                    }
+                </select>
+                @if (materials.Any())
+                {
+                    <div class="material-info">
+                        Re = @materials[selectedKeyMaterialIndex].YieldStrength MPa | Rm = @materials[selectedKeyMaterialIndex].TensileStrength MPa
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="button-group">
+        <button class="btn btn-success btn-lg @(isCalculating ? "btn-calculating" : "")" @onclick="Calculate" disabled="@isCalculating">
+            @if (isCalculating)
+            {
+                <span class="spinner"></span>
+                <span>Calculating...</span>
+            }
+            else
+            {
+                <ModuleIcon Type="calculate" Size="button" Style="default" />
+                <span>Calculate</span>
+            }
+        </button>
+        <button class="btn btn-secondary" @onclick="ClearForm" disabled="@isCalculating">
+            <ModuleIcon Type="clear" Size="button" Style="default" />
+            Clear
+        </button>
+    </div>
+}
+else
+{
+    <!-- RESULTS -->
+    <div class="button-group" style="margin-bottom: 24px;">
+        <button class="btn btn-primary" @onclick="BackToInput">
+            <ModuleIcon Type="back" Size="button" Style="default" />
+            Back to Input
+        </button>
+        <button class="btn btn-secondary" @onclick="ClearForm">
+            <ModuleIcon Type="new" Size="button" Style="default" />
+            New Calculation
+        </button>
+        <button class="btn btn-info @(isSavingPdf ? "btn-saving" : "")" @onclick="SaveAsPdf" disabled="@isSavingPdf">
+            @if (isSavingPdf)
+            {
+                <span class="spinner"></span>
+                <span>Generating PDF...</span>
+            }
+            else
+            {
+                <ModuleIcon Type="pdf" Size="button" Style="default" />
+                <span>Save as PDF</span>
+            }
+        </button>
+        <Viewer3D Module="key-connection" Parameters="@Build3dParameters()" />
+    </div>
+
+    <!-- Detailed Results Container -->
+    <div id="results-content">
+        <!-- Geometric Properties -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="geometry" Size="medium" Style="solid" />
+                <h2>Geometric & Physical Properties</h2>
+            </div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Shaft Diameter</td><td>d</td><td>@engine.ShaftDiameter.ToString("F1")</td><td>mm</td></tr>
+                    <tr><td>Key Width</td><td>b</td><td>@engine.KeyWidth.ToString("F1")</td><td>mm</td></tr>
+                    <tr><td>Key Height</td><td>h</td><td>@engine.KeyHeight.ToString("F1")</td><td>mm</td></tr>
+                    <tr><td>Total Key Length</td><td>l</td><td>@engine.KeyLength.ToString("F1")</td><td>mm</td></tr>
+                    <tr class="highlight"><td>Effective Key Length</td><td>l<sub>eff</sub></td><td>@engine.EffectiveLength.ToString("F1")</td><td>mm</td></tr>
+                    <tr><td>Keyway Depth (Shaft)</td><td>t₁</td><td>@engine.KeywayDepthShaft.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Keyway Depth (Hub)</td><td>t₂</td><td>@engine.KeywayDepthHub.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Contact Area (Shaft)</td><td>A<sub>shaft</sub></td><td>@engine.ContactAreaShaft.ToString("F1")</td><td>mm²</td></tr>
+                    <tr><td>Contact Area (Hub)</td><td>A<sub>hub</sub></td><td>@engine.ContactAreaHub.ToString("F1")</td><td>mm²</td></tr>
+                    <tr><td>Number of Keys</td><td>n</td><td>@engine.NumberOfKeys</td><td>-</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Forces -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="force" Size="medium" Style="solid" />
+                <h2>Forces & Moments</h2>
+            </div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Applied Torque</td><td>T</td><td>@engine.AppliedTorque.ToString("F0")</td><td>Nm</td></tr>
+                    <tr><td>Load Factor</td><td>φ</td><td>@engine.LoadFactor.ToString("F2")</td><td>-</td></tr>
+                    <tr class="highlight"><td>Tangential Force (Total)</td><td>F<sub>t</sub></td><td>@engine.TangentialForce.ToString("F0")</td><td>N</td></tr>
+                    <tr><td>Force per Key</td><td>F<sub>key</sub></td><td>@engine.ForcePerKey.ToString("F0")</td><td>N</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Stresses -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="stress" Size="medium" Style="solid" />
+                <h2>Stresses</h2>
+            </div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Surface Pressure (Shaft)</td><td>p<sub>shaft</sub></td><td>@engine.SurfacePressureShaft.ToString("F1")</td><td>MPa</td></tr>
+                    <tr><td>Surface Pressure (Hub)</td><td>p<sub>hub</sub></td><td>@engine.SurfacePressureHub.ToString("F1")</td><td>MPa</td></tr>
+                    <tr><td>Key Shear Stress</td><td>τ<sub>key</sub></td><td>@engine.ShearStress.ToString("F1")</td><td>MPa</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Safety Factors -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="safety" Size="medium" Style="solid" />
+                <h2>Safety Factors</h2>
+            </div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Status</th></tr></thead>
+                <tbody>
+                    <tr class="@GetSafetyRowClass(engine.SafetyFactorShaft)"><td>Safety Factor (Shaft)</td><td>SF<sub>shaft</sub></td><td>@engine.SafetyFactorShaft.ToString("F2")</td><td>@GetSafetyStatus(engine.SafetyFactorShaft)</td></tr>
+                    <tr class="@GetSafetyRowClass(engine.SafetyFactorHub)"><td>Safety Factor (Hub)</td><td>SF<sub>hub</sub></td><td>@engine.SafetyFactorHub.ToString("F2")</td><td>@GetSafetyStatus(engine.SafetyFactorHub)</td></tr>
+                    <tr class="@GetSafetyRowClass(engine.SafetyFactorShear)"><td>Safety Factor (Shear)</td><td>SF<sub>shear</sub></td><td>@engine.SafetyFactorShear.ToString("F2")</td><td>@GetSafetyStatus(engine.SafetyFactorShear)</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Design Recommendation -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="info" Size="medium" Style="solid" />
+                <h2>Design Recommendation</h2>
+            </div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr class="highlight"><td>Required Key Length (min)</td><td>l<sub>req</sub></td><td>@engine.RequiredKeyLength.ToString("F0")</td><td>mm</td></tr>
+                    <tr><td>Provided Key Length</td><td>l</td><td>@engine.KeyLength.ToString("F0")</td><td>mm</td></tr>
+                    <tr><td>Length Margin</td><td>Δl</td><td>@((engine.KeyLength - engine.RequiredKeyLength).ToString("F0"))</td><td>mm</td></tr>
+                </tbody>
+            </table>
+            
+            @if (engine.KeyLength < engine.RequiredKeyLength)
+            {
+                <div class="alert alert-danger" style="margin-top: 16px;">
+                    <ModuleIcon Type="error" Size="small" Style="default" />
+                    <strong>Warning:</strong> Key length is insufficient! Increase to at least @engine.RequiredKeyLength.ToString("F0") mm.
+                </div>
+            }
+            else if (engine.SafetyFactorMin < 1.0)
+            {
+                <div class="alert alert-danger" style="margin-top: 16px;">
+                    <ModuleIcon Type="error" Size="small" Style="default" />
+                    <strong>Warning:</strong> Safety factor below 1.0! Design is unsafe.
+                </div>
+            }
+            else if (engine.SafetyFactorMin < 1.5)
+            {
+                <div class="alert alert-warning" style="margin-top: 16px;">
+                    <ModuleIcon Type="warning" Size="small" Style="default" />
+                    <strong>Note:</strong> Safety factor is marginal. Consider increasing key length.
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-success" style="margin-top: 16px;">
+                    <ModuleIcon Type="check" Size="small" Style="default" />
+                    <strong>OK:</strong> Design meets safety requirements.
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Feedback Widget -->
+    <FeedbackWidget ModuleKey="key-connection" />
+}
+
+<!-- Related Calculators -->
+<RelatedCalculators CurrentModuleKey="key-connection" />
+
+<style>
+    .material-info {
+        font-size: 12px;
+        color: #6c757d;
+        margin-top: 4px;
+        padding-left: 4px;
+    }
+
+    .results-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .results-table th { background: #f8f9fa; padding: 12px 16px; text-align: left; font-weight: 600; color: #2c3e50; border-bottom: 2px solid #dee2e6; }
+    .results-table td { padding: 10px 16px; border-bottom: 1px solid #eee; }
+    .results-table tr:hover { background: #f8f9fa; }
+    .results-table tr.highlight { background: #e3f2fd; font-weight: 500; }
+    
+    /* Column Alignment Styles */
+    .results-table th:nth-child(1) { width: 45%; }
+    .results-table th:nth-child(2) { width: 15%; text-align: center; }
+    .results-table th:nth-child(3) { width: 25%; text-align: right; }
+    .results-table th:nth-child(4) { width: 15%; text-align: center; }
+
+    .results-table td:nth-child(2) {
+        text-align: center;
+        font-family: 'Times New Roman', serif;
+        font-style: italic;
+        color: #666;
+    }
+
+    .results-table td:nth-child(3) {
+        text-align: right;
+        font-weight: 500;
+        font-family: 'Consolas', monospace;
+    }
+
+    .results-table td:nth-child(4) {
+        text-align: center;
+        color: #666;
+    }
+</style>
+
+@code {
+    private KeyConnectionEngine engine = new();
+    private List<Material> materials = new();
+    private ModuleInfo moduleInfo = new();
+    private bool showResults = false;
+    private bool isCalculating = false;
+    private bool isSavingPdf = false;
+    private KeyDimension? recommendedKey = null;
+    private string selectedLoadFactor = "1.0";
+    private int selectedShaftMaterialIndex = 2;
+    private int selectedHubMaterialIndex = 2;
+    private int selectedKeyMaterialIndex = 2;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load materials
+        materials = MaterialService.GetMaterials();
+        engine.LoadFactor = 1.0;
+        engine.NumberOfKeys = 1;
+
+        // Load module metadata
+        moduleInfo = Metadata.GetModule("key-connection");
+
+        // Set SEO metadata
+        await SetSeoMetadata();
+
+        // Set structured data
+        await SetStructuredData();
+
+        // Track page view
+        await Analytics.TrackPageView("/key-connection", moduleInfo.Name);
+    }
+
+    private async Task SetSeoMetadata()
+    {
+        var baseUrl = "https://mekanika.org";
+        var seo = new SeoMetadata
+        {
+            Title = $"{moduleInfo.Name} - Free Online Tool | Mekanika",
+            Description = moduleInfo.Description,
+            Keywords = moduleInfo.Keywords,
+            CanonicalUrl = $"{baseUrl}{moduleInfo.Route}",
+            OgTitle = moduleInfo.Name,
+            OgDescription = moduleInfo.Description,
+            OgImage = $"{baseUrl}/logo.png",
+            OgUrl = $"{baseUrl}{moduleInfo.Route}",
+            TwitterCard = "summary",
+            TwitterTitle = moduleInfo.Name,
+            TwitterDescription = moduleInfo.Description,
+            TwitterImage = $"{baseUrl}/logo.png"
+        };
+
+        await Seo.SetMetaTags(seo);
+    }
+
+    private async Task SetStructuredData()
+    {
+        var structuredData = new
+        {
+            context = "https://schema.org",
+            type = "SoftwareApplication",
+            name = moduleInfo.Name,
+            description = moduleInfo.Description,
+            applicationCategory = "EngineeringApplication",
+            operatingSystem = "Web Browser",
+            browserRequirements = "Requires JavaScript, WebAssembly support",
+            offers = new
+            {
+                type = "Offer",
+                price = "0",
+                priceCurrency = "USD"
+            },
+            author = new
+            {
+                type = "Organization",
+                name = "Mekanika",
+                url = "https://mekanika.org"
+            },
+            featureList = new[]
+            {
+                "Standards-based calculations (DIN 6885)",
+                "PDF export",
+                "No registration required",
+                "Privacy-focused (client-side calculation)"
+            }
+        };
+
+        await Seo.SetStructuredData(structuredData);
+    }
+
+    private void OnShaftDiameterChanged() => recommendedKey = KeyConnectionEngine.GetStandardKey(engine.ShaftDiameter);
+
+    private void OnLoadFactorChanged()
+    {
+        if (double.TryParse(selectedLoadFactor, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double factor))
+            engine.LoadFactor = factor;
+    }
+
+    private void ApplyRecommendedKey()
+    {
+        if (recommendedKey != null)
+        {
+            engine.KeyWidth = recommendedKey.Width;
+            engine.KeyHeight = recommendedKey.Height;
+            engine.KeywayDepthShaft = recommendedKey.DepthShaft;
+            engine.KeywayDepthHub = recommendedKey.DepthHub;
+        }
+    }
+
+    private string GetSafetyRowClass(double sf) => sf < 1.0 ? "danger" : sf < 1.5 ? "warning" : "success";
+    private string GetSafetyStatus(double sf) => sf < 1.0 ? "❌ FAIL" : sf < 1.5 ? "⚠️ Marginal" : "✓ OK";
+
+    private async Task Calculate()
+    {
+        isCalculating = true;
+        StateHasChanged();
+        await Task.Delay(350);
+        try
+        {
+            // Validation
+            if (engine.ShaftDiameter <= 0 || engine.KeyWidth <= 0 || engine.KeyHeight <= 0 || engine.KeyLength <= 0 || engine.AppliedTorque <= 0)
+            {
+                await Analytics.TrackCalculationError("key-connection", "validation_failed", "Invalid input parameters");
+                return;
+            }
+
+            // Perform calculation
+            engine.ShaftMaterial = materials[selectedShaftMaterialIndex];
+            engine.HubMaterial = materials[selectedHubMaterialIndex];
+            engine.KeyMaterial = materials[selectedKeyMaterialIndex];
+            engine.Calculate();
+            showResults = true;
+
+            // Track successful calculation
+            await Analytics.TrackCalculationCompleted("key-connection", new Dictionary<string, object>
+            {
+                { "shaft_diameter", engine.ShaftDiameter },
+                { "key_width", engine.KeyWidth },
+                { "key_length", engine.KeyLength },
+                { "safety_factor_min", engine.SafetyFactorMin }
+            });
+        }
+        catch (Exception ex)
+        {
+            await Analytics.TrackCalculationError("key-connection", "calculation_failed", ex.Message);
+            throw;
+        }
+        finally
+        {
+            isCalculating = false;
+        }
+    }
+
+    /// <summary>
+    /// Geometry handed to the 3D viewer. Keys must match the "key-connection"
+    /// builder in wwwroot/js/viewer3d.js.
+    ///
+    /// The engine has no hub outside diameter (it is not needed for the DIN 6885
+    /// checks), so the viewer is given a representative 1.9 x d hub purely so the
+    /// connection can be shown in context. It is labelled as such in the legend.
+    /// </summary>
+    private object Build3dParameters() => new
+    {
+        d = engine.ShaftDiameter,
+        b = engine.KeyWidth,
+        h = engine.KeyHeight,
+        l = engine.KeyLength,
+        t1 = engine.KeywayDepthShaft,
+        t2 = engine.KeywayDepthHub,
+        n = engine.NumberOfKeys,
+        Dhub = engine.ShaftDiameter * 1.9
+    };
+
+    private void BackToInput() => showResults = false;
+
+    private void ClearForm()
+    {
+        engine = new KeyConnectionEngine { LoadFactor = 1.0, NumberOfKeys = 1 };
+        recommendedKey = null;
+        selectedLoadFactor = "1.0";
+        showResults = false;
+    }
+
+    private async Task SaveAsPdf()
+    {
+        isSavingPdf = true;
+        StateHasChanged();
+        try
+        {
+            var fileName = $"KeyConnection-Report-{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            await JSRuntime.InvokeVoidAsync("generatePdf", "results-content", fileName);
+
+            // Track PDF download
+            await Analytics.TrackPdfDownload("key-connection", fileName);
+        }
+        catch (Exception ex)
+        {
+            await Analytics.TrackCalculationError("key-connection", "pdf_generation_failed", ex.Message);
+            await JSRuntime.InvokeVoidAsync("console.error", $"PDF generation error: {ex.Message}");
+        }
+        finally
+        {
+            isSavingPdf = false;
+        }
+    }
+}

@@ -1,0 +1,19 @@
+/* Hide navigation bar and other non-essential elements when printing */
+@media print {
+    .sidebar, .top-row, .button-group {
+        display: none !important;
+    }
+
+    #results-content {
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        border: none;
+        box-shadow: none;
+    }
+
+    .card {
+        border: 1px solid #dee2e6;
+        page-break-inside: avoid;
+    }
+}

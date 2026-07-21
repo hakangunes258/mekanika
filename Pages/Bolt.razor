@@ -1,0 +1,333 @@
+@page "/bolt"
+@using MechanicalCalculatorWeb.Services
+@using MechanicalCalculatorWeb.Models
+@using static MechanicalCalculatorWeb.Services.BoltService
+@inject MaterialService MaterialService
+@inject IJSRuntime JSRuntime
+@inject AnalyticsService Analytics
+@inject SeoService Seo
+@inject ModuleMetadataService Metadata
+
+<PageTitle>General Bolt Calculator - Mekanika</PageTitle>
+
+<div class="page-header">
+    <h1>
+        <ModuleIcon Type="bolt" Size="large" Style="transparent" CustomStyle="margin-right: 12px;" />
+        General Bolt Calculator
+    </h1>
+    <p>A general-purpose calculator for various bolt-related calculations.</p>
+</div>
+
+<div class="form-grid">
+    <div class="card">
+        <div class="card-header">
+            <span>🔩</span>
+            <h2>Bolt Specification</h2>
+        </div>
+
+        <div class="form-group">
+            <label>Bolt Size</label>
+            <div class="input-group">
+                <select @bind="boltSize" style="flex: 1;">
+                    @foreach (var bolt in MetricBolts)
+                    {
+                        <option value="@bolt.Size">@bolt.Size</option>
+                    }
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Strength Class</label>
+            <select @bind="strengthClass">
+                @foreach (var cls in StrengthClasses)
+                {
+                    <option value="@cls.Class">@cls.Class</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span>🔧</span>
+            <h2>Torque Calculator</h2>
+        </div>
+
+        <div class="form-group">
+            <label>Desired Preload</label>
+            <div class="input-group">
+                <input type="number" @bind="desiredPreload" />
+                <span class="unit">N</span>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Friction Coefficient</label>
+            <div class="input-group">
+                <input type="number" @bind="frictionCoefficient" />
+                <span class="unit">-</span>
+            </div>
+        </div>
+
+        <div class="button-group">
+            <button class="btn btn-success" @onclick="CalculateTorque">
+                <span>▶</span> Calculate Torque
+            </button>
+        </div>
+
+        @if (showTorqueResult)
+        {
+            <div class="info-highlight">
+                <span>Required Torque:</span>
+                <strong>@requiredTorque.ToString("F1") Nm</strong>
+            </div>
+        }
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span>🔩</span>
+            <h2>Preload Calculator</h2>
+        </div>
+
+        <div class="form-group">
+            <label>Tightening Torque</label>
+            <div class="input-group">
+                <input type="number" @bind="tighteningTorque" />
+                <span class="unit">Nm</span>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Friction Coefficient</label>
+            <div class="input-group">
+                <input type="number" @bind="frictionCoefficient" />
+                <span class="unit">-</span>
+            </div>
+        </div>
+
+        <div class="button-group">
+            <button class="btn btn-success" @onclick="CalculatePreload">
+                <span>▶</span> Calculate Preload
+            </button>
+        </div>
+
+        @if (showPreloadResult)
+        {
+            <div class="info-highlight">
+                <span>Resulting Preload:</span>
+                <strong>@resultingPreload.ToString("F0") N</strong>
+            </div>
+        }
+    </div>
+</div>
+
+<div class="button-group">
+    <button class="btn btn-success btn-lg @(isCalculating ? "btn-calculating" : "")" @onclick="Calculate" disabled="@isCalculating">
+        @if (isCalculating)
+        {
+            <span class="spinner"></span>
+            <span>Calculating...</span>
+        }
+        else
+        {
+            <span>▶</span>
+            <span>Calculate</span>
+        }
+    </button>
+    <button class="btn btn-secondary" @onclick="ClearForm" disabled="@isCalculating">
+        <span>🧹</span> Clear
+    </button>
+</div>
+
+@if (showResults)
+{
+    <div id="results-content">
+        <div class="card">
+            <div class="card-header"><span>🔩</span><h2>Bolt Properties</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Tensile Strength</td><td>R<sub>m</sub></td><td>@result.Rm.ToString("F0")</td><td>MPa</td></tr>
+                    <tr><td>Yield Strength</td><td>R<sub>p0.2</sub></td><td>@result.Rp02.ToString("F0")</td><td>MPa</td></tr>
+                    <tr><td>Stress Area</td><td>A<sub>s</sub></td><td>@result.As.ToString("F1")</td><td>mm²</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+<RelatedCalculators CurrentModule="bolt" />
+
+@code {
+    private string boltSize = "M10";
+    private string strengthClass = "8.8";
+    private bool showResults = false;
+    private bool isCalculating = false;
+    private SingleBoltResult result = new();
+
+    private double desiredPreload = 10000;
+    private double frictionCoefficient = 0.12;
+    private bool showTorqueResult = false;
+    private double requiredTorque = 0;
+
+    private double tighteningTorque = 50;
+    private bool showPreloadResult = false;
+    private double resultingPreload = 0;
+
+    private ModuleInfo moduleInfo = new();
+
+    private IEnumerable<BoltDimension> MetricBolts => BoltService.MetricBolts;
+    private IEnumerable<BoltStrengthClass> StrengthClasses => BoltService.StrengthClasses;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load module metadata
+        moduleInfo = Metadata.GetModule("bolt");
+
+        // Set SEO metadata
+        await SetSeoMetadata();
+
+        // Set structured data
+        await SetStructuredData();
+
+        // Track page view
+        await Analytics.TrackPageView("/bolt", moduleInfo.Name);
+    }
+
+    private async Task Calculate()
+    {
+        isCalculating = true;
+        StateHasChanged();
+        await Task.Delay(350);
+        var bolt = GetBoltBySize(boltSize);
+        var strength = GetStrengthClass(strengthClass);
+
+        if (bolt != null && strength != null)
+        {
+            var d2 = bolt.d2_coarse;
+            var d3 = bolt.d3_coarse;
+            var As = Math.PI / 4 * Math.Pow((d2 + d3) / 2, 2);
+
+            result = new SingleBoltResult
+            {
+                Rm = strength.Rm,
+                Rp02 = strength.Rp02,
+                As = As
+            };
+            showResults = true;
+
+            // Track calculation event
+            await Analytics.TrackCalculationCompleted("bolt", new Dictionary<string, object>
+            {
+                { "bolt_size", boltSize },
+                { "strength_class", strengthClass },
+                { "tensile_strength", result.Rm },
+                { "yield_strength", result.Rp02 }
+            });
+        }
+        isCalculating = false;
+    }
+
+    private void CalculateTorque()
+    {
+        var bolt = GetBoltBySize(boltSize);
+        if (bolt != null)
+        {
+            var p = bolt.P_coarse;
+            var d2 = bolt.d2_coarse;
+            var dw = bolt.dw;
+            var mu_g = frictionCoefficient;
+            var mu_k = frictionCoefficient;
+
+            requiredTorque = desiredPreload * (0.16 * p + 0.58 * d2 * mu_g + (dw / 2) * mu_k) / 1000;
+            showTorqueResult = true;
+        }
+    }
+
+    private void CalculatePreload()
+    {
+        var bolt = GetBoltBySize(boltSize);
+        if (bolt != null)
+        {
+            var p = bolt.P_coarse;
+            var d2 = bolt.d2_coarse;
+            var dw = bolt.dw;
+            var mu_g = frictionCoefficient;
+            var mu_k = frictionCoefficient;
+
+            resultingPreload = (tighteningTorque * 1000) / (0.16 * p + 0.58 * d2 * mu_g + (dw / 2) * mu_k);
+            showPreloadResult = true;
+        }
+    }
+
+    private void ClearForm()
+    {
+        boltSize = "M10";
+        strengthClass = "8.8";
+        showResults = false;
+        desiredPreload = 10000;
+        frictionCoefficient = 0.12;
+        showTorqueResult = false;
+        tighteningTorque = 50;
+        showPreloadResult = false;
+    }
+
+    private async Task SetSeoMetadata()
+    {
+        var baseUrl = "https://mekanika.org";
+        var seo = new SeoMetadata
+        {
+            Title = $"{moduleInfo.Name} - Mekanika",
+            Description = moduleInfo.Description,
+            Keywords = moduleInfo.Keywords,
+            CanonicalUrl = $"{baseUrl}{moduleInfo.Route}",
+
+            OgTitle = moduleInfo.Name,
+            OgDescription = moduleInfo.Description,
+            OgImage = $"{baseUrl}/images/og-bolt.png",
+            OgUrl = $"{baseUrl}{moduleInfo.Route}",
+            OgType = "website",
+
+            TwitterCard = "summary_large_image",
+            TwitterTitle = moduleInfo.Name,
+            TwitterDescription = moduleInfo.Description,
+            TwitterImage = $"{baseUrl}/images/og-bolt.png"
+        };
+
+        await JSRuntime.InvokeVoidAsync("setMetaTags", seo);
+    }
+
+    private async Task SetStructuredData()
+    {
+        var structuredData = new
+        {
+            context = "https://schema.org",
+            type = "SoftwareApplication",
+            name = moduleInfo.Name,
+            description = moduleInfo.Description,
+            applicationCategory = "EngineeringApplication",
+            operatingSystem = "Web Browser",
+            browserRequirements = "Requires JavaScript, WebAssembly support",
+            offers = new
+            {
+                type = "Offer",
+                price = "0",
+                priceCurrency = "USD"
+            },
+            featureList = new[]
+            {
+                "Standards-based calculations",
+                "Multiple bolt sizes (M6-M64)",
+                "Strength class selection",
+                "Torque and preload calculations",
+                "No registration required"
+            },
+            screenshot = "https://mekanika.org/images/og-bolt.png",
+            url = $"https://mekanika.org{moduleInfo.Route}"
+        };
+
+        await JSRuntime.InvokeVoidAsync("setStructuredData", structuredData);
+    }
+}

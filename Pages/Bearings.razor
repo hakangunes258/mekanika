@@ -1,0 +1,390 @@
+@page "/bearings"
+@inject AnalyticsService Analytics
+@inject SeoService Seo
+@inject ModuleMetadataService Metadata
+
+<PageTitle>Bearing Database - Mekanika</PageTitle>
+
+<div class="page-header">
+    <h1>
+        <ModuleIcon Type="ball-bearing" Size="large" Style="transparent" CustomStyle="margin-right: 12px;" />
+        Bearing Database
+    </h1>
+    <p>Standard rolling bearing catalog</p>
+</div>
+
+<div class="card" style="margin-bottom: 24px;">
+    <div class="card-header">
+        <ModuleIcon Type="info" Size="medium" Style="solid" />
+        <h2>Filter & Search</h2>
+    </div>
+    
+    <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+        <div class="form-group">
+            <label>Bearing Type</label>
+            <select @bind="selectedType">
+                <option value="All">All Types</option>
+                <option value="Deep Groove Ball">Deep Groove Ball</option>
+                <option value="Cylindrical Roller">Cylindrical Roller</option>
+                <option value="Tapered Roller">Tapered Roller</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label>Bore Diameter (d)</label>
+            <div class="input-group">
+                <input type="number" @bind="filterBore" placeholder="e.g. 30" />
+                <span class="unit">mm</span>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label>Search Designation</label>
+            <input type="text" @bind="searchText" placeholder="e.g. 6205" />
+        </div>
+    </div>
+</div>
+
+<!-- Bearing Table -->
+<div class="card">
+    <div class="card-header">
+        <ModuleIcon Type="bearing-database" Size="medium" Style="solid" />
+        <h2>Bearing Catalog (@FilteredBearingsWithDetails.Count() bearings)</h2>
+    </div>
+    
+    <div style="overflow-x: auto;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Designation</th>
+                    <th>Type</th>
+                    <th>d (mm)</th>
+                    <th>D (mm)</th>
+                    <th>B/T (mm)</th>
+                    <th>C (kN)</th>
+                    <th>C₀ (kN)</th>
+                    <th>f₀/e</th>
+                    <th>Y</th>
+                    <th>Limit (rpm)</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in FilteredBearingsWithDetails)
+                {
+                    <tr>
+                        <td><strong>@item.Designation</strong></td>
+                        <td>@item.Type</td>
+                        <td>@item.Bore</td>
+                        <td>@item.Outer</td>
+                        <td>@item.Width</td>
+                        <td>@item.C</td>
+                        <td>@item.C0</td>
+                        <td>@item.F0OrE</td>
+                        <td>@item.Y</td>
+                        <td>@item.LimitSpeed.ToString("N0")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Educational Content Section -->
+<div class="content-section">
+    <h2><ModuleIcon Type="info" Size="medium" Style="solid" /> Understanding Rolling Bearings</h2>
+    
+    <div class="content-block">
+        <h3>Bearing Catalog Overview</h3>
+        <p>
+            This database contains standard rolling bearings from major manufacturers following ISO dimensional
+            standards. Each bearing is characterized by its dimensions, load ratings, and speed limits. The
+            catalog includes deep groove ball bearings for general applications, cylindrical roller bearings
+            for high radial load requirements, and tapered roller bearings for combined radial and axial loads.
+        </p>
+        <p>
+            <strong>Dynamic Load Rating (C)</strong> is used for fatigue life calculations — it represents the
+            load at which 90% of bearings achieve one million revolutions. <strong>Static Load Rating (C₀)</strong>
+            defines the load causing permanent deformation and is used for safety checks at standstill or slow
+            rotation. The <strong>f₀ factor</strong> is used in equivalent load calculations for ball bearings,
+            while <strong>e and Y factors</strong> are used for tapered roller bearings under combined loads.
+        </p>
+    </div>
+    
+    <div class="content-block">
+        <h3>Bearing Selection Guidelines</h3>
+        <p>
+            <strong>Deep Groove Ball Bearings (6xxx series)</strong> are versatile bearings suitable for radial
+            loads with moderate axial loads. They offer high speed capability, low friction, and quiet operation.
+            Common choices for electric motors, pumps, and general machinery.
+        </p>
+        <p>
+            <strong>Cylindrical Roller Bearings (NU/N series)</strong> provide 1.5-2× higher radial capacity than
+            same-size ball bearings due to line contact. They accommodate shaft expansion through inner/outer ring
+            separation but cannot carry axial loads (standard types). Ideal for gearboxes and heavy radial loads.
+        </p>
+        <p>
+            <strong>Tapered Roller Bearings (3xxxx series)</strong> can support high radial and axial loads
+            simultaneously due to their tapered design. The cone and cup are separable for easy mounting and
+            adjustment. They offer high load capacity, stiffness, and are widely used in automotive wheel hubs,
+            gearboxes, and applications requiring combined loading. The <strong>e factor</strong> determines
+            the load condition threshold, while <strong>Y factor</strong> is the axial load factor.
+        </p>
+        <p>
+            Use the filter options above to find bearings by bore diameter, type, or designation. Click on
+            bearing designations to use them in the life calculation modules.
+        </p>
+    </div>
+</div>
+
+<!-- Related Calculators -->
+<RelatedCalculators CurrentModule="bearings" />
+
+<style>
+    /* Fix card height issue */
+    .card {
+        height: auto !important;
+    }
+
+    .content-section {
+        margin-top: 24px;
+        padding: 24px;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 16px;
+        border: 1px solid #dee2e6;
+    }
+
+    .content-section h2 {
+        color: #2c3e50;
+        margin-bottom: 16px;
+        font-size: 22px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding-bottom: 12px;
+        border-bottom: 2px solid #3498db;
+    }
+
+    .content-block {
+        margin-bottom: 20px;
+        padding: 16px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    
+    .content-block:last-child {
+        margin-bottom: 0;
+    }
+    
+    .content-block h3 {
+        color: #34495e;
+        margin-bottom: 12px;
+        font-size: 18px;
+        padding-left: 12px;
+        border-left: 4px solid #3498db;
+    }
+
+    .content-block p {
+        line-height: 1.7;
+        color: #495057;
+        text-align: justify;
+        margin-bottom: 10px;
+        font-size: 14px;
+    }
+    
+    .content-block p:last-child {
+        margin-bottom: 0;
+    }
+    
+    .content-block strong {
+        color: #2c3e50;
+    }
+
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+    }
+    
+    .data-table th,
+    .data-table td {
+        padding: 10px 12px;
+        text-align: left;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .data-table th {
+        background: #f8f9fa;
+        font-weight: 600;
+        color: #495057;
+        position: sticky;
+        top: 0;
+    }
+    
+    .data-table tbody tr:hover {
+        background: #f8f9fa;
+    }
+    
+    .data-table td:first-child {
+        color: #0d6efd;
+    }
+</style>
+
+@code {
+    private ModuleInfo moduleInfo = new();
+    private string selectedType = "All";
+    private double? filterBore = null;
+    private string searchText = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load module metadata
+        moduleInfo = Metadata.GetModule("bearings");
+
+        // Set SEO metadata
+        await SetSeoMetadata();
+
+        // Set structured data
+        await SetStructuredData();
+
+        // Track page view
+        await Analytics.TrackPageView("/bearings", moduleInfo.Name);
+    }
+
+    private async Task SetSeoMetadata()
+    {
+        var baseUrl = "https://mekanika.org";
+        var seo = new SeoMetadata
+        {
+            Title = $"{moduleInfo.Name} - Free Engineering Reference | Mekanika",
+            Description = moduleInfo.Description,
+            Keywords = moduleInfo.Keywords,
+            CanonicalUrl = $"{baseUrl}{moduleInfo.Route}",
+            OgTitle = moduleInfo.Name,
+            OgDescription = moduleInfo.Description,
+            OgImage = $"{baseUrl}/logo.png",
+            OgUrl = $"{baseUrl}{moduleInfo.Route}",
+            TwitterCard = "summary",
+            TwitterTitle = moduleInfo.Name,
+            TwitterDescription = moduleInfo.Description,
+            TwitterImage = $"{baseUrl}/logo.png"
+        };
+
+        await Seo.SetMetaTags(seo);
+    }
+
+    private async Task SetStructuredData()
+    {
+        var structuredData = new
+        {
+            context = "https://schema.org",
+            type = "Dataset",
+            name = moduleInfo.Name,
+            description = moduleInfo.Description,
+            keywords = moduleInfo.Keywords.Split(", "),
+            license = "https://creativecommons.org/licenses/by/4.0/",
+            creator = new
+            {
+                type = "Organization",
+                name = "Mekanika",
+                url = "https://mekanika.org"
+            },
+            spatialCoverage = "Worldwide",
+            temporalCoverage = "2024/..",
+            includedInDataCatalog = new
+            {
+                type = "DataCatalog",
+                name = "Mekanika Engineering Reference Database"
+            }
+        };
+
+        await Seo.SetStructuredData(structuredData);
+    }
+
+    private class BearingDisplayItem
+    {
+        public string Designation { get; set; } = "";
+        public string Type { get; set; } = "";
+        public double Bore { get; set; }
+        public double Outer { get; set; }
+        public double Width { get; set; }
+        public double C { get; set; }
+        public double C0 { get; set; }
+        public string F0OrE { get; set; } = "";
+        public string Y { get; set; } = "";
+        public int LimitSpeed { get; set; }
+    }
+
+    private IEnumerable<BearingDisplayItem> FilteredBearingsWithDetails
+    {
+        get
+        {
+            var items = new List<BearingDisplayItem>();
+
+            // Deep Groove Ball Bearings
+            var ballBearings = BearingService.DeepGrooveBallBearings
+                .Where(b => selectedType == "All" || selectedType == "Deep Groove Ball")
+                .Where(b => !filterBore.HasValue || b.Bore == filterBore.Value)
+                .Where(b => string.IsNullOrEmpty(searchText) ||
+                            b.Designation.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+                .Select(b => new BearingDisplayItem
+                {
+                    Designation = b.Designation,
+                    Type = b.Type,
+                    Bore = b.Bore,
+                    Outer = b.Outer,
+                    Width = b.Width,
+                    C = b.C,
+                    C0 = b.C0,
+                    F0OrE = b.f0.ToString("F1"),
+                    Y = "-",
+                    LimitSpeed = b.LimitSpeed
+                });
+            items.AddRange(ballBearings);
+
+            // Cylindrical Roller Bearings
+            var rollerBearings = BearingService.CylindricalRollerBearings
+                .Where(b => selectedType == "All" || selectedType == "Cylindrical Roller")
+                .Where(b => !filterBore.HasValue || b.Bore == filterBore.Value)
+                .Where(b => string.IsNullOrEmpty(searchText) ||
+                            b.Designation.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+                .Select(b => new BearingDisplayItem
+                {
+                    Designation = b.Designation,
+                    Type = b.Type,
+                    Bore = b.Bore,
+                    Outer = b.Outer,
+                    Width = b.Width,
+                    C = b.C,
+                    C0 = b.C0,
+                    F0OrE = "-",
+                    Y = "-",
+                    LimitSpeed = b.LimitSpeed
+                });
+            items.AddRange(rollerBearings);
+
+            // Tapered Roller Bearings
+            var taperedBearings = BearingService.TaperedRollerBearings
+                .Where(b => selectedType == "All" || selectedType == "Tapered Roller")
+                .Where(b => !filterBore.HasValue || b.Bore == filterBore.Value)
+                .Where(b => string.IsNullOrEmpty(searchText) ||
+                            b.Designation.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+                .Select(b => new BearingDisplayItem
+                {
+                    Designation = b.Designation,
+                    Type = b.Type,
+                    Bore = b.Bore,
+                    Outer = b.Outer,
+                    Width = b.Width,
+                    C = b.C,
+                    C0 = b.C0,
+                    F0OrE = b.e.ToString("F2"),
+                    Y = b.Y.ToString("F1"),
+                    LimitSpeed = b.LimitSpeed
+                });
+            items.AddRange(taperedBearings);
+
+            return items.OrderBy(b => b.Type).ThenBy(b => b.Bore);
+        }
+    }
+}

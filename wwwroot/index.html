@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- Primary Meta Tags -->
+    <title>Mekanika - Free Engineering Calculations | DIN & ISO Standards</title>
+    <meta name="title" content="Mekanika - Free Engineering Calculations | DIN & ISO Standards" />
+    <meta name="description" content="Professional mechanical engineering calculations online. Interference fit (DIN 7190), taper fit, parallel key (DIN 6885), bearing life (ISO 281), compression spring (EN 13906) calculators. Free, accurate, and easy to use." />
+    <meta name="keywords" content="engineering calculator, mechanical engineering, interference fit, press fit, shrink fit, DIN 7190, taper fit, parallel key, DIN 6885, bearing life, ISO 281, compression spring, EN 13906, online calculator, free engineering tools" />
+    <meta name="author" content="Mekanika" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://mekanika.org/" />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://mekanika.org/" />
+    <meta property="og:title" content="Mekanika - Free Engineering Calculations | DIN & ISO Standards" />
+    <meta property="og:description" content="Professional mechanical engineering calculations online. Interference fit, taper fit, parallel key, bearing life, spring calculators. Free and accurate." />
+    <meta property="og:image" content="https://mekanika.org/og-image.png" />
+    <meta property="og:site_name" content="Mekanika" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://mekanika.org/" />
+    <meta property="twitter:title" content="Mekanika - Free Engineering Calculations | DIN & ISO Standards" />
+    <meta property="twitter:description" content="Professional mechanical engineering calculations online. Interference fit, taper fit, parallel key, bearing life, spring calculators. Free and accurate." />
+    <meta property="twitter:image" content="https://mekanika.org/og-image.png" />
+
+    <!-- Structured Data - Organization -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Mekanika",
+        "url": "https://mekanika.org",
+        "description": "Professional mechanical engineering calculations based on DIN and ISO standards",
+        "applicationCategory": "Engineering",
+        "operatingSystem": "Web Browser",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "featureList": [
+            "Interference Fit Calculator (DIN 7190)",
+            "Taper Fit Calculator",
+            "Parallel Key Calculator (DIN 6885)",
+            "Ball Bearing Life Calculator (ISO 281)",
+            "Roller Bearing Life Calculator (ISO 281)",
+            "Compression Spring Calculator (EN 13906)"
+        ]
+    }
+    </script>
+
+    <base href="/" />
+    <link rel="icon" type="image/png" href="logo.png" />
+    <link rel="apple-touch-icon" href="logo.png" />
+    <link href="css/modern-icons.css" rel="stylesheet" />
+    <link href="css/app.css" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Google tag (gtag.js) -->
+    <script src="https://www.googletagmanager.com/gtag/js?id=G-ZKK6W37JVN"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-ZKK6W37JVN');
+    </script>
+
+    <!-- Google AdSense -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5282385534686397" crossorigin="anonymous"></script>
+</head>
+<body>
+    <div id="app">
+        <div class="loading-screen">
+            <div class="loading-content">
+                <img src="logo.png" alt="Mekanika" style="width: 280px; height: auto; margin-bottom: 16px; filter: brightness(0) invert(1);" />
+                <p>Loading application...</p>
+                <div class="spinner" style="margin-top: 16px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="blazor-error-ui" style="display: none;">
+        An unhandled error has occurred.
+        <a href="" class="reload">Reload</a>
+        <a class="dismiss">🗙</a>
+    </div>
+
+    <!-- Analytics Wrapper (BEFORE Blazor scripts) -->
+    <script src="js/analytics.js"></script>
+
+    <!-- Core Blazor Framework -->
+    <script src="_framework/blazor.webassembly.js"></script>
+
+    <!-- Application Scripts -->
+    <script src="js/seo.js"></script>
+    <script src="js/feedback.js"></script>
+
+    <!-- 3D geometry viewer. This file is small; it lazy-loads three.js (~600 KB)
+         only when the user actually opens a 3D view. -->
+    <script src="js/viewer3d.js" defer></script>
+
+    <!-- PDF Generator - Load Last (only needed for export feature) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js" defer></script>
+    <script src="pdfGenerator.js" defer></script>
+</body>
+</html>

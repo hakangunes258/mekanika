@@ -1,0 +1,379 @@
+@page "/contact"
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Contact - Mekanika</PageTitle>
+
+<div class="page-header">
+    <h1>Contact Us</h1>
+    <p>Questions, bug reports, ideas — we read everything</p>
+</div>
+
+<!-- Contact Form -->
+<div class="card">
+    <div class="card-header">
+        <h2>Send a Message</h2>
+    </div>
+
+    @if (messageSent)
+    {
+        <div class="alert alert-success" style="margin: 16px 0;">
+            <div>
+                <strong>Your email client is ready!</strong> We pre-filled your message — just click Send in your email app.
+                <br /><small style="opacity: 0.8;">No email client? Write to <a href="mailto:contact@mekanika.org" style="color: inherit;">contact@mekanika.org</a> directly.</small>
+            </div>
+        </div>
+        <button class="btn btn-secondary" style="margin-top: 8px;" @onclick="ResetForm">
+            Send Another Message
+        </button>
+    }
+    else
+    {
+        <div class="form-grid" style="grid-template-columns: 1fr 1fr;">
+            <div class="form-group">
+                <label>Your Name <span style="color: #adb5bd; font-weight: 400;">(optional)</span></label>
+                <input type="text" @bind="senderName" placeholder="e.g. Alex Engineer" />
+            </div>
+            <div class="form-group">
+                <label>Category</label>
+                <select @bind="selectedCategory" @bind:after="OnCategoryChanged">
+                    <option value="">— Select a category —</option>
+                    <option value="bug">Bug Report</option>
+                    <option value="feature">Feature Request</option>
+                    <option value="question">Question</option>
+                    <option value="collab">Collaboration</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Subject</label>
+            <input type="text" @bind="subject" placeholder="@GetSubjectPlaceholder()" />
+        </div>
+
+        <div class="form-group">
+            <label>Message</label>
+            <textarea @bind="message" placeholder="@GetMessagePlaceholder()" rows="6"></textarea>
+        </div>
+
+        @if (selectedCategory == "bug")
+        {
+            <div class="alert" style="background: #fff8e1; border-left: 4px solid #ffc107; margin-bottom: 16px;">
+                <div style="font-size: 13px; color: #856404;">
+                    <strong>Helpful for bug reports:</strong> Which calculator, what inputs you used, what result you expected vs. what you got, and your browser/OS.
+                </div>
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(validationError))
+        {
+            <div class="alert alert-danger" style="margin-bottom: 16px;">
+                <div>@validationError</div>
+            </div>
+        }
+
+        <div class="button-group">
+            <button class="btn btn-success btn-lg" @onclick="SubmitForm">
+                Open in Email App
+            </button>
+            <button class="btn btn-secondary" @onclick="ResetForm">
+                Clear
+            </button>
+        </div>
+
+        <p style="margin-top: 12px; font-size: 12px; color: #adb5bd;">
+            This opens your default email client with the message pre-filled. No data is sent from the browser.
+        </p>
+    }
+</div>
+
+<!-- Direct Links -->
+<div class="card">
+    <div class="card-header">
+        <h2>Direct Channels</h2>
+    </div>
+    <div class="contact-methods">
+        <div class="contact-item">
+            <div class="contact-details">
+                <h4>Email</h4>
+                <p>General inquiries, feature requests, or bug reports</p>
+                <a href="mailto:contact@mekanika.org" class="contact-link">contact@mekanika.org</a>
+            </div>
+        </div>
+        <div class="contact-item">
+            <div class="contact-details">
+                <h4>GitHub Issues</h4>
+                <p>Preferred for bug reports — public tracking and faster fixes</p>
+                <a href="https://github.com/hakangunes258/mekanika/issues" target="_blank" class="contact-link">Open an Issue &rarr;</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- FAQ -->
+<div class="card">
+    <div class="card-header">
+        <h2>Frequently Asked Questions</h2>
+    </div>
+    <div class="faq-list">
+        @foreach (var (faq, index) in faqs.Select((f, i) => (f, i)))
+        {
+            <div class="faq-item">
+                <button class="faq-question @(openFaq == index ? "open" : "")" @onclick="() => ToggleFaq(index)">
+                    <span>@faq.Question</span>
+                    <span class="faq-arrow">@(openFaq == index ? "▲" : "▼")</span>
+                </button>
+                @if (openFaq == index)
+                {
+                    <div class="faq-answer">@((MarkupString)faq.Answer)</div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    /* Form */
+    .form-grid {
+        display: grid;
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+
+    .form-group {
+        margin-bottom: 16px;
+    }
+
+    .form-group label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 6px;
+        color: #2c3e50;
+        font-size: 14px;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        width: 100%;
+        padding: 10px 14px;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        font-size: 14px;
+        color: #495057;
+        transition: border-color 0.2s;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+        outline: none;
+        border-color: #0077be;
+        box-shadow: 0 0 0 3px rgba(0, 119, 190, 0.1);
+    }
+
+    .form-group textarea {
+        resize: vertical;
+        font-family: inherit;
+    }
+
+    /* Contact Methods */
+    .contact-methods {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-top: 4px;
+    }
+
+    .contact-item {
+        padding: 16px 20px;
+        background: #f8f9fa;
+        border-radius: 10px;
+        border: 1px solid #dee2e6;
+        border-left: 3px solid #0077be;
+    }
+
+    .contact-details h4 {
+        margin: 0 0 4px 0;
+        color: #2c3e50;
+        font-size: 15px;
+    }
+
+    .contact-details p {
+        margin: 0 0 8px 0;
+        color: #6c757d;
+        font-size: 13px;
+    }
+
+    .contact-link {
+        color: #0077be;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 14px;
+    }
+
+    .contact-link:hover {
+        text-decoration: underline;
+        color: #005a91;
+    }
+
+    /* FAQ */
+    .faq-list {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-top: 4px;
+    }
+
+    .faq-item {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .faq-question {
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 14px 16px;
+        background: #f8f9fa;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        color: #2c3e50;
+        text-align: left;
+        transition: background 0.15s;
+    }
+
+    .faq-question:hover {
+        background: #e9ecef;
+    }
+
+    .faq-question.open {
+        background: #e6f3fa;
+        color: #0077be;
+    }
+
+    .faq-arrow {
+        font-size: 11px;
+        flex-shrink: 0;
+        margin-left: 12px;
+    }
+
+    .faq-answer {
+        padding: 14px 16px;
+        font-size: 14px;
+        color: #495057;
+        line-height: 1.7;
+        border-top: 1px solid #dee2e6;
+        background: white;
+    }
+
+    @@media (max-width: 768px) {
+        .form-grid {
+            grid-template-columns: 1fr !important;
+        }
+    }
+</style>
+
+@code {
+    private string selectedCategory = "";
+    private string senderName = "";
+    private string subject = "";
+    private string message = "";
+    private bool messageSent = false;
+    private string validationError = "";
+    private int? openFaq = null;
+
+    private record FaqEntry(string Question, string Answer);
+
+    private readonly List<FaqEntry> faqs = new()
+    {
+        new("Are the calculations accurate enough for real engineering work?",
+            "All formulas follow the referenced standards (DIN, ISO, EN, VDI). Results should be <strong>used for preliminary design and verification</strong>. Before production or safety-critical use, results must be reviewed by a qualified engineer. See the disclaimer on the About page."),
+
+        new("Is Mekanika free? Will it always be free?",
+            "Yes — Mekanika is and will remain free for individual use. Core calculators will never be paywalled. Future premium features (e.g. calculation history, cloud sync) may be offered as optional paid add-ons."),
+
+        new("My data isn't sent to any server — how does that work?",
+            "Mekanika runs as a <strong>Blazor WebAssembly</strong> application. The entire app (C# code included) is downloaded to your browser and executed locally via .NET's WebAssembly runtime. No inputs, results, or any data leave your machine."),
+
+        new("I found a calculation error — what should I do?",
+            "Please <a href='https://github.com/hakangunes258/mekanika/issues' target='_blank' style='color:#0077be;'>open a GitHub Issue</a> or use the form above (select Bug Report). Include: which calculator, the inputs you used, the result you got, and what the correct result should be (with a reference if possible). We take accuracy seriously."),
+
+        new("Can I request a new calculator module?",
+            "Absolutely. Use the Feature Request form above or open a GitHub Issue. The most-requested modules get prioritized. Check the <a href='/about' style='color:#0077be;'>Roadmap on the About page</a> to see what's already planned."),
+
+        new("Can I contribute to the project?",
+            "Yes! The project is open source on GitHub. You can contribute by: reporting bugs, writing test cases, implementing new modules (C# / Blazor), improving the UI/CSS, or verifying calculations against standard examples. Reach out via the Collaboration category in the form above.")
+    };
+
+    private void OnCategoryChanged()
+    {
+        subject = GetSubjectDefault();
+        validationError = "";
+    }
+
+    private string GetSubjectDefault() => selectedCategory switch
+    {
+        "bug"      => "[Bug] ",
+        "feature"  => "[Feature Request] ",
+        "question" => "[Question] ",
+        "collab"   => "[Collaboration] ",
+        _          => ""
+    };
+
+    private string GetSubjectPlaceholder() => selectedCategory switch
+    {
+        "bug"      => "e.g. [Bug] Interference Fit — wrong contact pressure at low interference",
+        "feature"  => "e.g. [Feature Request] Shaft strength calculator (DIN 743)",
+        "question" => "e.g. [Question] How is the load factor applied in Key Connection?",
+        "collab"   => "e.g. [Collaboration] University project partnership proposal",
+        _          => "Brief description of your message"
+    };
+
+    private string GetMessagePlaceholder() => selectedCategory switch
+    {
+        "bug"      => "Please describe:\n1. Which calculator\n2. Inputs you used\n3. Result you got\n4. Expected result (with reference if available)\n5. Browser and OS",
+        "feature"  => "Please describe:\n1. What should the calculator do\n2. Which standard it should follow\n3. Why it would be useful\n4. Any reference material or example",
+        "question" => "What would you like to know?",
+        "collab"   => "Tell us about your project, organization, and what kind of collaboration you have in mind.",
+        _          => "Write your message here..."
+    };
+
+    private void ToggleFaq(int index) => openFaq = openFaq == index ? null : index;
+
+    private async Task SubmitForm()
+    {
+        validationError = "";
+
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            validationError = "Please write a message before sending.";
+            return;
+        }
+
+        var name = string.IsNullOrWhiteSpace(senderName) ? "Mekanika User" : senderName.Trim();
+        var sub = string.IsNullOrWhiteSpace(subject) ? "Message from Mekanika" : subject.Trim();
+        var body = $"{message.Trim()}\n\n---\nSent by: {name} via mekanika.org";
+
+        var encodedSubject = Uri.EscapeDataString(sub);
+        var encodedBody = Uri.EscapeDataString(body);
+        var mailtoLink = $"mailto:contact@mekanika.org?subject={encodedSubject}&body={encodedBody}";
+
+        await JSRuntime.InvokeVoidAsync("open", mailtoLink, "_self");
+        messageSent = true;
+    }
+
+    private void ResetForm()
+    {
+        selectedCategory = "";
+        senderName = "";
+        subject = "";
+        message = "";
+        messageSent = false;
+        validationError = "";
+    }
+}

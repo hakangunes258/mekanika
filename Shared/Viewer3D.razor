@@ -1,0 +1,83 @@
+@inject IJSRuntime JSRuntime
+@inject AnalyticsService Analytics
+
+@*
+    Opens the full-screen 3D geometry viewer for a completed calculation.
+
+    Usage from a module's results section:
+        <Viewer3D Module="key-connection" Parameters="@Build3dParameters()" />
+
+    `Parameters` is any object that serialises to the keys the matching builder
+    in wwwroot/js/viewer3d.js expects. three.js is only downloaded when the user
+    actually presses this button.
+*@
+
+<button class="btn btn-3d @(isOpening ? "btn-saving" : "")" @onclick="OpenAsync" disabled="@isOpening">
+    @if (isOpening)
+    {
+        <span class="spinner"></span>
+        <span>Loading 3D…</span>
+    }
+    else
+    {
+        <span style="font-size:15px;line-height:1;">🧊</span>
+        <span>@Label</span>
+    }
+</button>
+
+@if (errorMessage != null)
+{
+    <div class="alert alert-warning" style="margin-top: 12px;">
+        <span>⚠️</span>
+        <div>@errorMessage</div>
+    </div>
+}
+
+@code {
+    /// <summary>Module key - must match a builder in viewer3d.js.</summary>
+    [Parameter, EditorRequired] public string Module { get; set; } = "";
+
+    /// <summary>Geometry parameters passed straight through to the JS builder.</summary>
+    [Parameter, EditorRequired] public object? Parameters { get; set; }
+
+    [Parameter] public string Label { get; set; } = "View 3D Geometry";
+
+    private bool isOpening;
+    private string? errorMessage;
+
+    private async Task OpenAsync()
+    {
+        if (isOpening) return;
+
+        isOpening = true;
+        errorMessage = null;
+
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("mekanika3d.open", Module, Parameters);
+            await Analytics.TrackGeometryView(Module);
+        }
+        catch (JSException ex)
+        {
+            // The viewer surfaces its own errors inside the overlay; this only
+            // fires if the script itself is missing or blocked.
+            errorMessage = "The 3D viewer could not be started. Please reload the page and try again.";
+            await LogAsync($"3D viewer failed for {Module}: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "The 3D viewer could not be started. Please reload the page and try again.";
+            await LogAsync($"3D viewer failed for {Module}: {ex.Message}");
+        }
+        finally
+        {
+            isOpening = false;
+        }
+    }
+
+    private async Task LogAsync(string message)
+    {
+        try { await JSRuntime.InvokeVoidAsync("console.error", message); }
+        catch { /* logging must never mask the original failure */ }
+    }
+}

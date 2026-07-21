@@ -1,0 +1,463 @@
+@page "/boltdatabase"
+@using MechanicalCalculatorWeb.Services
+@using static MechanicalCalculatorWeb.Services.BoltService
+@inject AnalyticsService Analytics
+@inject SeoService Seo
+@inject ModuleMetadataService Metadata
+
+<PageTitle>Bolt Database - Mekanika</PageTitle>
+
+<div class="page-header">
+    <h1>
+        <ModuleIcon Type="bolt" Size="large" Style="transparent" CustomStyle="margin-right: 12px;" />
+        Bolt Database
+    </h1>
+    <p>Metric bolt specifications according to ISO standards</p>
+</div>
+
+<!-- Filter Section -->
+<div class="card" style="margin-bottom: 24px;">
+    <div class="card-header">
+        <ModuleIcon Type="info" Size="medium" Style="solid" />
+        <h2>Filter & Search</h2>
+    </div>
+    <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+        <div class="form-group">
+            <label>Bolt Standard</label>
+            <select @bind="selectedStandard" @bind:after="RefreshData">
+                <option value="ISO4014">ISO 4014/4017 - Hex Head Bolts</option>
+                <option value="DIN912">DIN 912 / ISO 4762 - Socket Head Cap Screws</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Bolt Size</label>
+            <select @bind="selectedSize" @bind:after="RefreshData">
+                <option value="All">All Sizes</option>
+                @foreach (var size in GetAvailableSizes())
+                {
+                    <option value="@size">@size</option>
+                }
+            </select>
+        </div>
+    </div>
+</div>
+
+<!-- Tab Navigation -->
+<div class="tab-navigation">
+    <button class="tab-btn @(activeTab == "dimensions" ? "active" : "")" @onclick="@(() => activeTab = "dimensions")">
+        <ModuleIcon Type="bolt" Size="small" Style="default" /> Bolt Dimensions
+    </button>
+    <button class="tab-btn @(activeTab == "nuts" ? "active" : "")" @onclick="@(() => activeTab = "nuts")">
+        <ModuleIcon Type="bolt" Size="small" Style="default" /> Nuts
+    </button>
+    <button class="tab-btn @(activeTab == "washers" ? "active" : "")" @onclick="@(() => activeTab = "washers")">
+        <ModuleIcon Type="diameter" Size="small" Style="default" /> Washers
+    </button>
+</div>
+
+<!-- Bolt Dimensions Table -->
+@if (activeTab == "dimensions")
+{
+    <div class="card">
+        <div class="card-header">
+            <ModuleIcon Type="dimensions" Size="medium" Style="solid" />
+            <h2>@GetBoltTableTitle()</h2>
+        </div>
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Size</th>
+                        <th>d (Nominal Diameter) (mm)</th>
+                        <th>P (Pitch) (mm)</th>
+                        <th>d₂ (Pitch Diameter) (mm)</th>
+                        <th>d₃ (Minor Diameter) (mm)</th>
+                        <th>s (@GetWrenchSizeLabel()) (mm)</th>
+                        <th>k (Head Height) (mm)</th>
+                        <th>dw (Head Diameter) (mm)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var bolt in filteredBolts)
+                    {
+                        <tr>
+                            <td><strong>@bolt.Size</strong></td>
+                            <td>@bolt.d</td>
+                            <td>@bolt.P_coarse.ToString("F2")</td>
+                            <td>@bolt.d2_coarse.ToString("F3")</td>
+                            <td>@bolt.d3_coarse.ToString("F3")</td>
+                            <td>@bolt.s</td>
+                            <td>@bolt.k</td>
+                            <td>@bolt.dw</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="table-legend">
+            <p><strong>d</strong> = Nominal diameter (Anma çapı) | <strong>P</strong> = Thread pitch (Hatve) | <strong>d₂</strong> = Pitch diameter (Hatve çapı) | <strong>d₃</strong> = Minor diameter (Çekirdek çapı)</p>
+            <p><strong>s</strong> = @(selectedStandard == "DIN912" ? "Hex key size (İmbus anahtar)" : "Wrench size (Anahtar açıklığı)") | <strong>k</strong> = Head height (Kafa yüksekliği) | <strong>dw</strong> = Head diameter (Kafa çapı)</p>
+        </div>
+    </div>
+}
+
+<!-- Nuts Table -->
+@if (activeTab == "nuts")
+{
+    <div class="card">
+        <div class="card-header">
+            <ModuleIcon Type="bolt" Size="medium" Style="solid" />
+            <h2>Hex Nuts (ISO 4032 / DIN 934)</h2>
+        </div>
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Size</th>
+                        <th>d (Nominal Diameter) (mm)</th>
+                        <th>P (Pitch) (mm)</th>
+                        <th>s (Wrench Size) (mm)</th>
+                        <th>m (Nut Height) (mm)</th>
+                        <th>dw (Bearing Diameter) (mm)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var bolt in filteredBolts)
+                    {
+                        <tr>
+                            <td><strong>@bolt.Size</strong></td>
+                            <td>@bolt.d</td>
+                            <td>@bolt.P_coarse.ToString("F2")</td>
+                            <td>@bolt.s</td>
+                            <td>@bolt.m_nut.ToString("F1")</td>
+                            <td>@bolt.dw_nut.ToString("F2")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="table-legend">
+            <p><strong>d</strong> = Nominal diameter (Anma çapı) | <strong>P</strong> = Thread pitch (Hatve) | <strong>s</strong> = Wrench size (Anahtar açıklığı)</p>
+            <p><strong>m</strong> = Nut height (Somun yüksekliği) | <strong>dw</strong> = Bearing diameter (Yatak çapı)</p>
+        </div>
+    </div>
+}
+
+<!-- Washers Table -->
+@if (activeTab == "washers")
+{
+    <div class="card">
+        <div class="card-header">
+            <ModuleIcon Type="diameter" Size="medium" Style="solid" />
+            <h2>Plain Washers (ISO 7089)</h2>
+        </div>
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Size</th>
+                        <th>d₁ (mm)</th>
+                        <th>d₂ (mm)</th>
+                        <th>h (mm)</th>
+                        <th>Hardness (HV)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var washer in filteredWashers)
+                    {
+                        <tr>
+                            <td><strong>@washer.Size</strong></td>
+                            <td>@washer.d1</td>
+                            <td>@washer.d2</td>
+                            <td>@washer.h</td>
+                            <td>@washer.Hardness_HV</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="table-legend">
+            <p><strong>d₁</strong> = Inner diameter (İç çap) | <strong>d₂</strong> = Outer diameter (Dış çap) | <strong>h</strong> = Thickness (Kalınlık)</p>
+        </div>
+    </div>
+}
+
+<!-- Educational Content -->
+<div class="content-section">
+    <h2><ModuleIcon Type="info" Size="medium" Style="solid" /> Understanding Bolt Specifications</h2>
+    
+    <div class="content-block">
+        <h3>Metric Thread Geometry</h3>
+        <p>
+            Metric threads follow ISO 262 standard with a 60° thread angle. The nominal diameter (d) is 
+            the major diameter of the external thread. The pitch (P) defines the axial distance between 
+            threads. Coarse pitch is standard for general use.
+        </p>
+        <p>
+            The stress area (As) is the effective cross-sectional area for strength calculations, 
+            calculated as As = π/4 × [(d₂ + d₃)/2]². This value is smaller than the minor diameter 
+            area and accounts for the helical stress distribution in threads.
+        </p>
+    </div>
+</div>
+
+<!-- Related Calculators -->
+<RelatedCalculators CurrentModule="boltdatabase" />
+
+<style>
+    /* Fix card height issue */
+    .card {
+        height: auto !important;
+    }
+
+    .tab-navigation {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+    }
+    
+    .tab-btn {
+        padding: 12px 20px;
+        border: 2px solid #dee2e6;
+        background: white;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.2s;
+    }
+    
+    .tab-btn:hover {
+        border-color: #3498db;
+        background: #f8f9fa;
+    }
+    
+    .tab-btn.active {
+        background: #3498db;
+        border-color: #3498db;
+        color: white;
+    }
+
+    .tab-btn.active .module-icon img {
+        filter: brightness(0) invert(1);
+    }
+    
+    .table-responsive {
+        overflow-x: auto;
+    }
+    
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+    }
+    
+    .data-table th,
+    .data-table td {
+        padding: 10px 12px;
+        text-align: left;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .data-table th {
+        background: #f8f9fa;
+        font-weight: 600;
+        color: #495057;
+        position: sticky;
+        top: 0;
+    }
+    
+    .data-table tbody tr:hover {
+        background: #f8f9fa;
+    }
+    
+    .data-table td:first-child {
+        color: #0d6efd;
+    }
+    
+    .table-legend {
+        margin-top: 16px;
+        padding: 12px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+    
+    .table-legend p {
+        margin: 4px 0;
+    }
+    
+    .content-section {
+        margin-top: 24px;
+        padding: 24px;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 16px;
+        border: 1px solid #dee2e6;
+    }
+
+    .content-section h2 {
+        color: #2c3e50;
+        margin-bottom: 16px;
+        font-size: 22px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding-bottom: 12px;
+        border-bottom: 2px solid #3498db;
+    }
+
+    .content-block {
+        margin-bottom: 20px;
+        padding: 16px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    
+    .content-block:last-child {
+        margin-bottom: 0;
+    }
+    
+    .content-block h3 {
+        color: #34495e;
+        margin-bottom: 12px;
+        font-size: 18px;
+        padding-left: 12px;
+        border-left: 4px solid #3498db;
+    }
+
+    .content-block p {
+        line-height: 1.7;
+        color: #495057;
+        text-align: justify;
+        margin-bottom: 10px;
+        font-size: 14px;
+    }
+    
+    .content-block p:last-child {
+        margin-bottom: 0;
+    }
+</style>
+
+@code {
+    private ModuleInfo moduleInfo = new();
+    private string selectedStandard = "ISO4014";
+    private string selectedSize = "All";
+    private string activeTab = "dimensions";
+
+    private List<BoltDimension> filteredBolts = new();
+    private List<WasherDimension> filteredWashers = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        RefreshData();
+
+        // Load module metadata
+        moduleInfo = Metadata.GetModule("boltdatabase");
+
+        // Set SEO metadata
+        await SetSeoMetadata();
+
+        // Set structured data
+        await SetStructuredData();
+
+        // Track page view
+        await Analytics.TrackPageView("/boltdatabase", moduleInfo.Name);
+    }
+
+    private async Task SetSeoMetadata()
+    {
+        var baseUrl = "https://mekanika.org";
+        var seo = new SeoMetadata
+        {
+            Title = $"{moduleInfo.Name} - Free Engineering Reference | Mekanika",
+            Description = moduleInfo.Description,
+            Keywords = moduleInfo.Keywords,
+            CanonicalUrl = $"{baseUrl}{moduleInfo.Route}",
+            OgTitle = moduleInfo.Name,
+            OgDescription = moduleInfo.Description,
+            OgImage = $"{baseUrl}/logo.png",
+            OgUrl = $"{baseUrl}{moduleInfo.Route}",
+            TwitterCard = "summary",
+            TwitterTitle = moduleInfo.Name,
+            TwitterDescription = moduleInfo.Description,
+            TwitterImage = $"{baseUrl}/logo.png"
+        };
+
+        await Seo.SetMetaTags(seo);
+    }
+
+    private async Task SetStructuredData()
+    {
+        var structuredData = new
+        {
+            context = "https://schema.org",
+            type = "Dataset",
+            name = moduleInfo.Name,
+            description = moduleInfo.Description,
+            keywords = moduleInfo.Keywords.Split(", "),
+            license = "https://creativecommons.org/licenses/by/4.0/",
+            creator = new
+            {
+                type = "Organization",
+                name = "Mekanika",
+                url = "https://mekanika.org"
+            },
+            spatialCoverage = "Worldwide",
+            temporalCoverage = "2024/..",
+            includedInDataCatalog = new
+            {
+                type = "DataCatalog",
+                name = "Mekanika Engineering Reference Database"
+            }
+        };
+
+        await Seo.SetStructuredData(structuredData);
+    }
+
+    private List<string> GetAvailableSizes()
+    {
+        var sourceList = selectedStandard == "DIN912"
+            ? BoltService.SocketHeadBolts
+            : BoltService.MetricBolts;
+        return sourceList.Select(b => b.Size).ToList();
+    }
+
+    private string GetBoltTableTitle()
+    {
+        return selectedStandard switch
+        {
+            "ISO4014" => "Hex Head Bolts (ISO 4014/4017)",
+            "DIN912" => "Socket Head Cap Screws (DIN 912 / ISO 4762)",
+            _ => "Metric Bolts"
+        };
+    }
+
+    private string GetWrenchSizeLabel()
+    {
+        return selectedStandard == "DIN912"
+            ? "Hex Key Size"
+            : "Wrench Size";
+    }
+
+    private void RefreshData()
+    {
+        // Select bolt list based on standard
+        var sourceList = selectedStandard == "DIN912"
+            ? BoltService.SocketHeadBolts
+            : BoltService.MetricBolts;
+
+        filteredBolts = sourceList
+            .Where(b => selectedSize == "All" || b.Size == selectedSize)
+            .ToList();
+
+        filteredWashers = BoltService.Washers
+            .Where(w => selectedSize == "All" || w.Size == selectedSize)
+            .ToList();
+    }
+}

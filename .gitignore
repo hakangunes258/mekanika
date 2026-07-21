@@ -1,0 +1,55 @@
+# ---------------------------------------------
+# Build output
+# ---------------------------------------------
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# ---------------------------------------------
+# Visual Studio / Rider / VS Code
+# ---------------------------------------------
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# ---------------------------------------------
+# NuGet
+# ---------------------------------------------
+*.nupkg
+*.snupkg
+packages/
+!packages/build/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# ---------------------------------------------
+# Editor / OS noise
+# ---------------------------------------------
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.swp
+*~
+
+# ---------------------------------------------
+# Local backups kept while editing - not part of the source
+# ---------------------------------------------
+*.bak
+*.backup
+*.orig
+*.rej
+
+# ---------------------------------------------
+# Claude Code
+# launch.json is a shared dev-server config and IS committed.
+# settings.local.json holds machine-local tool permissions - keep it out.
+# ---------------------------------------------
+.claude/settings.local.json

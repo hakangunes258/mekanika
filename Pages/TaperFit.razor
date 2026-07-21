@@ -1,0 +1,714 @@
+@page "/taper-fit"
+@inject MaterialService MaterialService
+@inject IJSRuntime JSRuntime
+@inject AnalyticsService Analytics
+@inject SeoService Seo
+@inject ModuleMetadataService Metadata
+@inject FeedbackService Feedback
+
+<PageTitle>Taper Fit Calculator - Mekanika</PageTitle>
+
+<div class="page-header">
+    <h1><ModuleIcon Type="taper-fit" Size="large" Style="transparent" CustomStyle="margin-right: 12px;" /> Taper Fit Calculator</h1>
+    <p>Tapered shaft-hub connection calculations according to DIN 7190</p>
+</div>
+
+
+
+@if (!showResults)
+{
+    <!-- INPUT FORM -->
+    <div class="form-grid">
+        <!-- Geometry Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="geometry" Size="medium" Style="solid" />
+                <h2>Geometry</h2>
+            </div>
+            
+            <div class="form-group">
+                <label>Mean Diameter (dm)</label>
+                <div class="input-group">
+                    <input type="number" step="0.001" @bind="engine.MeanDiameter" placeholder="e.g. 50" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Fit Length (L)</label>
+                <div class="input-group">
+                    <input type="number" step="0.001" @bind="engine.FitLength" placeholder="e.g. 60" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Shaft Inner Diameter (di) - for hollow shaft</label>
+                <div class="input-group">
+                    <input type="number" step="0.001" @bind="engine.ShaftInnerDiameter" placeholder="0 for solid" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Hub Outer Diameter (Da)</label>
+                <div class="input-group">
+                    <input type="number" step="0.001" @bind="engine.HubOuterDiameter" placeholder="e.g. 90" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Taper Settings Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="dimensions" Size="medium" Style="solid" />
+                <h2>Taper Settings & Surface</h2>
+            </div>
+            
+            <div class="form-group">
+                <label>Standard Taper</label>
+                <select @bind="selectedTaper" @bind:after="OnTaperChanged">
+                    <option value="">-- Select --</option>
+                    @foreach (var taper in TaperFitEngine.StandardTapers)
+                    {
+                        <option value="@taper.Key">@taper.Key</option>
+                    }
+                    <option value="custom">Custom</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>Taper Ratio (1:X)</label>
+                <div class="input-group">
+                    <input type="number" step="0.001" @bind="engine.TaperRatio" disabled="@(!isCustomTaper)" />
+                    <span class="unit">1:X</span>
+                </div>
+            </div>
+            
+            <hr style="margin: 16px 0; border: none; border-top: 1px solid #eee;" />
+            
+            <div class="form-group">
+                <label>Axial Displacement (Δs)</label>
+                <div class="input-group">
+                    <input type="number" step="0.001" @bind="engine.AxialDisplacement" placeholder="e.g. 0.5" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+
+            <hr style="margin: 16px 0; border: none; border-top: 1px solid #eee;" />
+
+            <div class="form-group">
+                <label>Shaft Surface Roughness (Rz)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="engine.ShaftRoughnessRz" />
+                    <span class="unit">μm</span>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Hub Surface Roughness (Rz)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="engine.HubRoughnessRz" />
+                    <span class="unit">μm</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Surface & Loading Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="surface" Size="medium" Style="solid" />
+                <h2>Loading</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Static Friction Coefficient (μs)</label>
+                <div class="input-group">
+                    <input type="number" step="0.01" @bind="engine.FrictionCoefficientStatic" />
+                    <span class="unit">-</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Dynamic Friction Coefficient (μd)</label>
+                <div class="input-group">
+                    <input type="number" step="0.01" @bind="engine.FrictionCoefficientDynamic" />
+                    <span class="unit">-</span>
+                </div>
+            </div>
+
+            <hr style="margin: 16px 0; border: none; border-top: 1px solid #eee;" />
+            
+            <div class="form-group">
+                <label>Applied Torque</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="engine.AppliedTorque" placeholder="Optional" />
+                    <span class="unit">Nm</span>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Applied Axial Force</label>
+                <div class="input-group">
+                    <input type="number" step="1" @bind="engine.AppliedAxialForce" placeholder="Optional" />
+                    <span class="unit">N</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Load Factor (φ)</label>
+                <select @bind="selectedLoadFactor" @bind:after="OnLoadFactorChanged">
+                    <option value="1.0">1.0 - Static</option>
+                    <option value="1.25">1.25 - Moderate shock</option>
+                    <option value="1.5">1.5 - Heavy shock</option>
+                    <option value="1.75">1.75 - Alternating</option>
+                    <option value="2.0">2.0 - Impact</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Materials Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="material" Size="medium" Style="solid" />
+                <h2>Materials</h2>
+            </div>
+            
+            <div class="form-group">
+                <label>Shaft Material</label>
+                <select @bind="selectedShaftMaterialIndex">
+                    @for (int i = 0; i < materials.Count; i++)
+                    {
+                        <option value="@i">@materials[i].ToString()</option>
+                    }
+                </select>
+                @if (materials.Any())
+                {
+                    <div class="material-info">
+                        Re = @materials[selectedShaftMaterialIndex].YieldStrength MPa | Rm = @materials[selectedShaftMaterialIndex].TensileStrength MPa
+                    </div>
+                }
+            </div>
+            
+            <div class="form-group">
+                <label>Hub Material</label>
+                <select @bind="selectedHubMaterialIndex">
+                    @for (int i = 0; i < materials.Count; i++)
+                    {
+                        <option value="@i">@materials[i].ToString()</option>
+                    }
+                </select>
+                @if (materials.Any())
+                {
+                    <div class="material-info">
+                        Re = @materials[selectedHubMaterialIndex].YieldStrength MPa | Rm = @materials[selectedHubMaterialIndex].TensileStrength MPa
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="button-group">
+        <button class="btn btn-success btn-lg @(isCalculating ? "btn-calculating" : "")" @onclick="Calculate" disabled="@isCalculating">
+            @if (isCalculating)
+            {
+                <span class="spinner"></span>
+                <span>Calculating...</span>
+            }
+            else
+            {
+                <ModuleIcon Type="calculate" Size="button" Style="default" />
+                <span>Calculate</span>
+            }
+        </button>
+        <button class="btn btn-secondary" @onclick="ClearForm" disabled="@isCalculating">
+            <ModuleIcon Type="clear" Size="button" Style="default" /> Clear
+        </button>
+    </div>
+}
+else
+{
+    <!-- RESULTS -->
+    <div class="button-group" style="margin-bottom: 24px;">
+        <button class="btn btn-primary" @onclick="BackToInput">
+            <ModuleIcon Type="back" Size="button" Style="default" /> Back to Input
+        </button>
+        <button class="btn btn-secondary" @onclick="ClearForm">
+            <ModuleIcon Type="new" Size="button" Style="default" /> New Calculation
+        </button>
+        <button class="btn btn-info @(isSavingPdf ? "btn-saving" : "")" @onclick="SaveAsPdf" disabled="@isSavingPdf">
+            @if (isSavingPdf)
+            {
+                <span class="spinner"></span>
+                <span>Generating PDF...</span>
+            }
+            else
+            {
+                <ModuleIcon Type="pdf" Size="button" Style="default" />
+                <span>Save as PDF</span>
+            }
+        </button>
+        <Viewer3D Module="taper-fit" Parameters="@Build3dParameters()" />
+    </div>
+
+    <!-- Detailed Results Container -->
+    <div id="results-content">
+
+        <!-- Taper Geometry -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="dimensions" Size="medium" Style="solid" /><h2>Taper Geometry</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Taper Ratio</td><td>-</td><td>1:@engine.TaperRatio.ToString("F2")</td><td>-</td></tr>
+                    <tr><td>Mean Diameter</td><td>d<sub>m</sub></td><td>@engine.MeanDiameter.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Fit Length</td><td>L</td><td>@engine.FitLength.ToString("F2")</td><td>mm</td></tr>
+                    <tr class="highlight"><td>Small Diameter</td><td>d<sub>1</sub></td><td>@engine.SmallDiameter.ToString("F2")</td><td>mm</td></tr>
+                    <tr class="highlight"><td>Large Diameter</td><td>d<sub>2</sub></td><td>@engine.LargeDiameter.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Full Taper Angle</td><td>2α</td><td>@engine.TaperAngle.ToString("F2")</td><td>°</td></tr>
+                    <tr><td>Half Angle</td><td>α</td><td>@engine.HalfAngle.ToString("F2")</td><td>°</td></tr>
+                    <tr><td>Taper Slope</td><td>-</td><td>@engine.TaperSlopePercent.ToString("F2")</td><td>%</td></tr>
+                    <tr><td>Shaft Inner Diameter</td><td>d<sub>i</sub></td><td>@engine.ShaftInnerDiameter.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Hub Outer Diameter</td><td>D<sub>a</sub></td><td>@engine.HubOuterDiameter.ToString("F2")</td><td>mm</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Interference Values -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="info" Size="medium" Style="solid" /><h2>Interference & Contact</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Axial Displacement</td><td>Δs</td><td>@engine.AxialDisplacement.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Radial Interference</td><td>U<sub>r</sub></td><td>@((engine.RadialInterference * 1000).ToString("F2"))</td><td>μm</td></tr>
+                    <tr><td>Diametral Interference</td><td>U<sub>d</sub></td><td>@engine.DiametralInterference.ToString("F2")</td><td>μm</td></tr>
+                    <tr><td>Roughness Loss</td><td>R<sub>z</sub></td><td>@engine.RoughnessLoss.ToString("F2")</td><td>μm</td></tr>
+                    <tr class="highlight"><td>Effective Interference</td><td>U<sub>eff</sub></td><td>@engine.EffectiveInterference.ToString("F2")</td><td>μm</td></tr>
+                    <tr class="highlight"><td>Contact Pressure</td><td>p</td><td>@engine.ContactPressure.ToString("F2")</td><td>MPa</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Stresses -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="force" Size="medium" Style="solid" /><h2>Stresses & Contact Pressure</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td colspan="4" style="background: #f8f9fa; font-weight: 600; padding: 8px 16px;">Shaft Stresses</td></tr>
+                    <tr><td>Tangential Stress</td><td>σ<sub>t</sub></td><td>@engine.ShaftTangentialStress.ToString("F2")</td><td>MPa</td></tr>
+                    <tr><td>Radial Stress</td><td>σ<sub>r</sub></td><td>@engine.ShaftRadialStress.ToString("F2")</td><td>MPa</td></tr>
+                    <tr class="@(engine.ShaftVonMisesStress > engine.ShaftMaterial.YieldStrength * 0.8 ? "warning" : "")"><td>Von Mises Stress</td><td>σ<sub>v</sub></td><td>@engine.ShaftVonMisesStress.ToString("F2")</td><td>MPa</td></tr>
+                    <tr><td>Yield Strength</td><td>R<sub>e</sub></td><td>@engine.ShaftMaterial.YieldStrength</td><td>MPa</td></tr>
+                    <tr><td colspan="4" style="background: #f8f9fa; font-weight: 600; padding: 8px 16px;">Hub Stresses</td></tr>
+                    <tr><td>Tangential Stress</td><td>σ<sub>t</sub></td><td>@engine.HubTangentialStress.ToString("F2")</td><td>MPa</td></tr>
+                    <tr><td>Radial Stress</td><td>σ<sub>r</sub></td><td>@engine.HubRadialStress.ToString("F2")</td><td>MPa</td></tr>
+                    <tr class="@(engine.HubVonMisesStress > engine.HubMaterial.YieldStrength * 0.8 ? "warning" : "")"><td>Von Mises Stress</td><td>σ<sub>v</sub></td><td>@engine.HubVonMisesStress.ToString("F2")</td><td>MPa</td></tr>
+                    <tr><td>Yield Strength</td><td>R<sub>e</sub></td><td>@engine.HubMaterial.YieldStrength</td><td>MPa</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Load Capacities & Assembly -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="force" Size="medium" Style="solid" /><h2>Load Capacities & Assembly</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Load Factor</td><td>φ</td><td>@engine.LoadFactor.ToString("F2")</td><td>-</td></tr>
+                    <tr><td>Applied Torque</td><td>T</td><td>@engine.AppliedTorque.ToString("F2")</td><td>Nm</td></tr>
+                    <tr><td>Design Torque (T × φ)</td><td>T<sub>d</sub></td><td>@((engine.AppliedTorque * engine.LoadFactor).ToString("F2"))</td><td>Nm</td></tr>
+                    <tr class="highlight"><td>Torque Capacity</td><td>T<sub>max</sub></td><td>@engine.MaxTorqueCapacity.ToString("F2")</td><td>Nm</td></tr>
+                    <tr><td>Applied Axial Force</td><td>F<sub>a</sub></td><td>@((engine.AppliedAxialForce/1000).ToString("F2"))</td><td>kN</td></tr>
+                    <tr class="highlight"><td>Axial Force Capacity</td><td>F<sub>a,max</sub></td><td>@((engine.MaxAxialForceCapacity/1000).ToString("F2"))</td><td>kN</td></tr>
+                    <tr class="highlight"><td>Required Assembly Force</td><td>F<sub>asm</sub></td><td>@((engine.RequiredAssemblyForce/1000).ToString("F2"))</td><td>kN</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Safety Factors -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="safety" Size="medium" Style="solid" /><h2>Safety Factors</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Status</th></tr></thead>
+                <tbody>
+                    <tr><td colspan="4" style="background: #f8f9fa; font-weight: 600; padding: 8px 16px;">Against Sliding</td></tr>
+                    <tr class="@GetSafetyRowClass(engine.SafetyFactorSliding)">
+                        <td>Torque Safety Factor</td>
+                        <td>SF<sub>T</sub></td>
+                        <td>@(engine.SafetyFactorSliding < 900 ? engine.SafetyFactorSliding.ToString("F2") : "N/A")</td>
+                        <td>@(engine.SafetyFactorSliding < 900 ? GetSafetyStatus(engine.SafetyFactorSliding) : "-")</td>
+                    </tr>
+                    <tr class="@GetSafetyRowClass(engine.SafetyFactorAxial)">
+                        <td>Axial Force Safety Factor</td>
+                        <td>SF<sub>F</sub></td>
+                        <td>@(engine.SafetyFactorAxial < 900 ? engine.SafetyFactorAxial.ToString("F2") : "N/A")</td>
+                        <td>@(engine.SafetyFactorAxial < 900 ? GetSafetyStatus(engine.SafetyFactorAxial) : "-")</td>
+                    </tr>
+                    <tr><td colspan="4" style="background: #f8f9fa; font-weight: 600; padding: 8px 16px;">Against Yielding</td></tr>
+                    <tr class="@GetSafetyRowClass(engine.SafetyFactorShaftStress)">
+                        <td>Shaft Yield Safety Factor</td>
+                        <td>SF<sub>shaft</sub></td>
+                        <td>@(engine.SafetyFactorShaftStress < 900 ? engine.SafetyFactorShaftStress.ToString("F2") : "N/A")</td>
+                        <td>@(engine.SafetyFactorShaftStress < 900 ? GetSafetyStatus(engine.SafetyFactorShaftStress) : "-")</td>
+                    </tr>
+                    <tr class="@GetSafetyRowClass(engine.SafetyFactorHubStress)">
+                        <td>Hub Yield Safety Factor</td>
+                        <td>SF<sub>hub</sub></td>
+                        <td>@(engine.SafetyFactorHubStress < 900 ? engine.SafetyFactorHubStress.ToString("F2") : "N/A")</td>
+                        <td>@(engine.SafetyFactorHubStress < 900 ? GetSafetyStatus(engine.SafetyFactorHubStress) : "-")</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            @{
+                double minStressSF = Math.Min(engine.SafetyFactorShaftStress, engine.SafetyFactorHubStress);
+                bool hasWarning = minStressSF < 1.5 || (engine.SafetyFactorSliding < 1.5 && engine.SafetyFactorSliding < 900);
+            }
+            @if (hasWarning)
+            {
+                <div class="alert alert-warning" style="margin-top: 16px;">
+                    ⚠️ <strong>Warning:</strong> One or more safety factors are below the recommended minimum of 1.5.
+                </div>
+            }
+            @if (engine.HalfAngle > 7.5)
+            {
+                <div class="alert alert-danger" style="margin-top: 16px;">
+                    ⚠️ <strong>Warning:</strong> Taper angle is steep (half angle > 7.5°). Self-locking may not occur. Use additional locking mechanism.
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Feedback Widget -->
+    <FeedbackWidget ModuleKey="taper-fit" />
+
+    <RelatedCalculators CurrentModuleKey="taper-fit" />
+}
+
+
+<style>
+    .material-info {
+        font-size: 12px;
+        color: #6c757d;
+        margin-top: 4px;
+        padding-left: 4px;
+    }
+
+    /* Results Header - Summary Cards */
+    .results-header {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+    @@media (max-width: 768px) {
+        .results-header { grid-template-columns: 1fr; }
+    }
+
+    /* Result Cards */
+    .result-card {
+        padding: 24px;
+        border-radius: 12px;
+        text-align: center;
+        color: white;
+    }
+    .result-card.primary { background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); }
+    .result-card.dark { background: linear-gradient(135deg, #6c757d 0%, #495057 100%); }
+    .result-card h3 { font-size: 14px; opacity: 0.9; margin-bottom: 8px; }
+    .result-card .value { font-size: 36px; font-weight: bold; }
+    .result-card .value .unit { font-size: 16px; opacity: 0.8; }
+
+    /* Results Tables */
+    .results-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .results-table th {
+        background: #f8f9fa;
+        padding: 12px 16px;
+        text-align: left;
+        font-weight: 600;
+        color: #2c3e50;
+        border-bottom: 2px solid #dee2e6;
+    }
+    .results-table td { padding: 10px 16px; border-bottom: 1px solid #eee; }
+    .results-table tr:hover { background: #f8f9fa; }
+    .results-table tr.highlight { background: #e3f2fd; font-weight: 500; }
+    .results-table tr.warning { background: #fff8e1; }
+    .results-table tr.danger { background: #ffebee; }
+    .results-table tr.success { background: #e8f5e9; }
+
+    /* Column Widths */
+    .results-table th:nth-child(1) { width: 40%; }
+    .results-table th:nth-child(2) { width: 15%; text-align: center; }
+    .results-table th:nth-child(3) { width: 25%; text-align: right; }
+    .results-table th:nth-child(4) { width: 20%; text-align: center; }
+
+    /* Column Styling */
+    .results-table td:nth-child(2) {
+        text-align: center;
+        font-family: 'Times New Roman', serif;
+        font-style: italic;
+        color: #666;
+    }
+    .results-table td:nth-child(3) {
+        text-align: right;
+        font-weight: 500;
+        font-family: 'Consolas', monospace;
+    }
+    .results-table td:nth-child(4) { text-align: center; color: #666; }
+
+    /* Buttons */
+    .btn-info {
+        background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+        color: white;
+    }
+    .btn-info:hover {
+        background: linear-gradient(135deg, #138496 0%, #117a8b 100%);
+    }
+
+    .content-section {
+        margin-top: 48px;
+        padding: 32px;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 16px;
+        border: 1px solid #dee2e6;
+    }
+    
+    .content-section h2 {
+        color: #2c3e50;
+        margin-bottom: 28px;
+        font-size: 26px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding-bottom: 16px;
+        border-bottom: 2px solid #3498db;
+    }
+    
+    .content-block {
+        margin-bottom: 28px;
+        padding: 20px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    
+    .content-block:last-child {
+        margin-bottom: 0;
+    }
+    
+    .content-block h3 {
+        color: #34495e;
+        margin-bottom: 16px;
+        font-size: 20px;
+        padding-left: 12px;
+        border-left: 4px solid #3498db;
+    }
+    
+    .content-block p {
+        line-height: 1.85;
+        color: #495057;
+        text-align: justify;
+        margin-bottom: 14px;
+        font-size: 15px;
+    }
+    
+    .content-block p:last-child {
+        margin-bottom: 0;
+    }
+    
+    .content-block strong {
+        color: #2c3e50;
+    }
+</style>
+
+@code {
+    private TaperFitEngine engine = new();
+    private List<Material> materials = new();
+    private bool showResults = false;
+    private bool isCalculating = false;
+    private bool isSavingPdf = false;
+    private ModuleInfo moduleInfo = new();
+
+    private string selectedTaper = "";
+    private bool isCustomTaper = false;
+    private string selectedLoadFactor = "1.0";
+
+    private int selectedShaftMaterialIndex = 2;
+    private int selectedHubMaterialIndex = 2;
+
+    protected override async Task OnInitializedAsync()
+    {
+        materials = MaterialService.GetMaterials();
+
+        // Default values
+        engine.ShaftRoughnessRz = 6.3;
+        engine.HubRoughnessRz = 6.3;
+        engine.TaperRatio = 10;
+        engine.FrictionCoefficientStatic = 0.15;
+        engine.FrictionCoefficientDynamic = 0.12;
+
+        // SEO and Analytics
+        moduleInfo = Metadata.GetModule("taper-fit");
+        await SetSeoMetadata();
+        await SetStructuredData();
+        await Analytics.TrackPageView("/taper-fit", moduleInfo.Name);
+    }
+
+    /// <summary>
+    /// Geometry handed to the 3D viewer. Keys must match the "taper-fit"
+    /// builder in wwwroot/js/viewer3d.js.
+    /// </summary>
+    private object Build3dParameters() => new
+    {
+        dm = engine.MeanDiameter,
+        dSmall = engine.SmallDiameter,
+        dLarge = engine.LargeDiameter,
+        L = engine.FitLength,
+        di = engine.ShaftInnerDiameter,
+        Da = engine.HubOuterDiameter,
+        ratio = engine.TaperRatio,
+        halfAngle = engine.HalfAngle,
+        pressure = engine.ContactPressure,
+        disp = engine.RequiredDisplacement
+    };
+
+    private void OnLoadFactorChanged()
+    {
+        if (double.TryParse(selectedLoadFactor, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double factor))
+            engine.LoadFactor = factor;
+    }
+
+    private void OnTaperChanged()
+    {
+        isCustomTaper = selectedTaper == "custom";
+        if (!isCustomTaper && !string.IsNullOrEmpty(selectedTaper) && selectedTaper != "custom")
+        {
+            if (TaperFitEngine.StandardTapers.TryGetValue(selectedTaper, out double ratio))
+            {
+                engine.TaperRatio = ratio;
+            }
+        }
+    }
+
+    private async Task Calculate()
+    {
+        isCalculating = true;
+        StateHasChanged();
+        await Task.Delay(350);
+        try
+        {
+            if (engine.MeanDiameter <= 0 || engine.FitLength <= 0 ||
+                engine.HubOuterDiameter <= engine.MeanDiameter || engine.TaperRatio <= 0)
+            {
+                await Analytics.TrackCalculationError("taper-fit", "validation_failed", "Invalid input parameters");
+                return;
+            }
+
+            engine.ShaftMaterial = materials[selectedShaftMaterialIndex];
+            engine.HubMaterial = materials[selectedHubMaterialIndex];
+
+            engine.Calculate();
+            showResults = true;
+
+            await Analytics.TrackCalculationCompleted("taper-fit", new Dictionary<string, object>
+            {
+                { "mean_diameter", engine.MeanDiameter },
+                { "fit_length", engine.FitLength },
+                { "taper_ratio", engine.TaperRatio }
+            });
+        }
+        catch (Exception ex)
+        {
+            await Analytics.TrackCalculationError("taper-fit", "calculation_failed", ex.Message);
+            throw;
+        }
+        finally
+        {
+            isCalculating = false;
+        }
+    }
+
+    private void BackToInput()
+    {
+        showResults = false;
+    }
+
+    private void ClearForm()
+    {
+        engine = new TaperFitEngine
+        {
+            ShaftRoughnessRz = 6.3,
+            HubRoughnessRz = 6.3,
+            TaperRatio = 10,
+            FrictionCoefficientStatic = 0.15,
+            FrictionCoefficientDynamic = 0.12
+        };
+        selectedTaper = "";
+        isCustomTaper = false;
+        selectedLoadFactor = "1.0";
+        showResults = false;
+    }
+
+    // Helper methods for styling
+    private string GetSafetyRowClass(double sf) => sf < 1.0 ? "danger" : sf < 1.5 ? "warning" : sf >= 900 ? "" : "success";
+    private string GetSafetyStatus(double sf) => sf < 1.0 ? "❌ FAIL" : sf < 1.5 ? "⚠️ Marginal" : "✓ OK";
+
+    // PDF Export
+    private async Task SaveAsPdf()
+    {
+        isSavingPdf = true;
+        StateHasChanged();
+        try
+        {
+            var fileName = $"TaperFit-Report-{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            await JSRuntime.InvokeVoidAsync("generatePdf", "results-content", fileName);
+            await Analytics.TrackPdfDownload("taper-fit", fileName);
+        }
+        catch (Exception ex)
+        {
+            await Analytics.TrackCalculationError("taper-fit", "pdf_generation_failed", ex.Message);
+        }
+    }
+
+    private async Task SetSeoMetadata()
+    {
+        var baseUrl = "https://mekanika.org";
+        var seo = new SeoMetadata
+        {
+            Title = $"{moduleInfo.Name} - Free Online Tool | Mekanika",
+            Description = moduleInfo.Description,
+            Keywords = moduleInfo.Keywords,
+            CanonicalUrl = $"{baseUrl}{moduleInfo.Route}",
+            OgTitle = moduleInfo.Name,
+            OgDescription = moduleInfo.Description,
+            OgImage = $"{baseUrl}/images/og-image.png",
+            OgUrl = $"{baseUrl}{moduleInfo.Route}",
+            TwitterTitle = moduleInfo.Name,
+            TwitterDescription = moduleInfo.Description,
+            TwitterImage = $"{baseUrl}/images/og-image.png"
+        };
+        await Seo.SetMetaTags(seo);
+    }
+
+    private async Task SetStructuredData()
+    {
+        var structuredData = new
+        {
+            context = "https://schema.org",
+            type = "SoftwareApplication",
+            name = moduleInfo.Name,
+            description = moduleInfo.Description,
+            applicationCategory = "EngineeringApplication",
+            operatingSystem = "Web Browser",
+            offers = new
+            {
+                type = "Offer",
+                price = "0",
+                priceCurrency = "USD"
+            }
+        };
+        await Seo.SetStructuredData(structuredData);
+    }
+}

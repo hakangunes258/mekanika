@@ -1,0 +1,261 @@
+@* Professional icon component for Mekanika modules - Using Noun Project SVGs *@
+
+<div class="module-icon @SizeClass @StyleClass" style="@CustomStyle">
+    @if (!string.IsNullOrEmpty(SvgFileName))
+    {
+        <!-- Custom SVG Icon from Noun Project -->
+        <img src="icons/@SvgFileName" alt="@Type icon" />
+    }
+    else if (!string.IsNullOrEmpty(FallbackEmoji))
+    {
+        <!-- Fallback emoji -->
+        <span>@FallbackEmoji</span>
+    }
+</div>
+
+@code {
+    [Parameter] public string Type { get; set; } = "default";
+    [Parameter] public string Size { get; set; } = "medium"; // small, medium, large, xlarge
+    [Parameter] public string Style { get; set; } = "default"; // default, gradient, solid, outline
+    [Parameter] public string CustomStyle { get; set; } = "";
+
+    private string SvgFileName => Type switch
+    {
+        // ── Module / Page Header Icons ──────────────────────────────────
+        "gear"                        => "gear.svg",
+        "gear-pair"                   => "gear pair.svg",
+        "bolt"                        => "bolt.svg",
+        "bearing"                     => "ball bearing.svg",
+        "ball-bearing"                => "ball bearing.svg",
+        "roller-bearing"              => "roller bearing.svg",
+        "tapered-roller-bearing"      => "tapered roller bearing.svg",
+        "angular-contact-bearing"     => "angular ball bearing.svg",
+        "angular-contact-ball-bearing"=> "angular ball bearing.svg",
+        "bearing-database"            => "bearing database.svg",
+        "bolt-database"               => "bolt database.svg",
+        "spring"                      => "compression spring.svg",
+        "compression"                 => "compression spring.svg",
+        "compression-spring"          => "compression spring.svg",
+        "tension"                     => "extension spring.svg",
+        "extension-spring"            => "extension spring.svg",
+        "torque"                      => "torsion spring.svg",
+        "torsion-spring"              => "torsion spring.svg",
+        "interference-fit"            => "interference.svg",
+        "taper-fit"                   => "tapered fit.svg",
+        "key-connection"              => "key connection.svg",
+        "clamp-connection"            => "clamp.svg",
+        "shaft&hub"                   => "shaft&hub.svg",
+        "material"                    => "material.svg",
+        "materials"                   => "material.svg",
+
+        // ── Card Header / Section Icons ─────────────────────────────────
+        "geometry"                    => "geometry.svg",
+        "dimensions"                  => "dimension.svg",
+        "dimension"                   => "dimension.svg",
+        "depth"                       => "depth.svg",
+        "diameter"                    => "diameter.svg",
+        "length"                      => "length.svg",
+        "surface"                     => "surface.svg",
+        "tolerance"                   => "tolerance.svg",
+        "loading"                     => "loading.svg",
+        "force"                       => "loading.svg",
+        "pressure"                    => "pressure.svg",
+        "stress"                      => "stress.svg",
+        "safety"                      => "safety.svg",
+        "moment-inertia"              => "moment inertia.svg",
+        "inertia"                     => "moment inertia.svg",
+        "contact"                     => "contact.svg",
+        "assembly"                    => "assembly.svg",
+        "design"                      => "assembly.svg",
+        "life-time"                   => "life time.svg",
+        "lifetime"                    => "life time.svg",
+        "life"                        => "life time.svg",
+
+        // ── Action / Button Icons ───────────────────────────────────────
+        "info"                        => "info.svg",
+        "help"                        => "info.svg",
+        "home"                        => "home.svg",
+        "back"                        => "back.svg",
+        "new"                         => "new.svg",
+        "pdf"                         => "pdf.svg",
+        "save"                        => "save.svg",
+        "calculate"                   => "gear.svg",
+        "clear"                       => "new.svg",
+        "check"                       => "safety.svg",
+        "warning"                     => "info.svg",
+        "error"                       => "info.svg",
+
+        // ── Fallback ────────────────────────────────────────────────────
+        _ => ""
+    };
+
+    private string FallbackEmoji => Type switch
+    {
+        // Only used when no SVG exists for the type
+        "shear"          => "✂️",
+        "steel"          => "🏭",
+        "recommendation" => "💡",
+        _                => "🔧"
+    };
+
+    private string SizeClass => Size switch
+    {
+        "small"  => "icon-sm",
+        "button" => "icon-btn",   // optimised for use inside buttons
+        "medium" => "icon-md",
+        "large"  => "icon-lg",
+        "xlarge" => "icon-xl",
+        _ => "icon-md"
+    };
+
+    private string StyleClass => Style switch
+    {
+        "gradient" => "icon-gradient",
+        "solid" => "icon-solid",
+        "outline" => "icon-outline",
+        "transparent" => "icon-transparent",
+        _ => "icon-default"
+    };
+}
+
+<style>
+    /* Base Icon Styles */
+    .module-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        flex-shrink: 0;
+    }
+
+    /* Size Variants */
+    .icon-sm {
+        width: 28px;
+        height: 28px;
+        font-size: 16px;
+    }
+
+    /* Button-optimised size: clearly visible inside buttons */
+    .icon-btn {
+        width: 24px;
+        height: 24px;
+        font-size: 16px;
+        flex-shrink: 0;
+        border-radius: 0;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .icon-btn img {
+        padding: 0 !important;
+        width: 24px !important;
+        height: 24px !important;
+        object-fit: contain;
+        display: block;
+    }
+
+    .icon-md {
+        width: 40px;
+        height: 40px;
+        font-size: 20px;
+    }
+
+    .icon-lg {
+        width: 56px;
+        height: 56px;
+        font-size: 28px;
+    }
+
+    .icon-xl {
+        width: 80px;
+        height: 80px;
+        font-size: 40px;
+    }
+
+    /* SVG Image Sizing */
+    .module-icon img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        padding: 10px;
+    }
+
+    .icon-sm img {
+        padding: 4px;
+    }
+
+    .icon-md img {
+        padding: 8px;
+    }
+
+    .icon-xl img {
+        padding: 16px;
+    }
+
+    /* Style Variants */
+    .icon-default {
+        color: #495057;
+        background: transparent;
+    }
+
+    .icon-default img {
+        filter: none;
+    }
+
+    .icon-gradient {
+        background: linear-gradient(135deg, #0077be 0%, #005a91 100%);
+        color: white;
+        box-shadow: 0 4px 12px rgba(0, 119, 190, 0.3);
+    }
+
+    .icon-gradient img {
+        filter: brightness(0) invert(1);
+    }
+
+    .icon-solid {
+        background: #f8f9fa;
+        color: #495057;
+        border: 1px solid #dee2e6;
+    }
+
+    .icon-solid img {
+        filter: opacity(0.8);
+    }
+
+    .icon-outline {
+        background: transparent;
+        color: #0077be;
+        border: 2px solid #0077be;
+    }
+
+    .icon-outline img {
+        filter: invert(32%) sepia(98%) saturate(1800%) hue-rotate(184deg) brightness(95%) contrast(101%);
+    }
+
+    .icon-transparent {
+        background: transparent;
+        color: #2c3e50;
+    }
+
+    .icon-transparent img {
+        filter: none;
+        opacity: 0.9;
+    }
+
+    /* Hover Effects */
+    .module-icon:hover.icon-gradient {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(0, 119, 190, 0.4);
+    }
+
+    .module-icon:hover.icon-outline {
+        background: rgba(0, 119, 190, 0.05);
+    }
+
+    /* Emoji Fallback Styling */
+    .module-icon span {
+        font-size: inherit;
+        line-height: 1;
+    }
+</style>

@@ -1,0 +1,752 @@
+@page "/ball-bearing"
+@inject IJSRuntime JSRuntime
+@inject AnalyticsService Analytics
+@inject SeoService Seo
+@inject ModuleMetadataService Metadata
+@inject FeedbackService Feedback
+
+<PageTitle>Ball Bearing Life Calculator - Mekanika</PageTitle>
+
+<div class="page-header">
+    <h1>
+        <ModuleIcon Type="ball-bearing" Size="large" Style="transparent" CustomStyle="margin-right: 12px;" />
+        Ball Bearing Life Calculator
+    </h1>
+    <p>ISO 281 bearing life calculation for deep groove and angular contact ball bearings</p>
+</div>
+
+@if (!showResults)
+{
+    <!-- INPUT FORM -->
+    <div class="form-grid">
+        <!-- Bearing Selection -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="ball-bearing" Size="medium" Style="solid" />
+                <h2>Bearing Selection</h2>
+            </div>
+
+            <!-- Bearing Type Selector -->
+            <div class="form-group">
+                <label>Bearing Type</label>
+                <select @bind="selectedBearingType" @bind:after="OnBearingTypeChanged">
+                    <option value="DeepGroove">Deep Groove Ball Bearing (6xxx series)</option>
+                    <option value="AngularContact">Angular Contact Ball Bearing (7xxx series)</option>
+                </select>
+            </div>
+
+            @if (selectedBearingType == "AngularContact")
+            {
+                <div class="form-group">
+                    <label>
+                        Contact Angle Filter
+                        <button type="button" class="info-btn" @onclick="ToggleInfoModal" @onclick:stopPropagation="true">ℹ️</button>
+                    </label>
+                    <select @bind="selectedContactAngle" @bind:after="FilterBearings">
+                        <option value="0">All Contact Angles</option>
+                        <option value="15">15° (High Speed - C suffix)</option>
+                        <option value="30">30° (Standard - A suffix)</option>
+                        <option value="40">40° (High Axial Load - B suffix)</option>
+                    </select>
+                </div>
+            }
+
+            <div class="form-group">
+                <label>Select Bearing</label>
+                <select @bind="selectedBearingIndex" @bind:after="OnBearingSelected">
+                    <option value="-1">-- Select bearing --</option>
+                    @if (selectedBearingType == "DeepGroove")
+                    {
+                        @for (int i = 0; i < BearingService.DeepGrooveBallBearings.Count; i++)
+                        {
+                            var b = BearingService.DeepGrooveBallBearings[i];
+                            <option value="@i">@b.Designation (@(b.Bore)×@(b.Outer)×@(b.Width)) C=@(b.C)kN</option>
+                        }
+                    }
+                    else
+                    {
+                        @for (int i = 0; i < filteredAngularBearings.Count; i++)
+                        {
+                            var ab = filteredAngularBearings[i];
+                            <option value="@i">@ab.Designation (@(ab.Bore)×@(ab.Outer)×@(ab.Width)) α=@(ab.ContactAngle)° C=@(ab.C)kN</option>
+                        }
+                    }
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Dynamic Load Rating (C)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="dynamicRating" />
+                    <span class="unit">kN</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Static Load Rating (C₀)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="staticRating" />
+                    <span class="unit">kN</span>
+                </div>
+            </div>
+
+            @if (selectedBearingType == "DeepGroove")
+            {
+                <div class="form-group">
+                    <label>Calculation Factor (f₀)</label>
+                    <div class="input-group">
+                        <input type="number" step="0.1" @bind="f0Factor" />
+                        <span class="unit">ISO 76</span>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- Loading -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="force" Size="medium" Style="solid" />
+                <h2>Loading</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Radial Load (Fr)</label>
+                <div class="input-group">
+                    <input type="number" step="1" @bind="radialLoad" placeholder="e.g. 2500" />
+                    <span class="unit">N</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Axial Load (Fa)</label>
+                <div class="input-group">
+                    <input type="number" step="1" @bind="axialLoad" placeholder="e.g. 500" />
+                    <span class="unit">N</span>
+                </div>
+                @if (selectedBearingType == "AngularContact")
+                {
+                    <small style="color: #6c757d; font-size: 12px;">Angular contact bearings support axial loads in one direction</small>
+                }
+            </div>
+
+            <div class="form-group">
+                <label>Rotational Speed (n)</label>
+                <div class="input-group">
+                    <input type="number" step="1" @bind="speed" placeholder="e.g. 1500" />
+                    <span class="unit">rpm</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Factors -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="info" Size="medium" Style="solid" />
+                <h2>Application Factors</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Machine Factor (fw)</label>
+                <select @bind="selectedMachineFactor">
+                    @foreach (var mf in BearingService.MachineFactors)
+                    {
+                        <option value="@mf.Value">@mf.Factor - @mf.Description</option>
+                    }
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Reliability</label>
+                <select @bind="selectedReliability">
+                    @foreach (var rf in BearingService.ReliabilityFactors)
+                    {
+                        <option value="@rf.Key">@(rf.Key)% (a₁ = @(rf.Value))</option>
+                    }
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="button-group">
+        <button class="btn btn-success btn-lg @(isCalculating ? "btn-calculating" : "")" @onclick="Calculate" disabled="@isCalculating">
+            @if (isCalculating)
+            {
+                <span class="spinner"></span>
+                <span>Calculating...</span>
+            }
+            else
+            {
+                <ModuleIcon Type="calculate" Size="button" Style="default" />
+                <span>Calculate</span>
+            }
+        </button>
+        <button class="btn btn-secondary" @onclick="ClearForm" disabled="@isCalculating">
+            <ModuleIcon Type="clear" Size="button" Style="default" /> Clear
+        </button>
+    </div>
+
+    @if (showInfoModal)
+    {
+        <div class="modal-overlay" @onclick="ToggleInfoModal">
+            <div class="modal-content" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h3>Contact Angle Information</h3>
+                    <button class="close-btn" @onclick="ToggleInfoModal">×</button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>15° (C suffix):</strong> High speed capability, lower axial load capacity. Ideal for high-speed spindles.</p>
+                    <p><strong>30° (Standard):</strong> Balanced radial and axial load capacity. Most common type.</p>
+                    <p><strong>40° (B suffix):</strong> Higher axial load capacity, lower speed rating. Best for heavy axial loads.</p>
+                    <p style="margin-top: 8px; color: #666; font-style: italic;">
+                        Note: Higher contact angle = higher axial capacity but lower speed limit
+                    </p>
+                </div>
+            </div>
+        </div>
+    }
+}
+else
+{
+    <!-- RESULTS -->
+    <div class="button-group" style="margin-bottom: 24px;">
+        <button class="btn btn-primary" @onclick="BackToInput">
+            <ModuleIcon Type="back" Size="button" Style="default" /> Back to Input
+        </button>
+        <button class="btn btn-secondary" @onclick="ClearForm">
+            <ModuleIcon Type="new" Size="button" Style="default" /> New Calculation
+        </button>
+        <button class="btn btn-info @(isSavingPdf ? "btn-saving" : "")" @onclick="SaveAsPdf" disabled="@isSavingPdf">
+            @if (isSavingPdf)
+            {
+                <span class="spinner"></span>
+                <span>Generating PDF...</span>
+            }
+            else
+            {
+                <ModuleIcon Type="pdf" Size="button" Style="default" />
+                <span>Save as PDF</span>
+            }
+        </button>
+    </div>
+
+    <!-- Detailed Results Container -->
+    <div id="results-content">
+
+        <!-- Bearing Data -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="ball-bearing" Size="medium" Style="solid" /><h2>Bearing Data</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr class="highlight"><td>Bearing Designation</td><td>-</td><td>@selectedBearingName</td><td>-</td></tr>
+                    <tr><td>Bearing Type</td><td>-</td><td>@(selectedBearingType == "AngularContact" ? "Angular Contact Ball" : "Deep Groove Ball")</td><td>-</td></tr>
+                    <tr><td>Bore Diameter</td><td>d</td><td>@bearingBore</td><td>mm</td></tr>
+                    <tr><td>Outer Diameter</td><td>D</td><td>@bearingOuter</td><td>mm</td></tr>
+                    <tr><td>Width</td><td>B</td><td>@bearingWidth</td><td>mm</td></tr>
+                    @if (selectedBearingType == "AngularContact" && selectedAngularBearing != null)
+                    {
+                        <tr class="highlight"><td>Contact Angle</td><td>α</td><td>@(selectedAngularBearing.ContactAngle.ToString("F0"))</td><td>°</td></tr>
+                    }
+                    <tr class="highlight"><td>Dynamic Load Rating</td><td>C</td><td>@dynamicRating.ToString("F1")</td><td>kN</td></tr>
+                    <tr><td>Static Load Rating</td><td>C₀</td><td>@staticRating.ToString("F1")</td><td>kN</td></tr>
+                    @if (selectedBearingType == "DeepGroove")
+                    {
+                        <tr><td>Calculation Factor</td><td>f₀</td><td>@f0Factor.ToString("F2")</td><td>-</td></tr>
+                    }
+                    @if (selectedBearingType == "AngularContact" && selectedAngularBearing != null)
+                    {
+                        <tr><td>e Factor (Limit Value)</td><td>e</td><td>@(selectedAngularBearing.e.ToString("F2"))</td><td>-</td></tr>
+                        <tr><td>Radial Factor (Fa/Fr > e)</td><td>X</td><td>@(selectedAngularBearing.X.ToString("F2"))</td><td>-</td></tr>
+                        <tr><td>Axial Factor (Fa/Fr > e)</td><td>Y</td><td>@(selectedAngularBearing.Y.ToString("F2"))</td><td>-</td></tr>
+                        <tr><td>Static Axial Factor</td><td>Y₀</td><td>@(selectedAngularBearing.Y0.ToString("F2"))</td><td>-</td></tr>
+                        <tr><td>Limiting Speed (Oil)</td><td>n<sub>oil</sub></td><td>@(selectedAngularBearing.LimitSpeedOil)</td><td>rpm</td></tr>
+                    }
+                    <tr class="@(bearingLimitSpeed > 0 && speed > bearingLimitSpeed ? "warning" : "")">
+                        <td>Limiting Speed (Grease)</td><td>n<sub>lim</sub></td><td>@bearingLimitSpeed</td><td>rpm</td>
+                    </tr>
+                    <tr><td>Operating Speed</td><td>n</td><td>@speed</td><td>rpm</td></tr>
+                    <tr><td>Life Exponent (Ball Bearing)</td><td>p</td><td>3</td><td>-</td></tr>
+                </tbody>
+            </table>
+
+            @if (bearingLimitSpeed > 0 && speed > bearingLimitSpeed)
+            {
+                @if (selectedBearingType == "AngularContact" && selectedAngularBearing != null)
+                {
+                    <div class="alert alert-warning" style="margin-top: 16px;">
+                        ⚠️ <strong>Speed Warning:</strong> Operating speed (@speed rpm) exceeds grease limiting speed (@bearingLimitSpeed rpm). Consider oil lubrication (limit: @(selectedAngularBearing.LimitSpeedOil) rpm).
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-warning" style="margin-top: 16px;">
+                        ⚠️ <strong>Speed Warning:</strong> Operating speed (@speed rpm) exceeds limiting speed (@bearingLimitSpeed rpm).
+                    </div>
+                }
+            }
+        </div>
+
+        <!-- Load Factor Calculation -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="force" Size="medium" Style="solid" /><h2>Load Factor Calculation (ISO 281)</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Radial Load</td><td>F<sub>r</sub></td><td>@radialLoad.ToString("F0")</td><td>N</td></tr>
+                    <tr><td>Axial Load</td><td>F<sub>a</sub></td><td>@axialLoad.ToString("F0")</td><td>N</td></tr>
+                    <tr><td>Fa / Fr Ratio</td><td>-</td><td>@faFrRatio.ToString("F4")</td><td>-</td></tr>
+                    @if (selectedBearingType == "DeepGroove")
+                    {
+                        <tr><td>f₀ × Fa / C₀</td><td>-</td><td>@f0FaC0.ToString("F3")</td><td>-</td></tr>
+                        <tr class="highlight"><td>e (interpolated from ISO 281)</td><td>e</td><td>@eValue.ToString("F3")</td><td>-</td></tr>
+                    }
+                    <tr><td>Load Condition</td><td>-</td><td>Fa/Fr @(faFrRatio <= eValue ? "≤" : ">") e (@eValue.ToString("F3"))</td><td>-</td></tr>
+                    <tr class="highlight"><td>Radial Factor (Used)</td><td>X</td><td>@xFactor.ToString("F2")</td><td>-</td></tr>
+                    <tr class="highlight"><td>Axial Factor (Used)</td><td>Y</td><td>@yFactor.ToString("F2")</td><td>-</td></tr>
+                    <tr><td>Machine Factor</td><td>f<sub>w</sub></td><td>@selectedMachineFactor</td><td>-</td></tr>
+                    <tr class="highlight"><td>Equivalent Dynamic Load (P = fw × (XFr + YFa))</td><td>P</td><td>@equivalentLoad.ToString("F0")</td><td>N</td></tr>
+                    <tr><td>P (in kN)</td><td>P</td><td>@((equivalentLoad / 1000.0).ToString("F3"))</td><td>kN</td></tr>
+                    <tr><td>Load Ratio</td><td>C / P</td><td>@((dynamicRating / (equivalentLoad / 1000.0)).ToString("F2"))</td><td>-</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Life Calculation -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="life-time" Size="medium" Style="solid" /><h2>Bearing Life Calculation</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Basic Rating Life (Revolutions)</td><td>L<sub>10</sub></td><td>@basicLifeRevolutions.ToString("F2")</td><td>×10⁶ rev</td></tr>
+                    <tr class="@(basicLifeHours < 3000 ? "warning" : "highlight")"><td>Basic Rating Life (Hours)</td><td>L<sub>10h</sub></td><td>@FormatLife(basicLifeHours)</td><td>hours</td></tr>
+                    <tr><td>Reliability Factor (@selectedReliability%)</td><td>a<sub>1</sub></td><td>@reliabilityFactor.ToString("F2")</td><td>-</td></tr>
+                    <tr class="highlight"><td>Modified Rating Life</td><td>L<sub>nah</sub></td><td>@FormatLife(modifiedLifeHours)</td><td>hours</td></tr>
+                </tbody>
+            </table>
+
+            @if (basicLifeHours < 3000)
+            {
+                <div class="alert alert-warning" style="margin-top: 16px;">
+                    ⚠️ <strong>Short Life:</strong> Consider using a bearing with higher load rating or reducing the load.
+                </div>
+            }
+            else if (basicLifeHours >= 20000)
+            {
+                <div class="alert alert-success" style="margin-top: 16px;">
+                    ✓ <strong>Good:</strong> Bearing life is adequate for most applications.
+                </div>
+            }
+        </div>
+
+        <!-- Static Safety -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="safety" Size="medium" Style="solid" /><h2>Static Safety</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Status</th></tr></thead>
+                <tbody>
+                    <tr><td>Static Equivalent Load@(selectedBearingType == "AngularContact" ? " (P₀ = X₀Fr + Y₀Fa)" : "")</td><td>P₀</td><td>@((staticEquivalentLoad / 1000.0).ToString("F3")) kN</td><td>-</td></tr>
+                    <tr class="@(staticSafety < 1.0 ? "danger" : staticSafety < 1.5 ? "warning" : "success")">
+                        <td>Static Safety Factor</td><td>S₀</td><td>@staticSafety.ToString("F2")</td>
+                        <td>@(staticSafety < 1.0 ? "❌ FAIL" : staticSafety < 1.5 ? "⚠️ Marginal" : "✓ OK")</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            @if (staticSafety < 1.0)
+            {
+                <div class="alert alert-danger" style="margin-top: 16px;">
+                    ❌ <strong>Danger:</strong> Static safety below 1.0 - risk of brinelling and permanent deformation.
+                </div>
+            }
+            else if (staticSafety < 1.5)
+            {
+                <div class="alert alert-warning" style="margin-top: 16px;">
+                    ⚠️ <strong>Warning:</strong> Static safety is marginal. Consider higher load rating for critical applications.
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Feedback Widget -->
+    <FeedbackWidget ModuleKey="ball-bearing" />
+
+    <RelatedCalculators CurrentModuleKey="ball-bearing" />
+}
+
+<style>
+    .results-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .results-table th { background: #f8f9fa; padding: 12px 16px; text-align: left; font-weight: 600; color: #2c3e50; border-bottom: 2px solid #dee2e6; }
+    .results-table td { padding: 10px 16px; border-bottom: 1px solid #eee; }
+    .results-table tr:hover { background: #f8f9fa; }
+    .results-table tr.highlight { background: #e3f2fd; font-weight: 500; }
+    .results-table tr.warning { background: #fff8e1; }
+    .results-table tr.danger { background: #ffebee; }
+    .results-table tr.success { background: #e8f5e9; }
+    .results-table th:nth-child(1) { width: 40%; }
+    .results-table th:nth-child(2) { width: 15%; text-align: center; }
+    .results-table th:nth-child(3) { width: 25%; text-align: right; }
+    .results-table th:nth-child(4) { width: 20%; text-align: center; }
+    .results-table td:nth-child(2) { text-align: center; font-family: 'Times New Roman', serif; font-style: italic; color: #666; }
+    .results-table td:nth-child(3) { text-align: right; font-weight: 500; font-family: 'Consolas', monospace; }
+    .results-table td:nth-child(4) { text-align: center; color: #666; }
+
+    .btn-info { background: linear-gradient(135deg, #17a2b8 0%, #138496 100%); color: white; }
+    .btn-info:hover { background: linear-gradient(135deg, #138496 0%, #117a8b 100%); }
+
+    .info-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 16px;
+        margin-left: 6px;
+        padding: 0;
+        vertical-align: middle;
+    }
+    .info-btn:hover { opacity: 0.7; }
+
+    .modal-overlay {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    }
+    .modal-content {
+        background: white;
+        border-radius: 12px;
+        max-width: 500px;
+        width: 90%;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    }
+    .modal-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid #e0e0e0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .modal-header h3 { margin: 0; font-size: 20px; color: #2c3e50; }
+    .close-btn {
+        background: none; border: none; font-size: 28px;
+        cursor: pointer; color: #666; line-height: 1;
+        padding: 0; width: 32px; height: 32px;
+    }
+    .close-btn:hover { color: #333; }
+    .modal-body { padding: 24px; }
+    .modal-body p { margin-bottom: 12px; line-height: 1.6; }
+</style>
+
+@code {
+    // Bearing type selection
+    private string selectedBearingType = "DeepGroove";
+    private int selectedContactAngle = 0;
+
+    // Filtered bearing list for Angular Contact (separate from DeepGroove)
+    private List<AngularContactBearing> filteredAngularBearings = new();
+
+    // Input
+    private int selectedBearingIndex = -1;
+    private double dynamicRating = 0;
+    private double staticRating = 0;
+    private double f0Factor = 0;          // Deep groove only
+    private double radialLoad = 0;
+    private double axialLoad = 0;
+    private double speed = 0;
+    private string selectedMachineFactor = "1.0";
+    private int selectedReliability = 90;
+
+    // Calculated
+    private double f0FaC0 = 0;           // Deep groove only
+    private double faFrRatio = 0;
+    private double eValue = 0;
+    private double xFactor = 1;
+    private double yFactor = 0;
+    private double equivalentLoad = 0;
+    private double basicLifeRevolutions = 0;
+    private double basicLifeHours = 0;
+    private double modifiedLifeHours = 0;
+    private double reliabilityFactor = 1.0;
+    private double staticEquivalentLoad = 0;
+    private double staticSafety = 0;
+
+    private bool showResults = false;
+    private bool isCalculating = false;
+    private bool isSavingPdf = false;
+    private bool showInfoModal = false;
+    private Bearing? selectedDGBBearing;             // Deep groove bearing
+    private AngularContactBearing? selectedAngularBearing;  // Angular contact bearing
+    private string selectedBearingName = "";
+    private ModuleInfo moduleInfo = new();
+
+    // Common display properties
+    private double bearingBore => selectedBearingType == "DeepGroove"
+        ? (selectedDGBBearing?.Bore ?? 0)
+        : (selectedAngularBearing?.Bore ?? 0);
+    private double bearingOuter => selectedBearingType == "DeepGroove"
+        ? (selectedDGBBearing?.Outer ?? 0)
+        : (selectedAngularBearing?.Outer ?? 0);
+    private double bearingWidth => selectedBearingType == "DeepGroove"
+        ? (selectedDGBBearing?.Width ?? 0)
+        : (selectedAngularBearing?.Width ?? 0);
+    private int bearingLimitSpeed => selectedBearingType == "DeepGroove"
+        ? (selectedDGBBearing?.LimitSpeed ?? 0)
+        : (selectedAngularBearing?.LimitSpeed ?? 0);
+
+    protected override async Task OnInitializedAsync()
+    {
+        moduleInfo = Metadata.GetModule("ball-bearing");
+        await SetSeoMetadata();
+        await SetStructuredData();
+        await Analytics.TrackPageView("/ball-bearing", moduleInfo.Name);
+        FilterBearings();
+    }
+
+    private void OnBearingTypeChanged()
+    {
+        selectedBearingIndex = -1;
+        selectedDGBBearing = null;
+        selectedAngularBearing = null;
+        selectedBearingName = "";
+        dynamicRating = 0;
+        staticRating = 0;
+        f0Factor = 0;
+        selectedContactAngle = 0;
+        FilterBearings();
+    }
+
+    private void FilterBearings()
+    {
+        selectedBearingIndex = -1;
+        selectedDGBBearing = null;
+        selectedAngularBearing = null;
+        selectedBearingName = "";
+
+        if (selectedBearingType == "AngularContact")
+        {
+            filteredAngularBearings = selectedContactAngle == 0
+                ? BearingService.AngularContactBallBearings.ToList()
+                : BearingService.AngularContactBallBearings
+                    .Where(b => (int)b.ContactAngle == selectedContactAngle)
+                    .ToList();
+        }
+    }
+
+    private void OnBearingSelected()
+    {
+        if (selectedBearingIndex < 0) return;
+
+        if (selectedBearingType == "DeepGroove")
+        {
+            if (selectedBearingIndex >= BearingService.DeepGrooveBallBearings.Count) return;
+            selectedDGBBearing = BearingService.DeepGrooveBallBearings[selectedBearingIndex];
+            selectedAngularBearing = null;
+            selectedBearingName = selectedDGBBearing.Designation;
+            dynamicRating = selectedDGBBearing.C;
+            staticRating = selectedDGBBearing.C0;
+            f0Factor = selectedDGBBearing.f0;
+        }
+        else
+        {
+            if (selectedBearingIndex >= filteredAngularBearings.Count) return;
+            selectedAngularBearing = filteredAngularBearings[selectedBearingIndex];
+            selectedDGBBearing = null;
+            selectedBearingName = selectedAngularBearing.Designation;
+            dynamicRating = selectedAngularBearing.C;
+            staticRating = selectedAngularBearing.C0;
+        }
+    }
+
+    private void ToggleInfoModal() => showInfoModal = !showInfoModal;
+
+    private async Task Calculate()
+    {
+        isCalculating = true;
+        StateHasChanged();
+        await Task.Delay(350);
+        try
+        {
+            if (dynamicRating <= 0 || staticRating <= 0 || radialLoad <= 0 || speed <= 0)
+            {
+                await Analytics.TrackCalculationError("ball-bearing", "validation_failed", "Invalid input parameters");
+                return;
+            }
+
+            double fw = double.Parse(selectedMachineFactor, System.Globalization.CultureInfo.InvariantCulture);
+            reliabilityFactor = BearingService.ReliabilityFactors.GetValueOrDefault(selectedReliability, 1.0);
+
+            double Fr_kN = radialLoad / 1000.0;
+            double Fa_kN = axialLoad / 1000.0;
+
+            faFrRatio = radialLoad > 0 ? axialLoad / radialLoad : 0;
+
+            if (selectedBearingType == "DeepGroove")
+            {
+                // Deep Groove: ISO 281 XY table interpolation using f0
+                if (f0Factor <= 0)
+                {
+                    await Analytics.TrackCalculationError("ball-bearing", "validation_failed", "f0 factor required for deep groove bearing");
+                    return;
+                }
+                var (X, Y, e, relAxialLoad) = BearingService.CalculateXYFactors(Fa_kN, Fr_kN, staticRating, f0Factor);
+                xFactor = X;
+                yFactor = Y;
+                eValue = e;
+                f0FaC0 = relAxialLoad;
+            }
+            else
+            {
+                // Angular Contact: use catalog e, X, Y directly
+                if (selectedAngularBearing == null)
+                {
+                    await Analytics.TrackCalculationError("ball-bearing", "validation_failed", "Angular contact bearing not selected");
+                    return;
+                }
+                eValue = selectedAngularBearing.e;
+                if (faFrRatio <= eValue)
+                {
+                    xFactor = 1.0;
+                    yFactor = 0;
+                }
+                else
+                {
+                    xFactor = selectedAngularBearing.X;
+                    yFactor = selectedAngularBearing.Y;
+                }
+            }
+
+            // Equivalent dynamic load (N)
+            equivalentLoad = fw * (xFactor * radialLoad + yFactor * axialLoad);
+            if (equivalentLoad < fw * radialLoad)
+                equivalentLoad = fw * radialLoad;
+
+            double P_kN = equivalentLoad / 1000.0;
+
+            // Basic life L10 (p = 3 for ball bearings)
+            double cpRatio = dynamicRating / P_kN;
+            basicLifeRevolutions = Math.Pow(cpRatio, 3.0);
+
+            // Convert to hours
+            basicLifeHours = (basicLifeRevolutions * 1_000_000) / (60 * speed);
+            modifiedLifeHours = reliabilityFactor * basicLifeHours;
+
+            // Static safety
+            if (selectedBearingType == "AngularContact" && selectedAngularBearing != null)
+            {
+                double x0 = 0.5;
+                staticEquivalentLoad = x0 * radialLoad + selectedAngularBearing.Y0 * axialLoad;
+                if (staticEquivalentLoad < radialLoad) staticEquivalentLoad = radialLoad;
+            }
+            else
+            {
+                staticEquivalentLoad = Math.Max(radialLoad, 0.6 * radialLoad + 0.5 * axialLoad);
+            }
+            double P0_kN = staticEquivalentLoad / 1000.0;
+            staticSafety = staticRating / P0_kN;
+
+            showResults = true;
+
+            await Analytics.TrackCalculationCompleted("ball-bearing", new Dictionary<string, object>
+            {
+                { "bearing_type", selectedBearingType },
+                { "dynamic_rating", dynamicRating },
+                { "radial_load", radialLoad },
+                { "axial_load", axialLoad },
+                { "speed", speed },
+                { "basic_life_hours", basicLifeHours },
+                { "static_safety", staticSafety }
+            });
+        }
+        catch (Exception ex)
+        {
+            await Analytics.TrackCalculationError("ball-bearing", "calculation_failed", ex.Message);
+            throw;
+        }
+        finally
+        {
+            isCalculating = false;
+        }
+    }
+
+    private void BackToInput() => showResults = false;
+
+    private void ClearForm()
+    {
+        selectedBearingType = "DeepGroove";
+        selectedContactAngle = 0;
+        selectedBearingIndex = -1;
+        selectedDGBBearing = null;
+        selectedAngularBearing = null;
+        selectedBearingName = "";
+        dynamicRating = 0;
+        staticRating = 0;
+        f0Factor = 0;
+        radialLoad = 0;
+        axialLoad = 0;
+        speed = 0;
+        selectedMachineFactor = "1.0";
+        selectedReliability = 90;
+        showResults = false;
+        showInfoModal = false;
+        FilterBearings();
+    }
+
+    private string FormatLife(double hours)
+    {
+        if (hours >= 100000) return (hours / 1000).ToString("F0") + "k";
+        if (hours >= 10000) return (hours / 1000).ToString("F1") + "k";
+        return hours.ToString("F0");
+    }
+
+    private async Task SaveAsPdf()
+    {
+        isSavingPdf = true;
+        StateHasChanged();
+        try
+        {
+            var fileName = $"BallBearing-Report-{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            await JSRuntime.InvokeVoidAsync("generatePdf", "results-content", fileName);
+            await Analytics.TrackPdfDownload("ball-bearing", fileName);
+        }
+        catch (Exception ex)
+        {
+            await Analytics.TrackCalculationError("ball-bearing", "pdf_generation_failed", ex.Message);
+        }
+    }
+
+    private async Task SetSeoMetadata()
+    {
+        var baseUrl = "https://mekanika.org";
+        var seo = new SeoMetadata
+        {
+            Title = $"{moduleInfo.Name} - Free Online Tool | Mekanika",
+            Description = moduleInfo.Description,
+            Keywords = moduleInfo.Keywords,
+            CanonicalUrl = $"{baseUrl}{moduleInfo.Route}",
+            OgTitle = moduleInfo.Name,
+            OgDescription = moduleInfo.Description,
+            OgImage = $"{baseUrl}/images/og-image.png",
+            OgUrl = $"{baseUrl}{moduleInfo.Route}",
+            TwitterTitle = moduleInfo.Name,
+            TwitterDescription = moduleInfo.Description,
+            TwitterImage = $"{baseUrl}/images/og-image.png"
+        };
+        await Seo.SetMetaTags(seo);
+    }
+
+    private async Task SetStructuredData()
+    {
+        var structuredData = new
+        {
+            context = "https://schema.org",
+            type = "SoftwareApplication",
+            name = moduleInfo.Name,
+            description = moduleInfo.Description,
+            applicationCategory = "EngineeringApplication",
+            operatingSystem = "Web Browser",
+            offers = new { type = "Offer", price = "0", priceCurrency = "USD" }
+        };
+        await Seo.SetStructuredData(structuredData);
+    }
+}

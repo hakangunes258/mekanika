@@ -1,0 +1,184 @@
+@* Related Calculators Component *@
+@* Displays 3 related calculator modules to increase user engagement *@
+
+@inject ModuleMetadataService MetadataService
+@inject NavigationManager Navigation
+@inject AnalyticsService Analytics
+
+@if (relatedModules.Any())
+{
+    <div class="related-calculators">
+        <h3>Related Calculators</h3>
+        <div class="related-grid">
+            @foreach (var module in relatedModules)
+            {
+                <div class="related-card" @onclick="() => NavigateTo(module)">
+                    <div class="related-icon">
+                        <ModuleIcon Type="@module.Key" Size="medium" Style="solid" />
+                    </div>
+                    <div class="related-content">
+                        <h4>@module.Name</h4>
+                        <p>@GetShortDescription(module.Description)</p>
+                    </div>
+                    <span class="related-arrow">→</span>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>
+    /// Current module key (e.g., "key-connection")
+    /// </summary>
+    [Parameter]
+    public string CurrentModuleKey { get; set; } = "";
+
+    private List<ModuleInfo> relatedModules = new();
+
+    protected override void OnParametersSet()
+    {
+        // Load related modules from metadata service
+        relatedModules = MetadataService.GetRelatedModules(CurrentModuleKey, 3);
+    }
+
+    private async Task NavigateTo(ModuleInfo module)
+    {
+        // Track related calculator navigation
+        await Analytics.TrackRelatedCalculatorClick(CurrentModuleKey, module.Key);
+
+        // Navigate to related calculator
+        Navigation.NavigateTo(module.Route);
+    }
+
+    private string GetShortDescription(string description)
+    {
+        // Truncate description to 100 characters for card display
+        if (description.Length <= 100)
+            return description;
+
+        return description.Substring(0, 97) + "...";
+    }
+}
+
+<style>
+    .related-calculators {
+        margin-top: 48px;
+        padding-top: 32px;
+        border-top: 2px solid #e0e0e0;
+    }
+
+    .related-calculators h3 {
+        font-size: 24px;
+        font-weight: 600;
+        color: #2c3e50;
+        margin-bottom: 24px;
+    }
+
+    .related-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+    }
+
+    .related-card {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 16px;
+        background: white;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-decoration: none;
+    }
+
+    .related-card:hover {
+        border-color: #3498db;
+        box-shadow: 0 4px 12px rgba(52, 152, 219, 0.15);
+        transform: translateY(-2px);
+    }
+
+    .related-icon {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .related-content {
+        flex: 1;
+        min-width: 0; /* Allow text truncation */
+    }
+
+    .related-content h4 {
+        font-size: 16px;
+        font-weight: 600;
+        color: #2c3e50;
+        margin: 0 0 4px 0;
+    }
+
+    .related-content p {
+        font-size: 13px;
+        color: #7f8c8d;
+        margin: 0;
+        line-height: 1.4;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+    }
+
+    .related-arrow {
+        font-size: 24px;
+        color: #3498db;
+        flex-shrink: 0;
+        transition: transform 0.2s ease;
+    }
+
+    .related-card:hover .related-arrow {
+        transform: translateX(4px);
+    }
+
+    /* Responsive */
+    @@media (max-width: 768px) {
+        .related-calculators {
+            margin-top: 32px;
+            padding-top: 24px;
+        }
+
+        .related-calculators h3 {
+            font-size: 20px;
+            margin-bottom: 16px;
+        }
+
+        .related-grid {
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+
+        .related-card {
+            padding: 12px;
+        }
+
+        .related-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .related-content h4 {
+            font-size: 15px;
+        }
+
+        .related-content p {
+            font-size: 12px;
+        }
+
+        .related-arrow {
+            font-size: 20px;
+        }
+    }
+</style>

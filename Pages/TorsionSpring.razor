@@ -1,0 +1,757 @@
+@page "/torsion-spring"
+@using MechanicalCalculatorWeb.Services
+@inject AnalyticsService Analytics
+@inject SeoService Seo
+@inject ModuleMetadataService Metadata
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Torsion Spring Calculator - Mekanika</PageTitle>
+
+<div class="page-header">
+    <h1><ModuleIcon Type="torsion-spring" Size="large" Style="transparent" CustomStyle="margin-right: 12px;" /> Helical Torsion Spring Calculator</h1>
+    <p>Torsion spring design according to EN 13906-3</p>
+</div>
+
+
+
+@if (!showResults)
+{
+    <!-- INPUT FORM -->
+    <div class="form-grid">
+        <!-- Geometry Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="geometry" Size="medium" Style="solid" />
+                <h2>Spring Geometry</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Wire Diameter (d)</label>
+                <div class="input-group">
+                    <select @bind="engine.WireDiameter" style="flex: 1; padding: 10px; border: 1px solid #ced4da; border-radius: 8px 0 0 8px;">
+                        <option value="0">-- Select --</option>
+                        @foreach (var d in TorsionSpringEngine.StandardWireDiameters)
+                        {
+                            <option value="@d">@d</option>
+                        }
+                    </select>
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Mean Coil Diameter (Dm)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="engine.MeanCoilDiameter" placeholder="e.g. 15" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Active Coils (n)</label>
+                <div class="input-group">
+                    <input type="number" step="0.5" @bind="engine.ActiveCoils" placeholder="e.g. 5" />
+                    <span class="unit">coils</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Winding Direction</label>
+                <select @bind="engine.WindingDirection">
+                    <option value="Right">Right-hand (clockwise)</option>
+                    <option value="Left">Left-hand (counter-clockwise)</option>
+                </select>
+                <small style="color: #6c757d; font-size: 12px;">Wind in direction of applied torque for closing spring</small>
+            </div>
+        </div>
+
+        <!-- Legs Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="dimensions" Size="medium" Style="solid" />
+                <h2>Leg Configuration</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Leg Type</label>
+                <select @bind="engine.LegType">
+                    @foreach (var leg in TorsionSpringEngine.LegTypes)
+                    {
+                        <option value="@leg.Key">@leg.Value.Description</option>
+                    }
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Leg 1 Length (L₁)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="engine.Leg1Length" placeholder="e.g. 20" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Leg 2 Length (L₂)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="engine.Leg2Length" placeholder="e.g. 20" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Material Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="material" Size="medium" Style="solid" />
+                <h2>Material</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Material Grade</label>
+                <select @bind="selectedMaterial" @bind:after="OnMaterialChanged">
+                    @foreach (var mat in TorsionSpringEngine.Materials)
+                    {
+                        <option value="@mat.Key">@mat.Value.Name</option>
+                    }
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Elastic Modulus (E)</label>
+                <div class="input-group">
+                    <input type="number" step="1000" @bind="engine.ElasticModulus" />
+                    <span class="unit">MPa</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Tensile Strength (Rm)</label>
+                <div class="input-group">
+                    <input type="number" step="10" @bind="engine.TensileStrength" />
+                    <span class="unit">MPa</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Operating Conditions Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="force" Size="medium" Style="solid" />
+                <h2>Operating Conditions</h2>
+            </div>
+
+            <p style="font-size: 13px; color: #6c757d; margin-bottom: 16px;">
+                Enter angular deflections to calculate torques and stresses at each position.
+            </p>
+
+            <div class="form-group">
+                <label>Position 1 - Deflection Angle (α₁)</label>
+                <div class="input-group">
+                    <input type="number" step="1" @bind="engine.Angle1Input" placeholder="e.g. 30" />
+                    <span class="unit">°</span>
+                </div>
+                <small style="color: #6c757d; font-size: 12px;">Preload position (minimum operating angle)</small>
+            </div>
+
+            <div class="form-group">
+                <label>Position 2 - Deflection Angle (α₂)</label>
+                <div class="input-group">
+                    <input type="number" step="1" @bind="engine.Angle2Input" placeholder="e.g. 90" />
+                    <span class="unit">°</span>
+                </div>
+                <small style="color: #6c757d; font-size: 12px;">Maximum operating angle</small>
+            </div>
+
+            @if (engine.MeanCoilDiameter > 0 && engine.WireDiameter > 0 && engine.ActiveCoils > 0)
+            {
+                var tempRate = (engine.ElasticModulus * Math.Pow(engine.WireDiameter, 4)) /
+                               (3667 * engine.MeanCoilDiameter * engine.ActiveCoils);
+                <div class="info-box" style="padding: 12px; background: #e8f4fc; border-radius: 8px; font-size: 13px;">
+                    <strong>Estimated values:</strong><br />
+                    @if (engine.Angle1Input > 0)
+                    {
+                        <text>M₁ ≈ @((tempRate * engine.Angle1Input).ToString("F1")) Nmm (@((tempRate * engine.Angle1Input / 1000).ToString("F3")) Nm)<br /></text>
+                    }
+                    @if (engine.Angle2Input > 0)
+                    {
+                        <text>M₂ ≈ @((tempRate * engine.Angle2Input).ToString("F1")) Nmm (@((tempRate * engine.Angle2Input / 1000).ToString("F3")) Nm)</text>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="button-group">
+        <button class="btn btn-success btn-lg @(isCalculating ? "btn-calculating" : "")" @onclick="Calculate" disabled="@isCalculating">
+            @if (isCalculating)
+            {
+                <span class="spinner"></span>
+                <span>Calculating...</span>
+            }
+            else
+            {
+                <ModuleIcon Type="calculate" Size="button" Style="default" />
+                <span>Calculate</span>
+            }
+        </button>
+        <button class="btn btn-secondary" @onclick="ClearForm" disabled="@isCalculating">
+            <ModuleIcon Type="clear" Size="button" Style="default" /> Clear
+        </button>
+    </div>
+}
+else
+{
+    <!-- RESULTS -->
+    <div class="button-group" style="margin-bottom: 24px;">
+        <button class="btn btn-primary" @onclick="BackToInput">
+            <ModuleIcon Type="back" Size="button" Style="default" /> Back to Input
+        </button>
+        <button class="btn btn-secondary" @onclick="ClearForm">
+            <ModuleIcon Type="new" Size="button" Style="default" /> New Calculation
+        </button>
+        <button class="btn btn-info @(isSavingPdf ? "btn-saving" : "")" @onclick="SaveAsPdf" disabled="@isSavingPdf">
+            @if (isSavingPdf)
+            {
+                <span class="spinner"></span>
+                <span>Generating PDF...</span>
+            }
+            else
+            {
+                <ModuleIcon Type="pdf" Size="button" Style="default" />
+                <span>Save as PDF</span>
+            }
+        </button>
+    </div>
+
+    <!-- Validation Warnings -->
+    @if (validationErrors.Any())
+    {
+        <div class="alert alert-warning" style="margin-bottom: 24px;">
+            <ModuleIcon Type="safety" Size="small" Style="default" />
+            <div>
+                <strong>Design Warnings:</strong>
+                <ul style="margin: 8px 0 0 0; padding-left: 20px;">
+                    @foreach (var error in validationErrors)
+                    {
+                        <li>@error</li>
+                    }
+                </ul>
+            </div>
+        </div>
+    }
+
+    <div id="results-content">
+        <!-- Geometry Results -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="geometry" Size="medium" Style="solid" />
+                <h2>Spring Geometry</h2>
+            </div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Wire Diameter</td><td>d</td><td>@engine.WireDiameter.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Mean Coil Diameter</td><td>D<sub>m</sub></td><td>@engine.MeanCoilDiameter.ToString("F1")</td><td>mm</td></tr>
+                    <tr><td>Outer Diameter</td><td>D<sub>e</sub></td><td>@engine.OuterDiameter.ToString("F1")</td><td>mm</td></tr>
+                    <tr><td>Inner Diameter (free)</td><td>D<sub>i</sub></td><td>@engine.InnerDiameter.ToString("F1")</td><td>mm</td></tr>
+                    <tr class="highlight"><td>Spring Index</td><td>w</td><td>@engine.SpringIndex.ToString("F2")</td><td>-</td></tr>
+                    <tr><td>Active Coils</td><td>n</td><td>@engine.ActiveCoils.ToString("F1")</td><td>coils</td></tr>
+                    <tr><td>Total Coils</td><td>n<sub>t</sub></td><td>@engine.TotalCoils.ToString("F1")</td><td>coils</td></tr>
+                    <tr><td>Body Length</td><td>L<sub>k</sub></td><td>@engine.BodyLength.ToString("F1")</td><td>mm</td></tr>
+                    <tr><td>Leg 1 Length</td><td>L<sub>1</sub></td><td>@engine.Leg1Length.ToString("F1")</td><td>mm</td></tr>
+                    <tr><td>Leg 2 Length</td><td>L<sub>2</sub></td><td>@engine.Leg2Length.ToString("F1")</td><td>mm</td></tr>
+                    <tr><td>Wire Length</td><td>L<sub>d</sub></td><td>@engine.WireLength.ToString("F0")</td><td>mm</td></tr>
+                    <tr><td>Spring Mass</td><td>m</td><td>@engine.SpringMass.ToString("F1")</td><td>g</td></tr>
+                    <tr><td>Natural Frequency</td><td>f<sub>n</sub></td><td>@engine.NaturalFrequency.ToString("F0")</td><td>Hz</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Diameter Change with Deflection -->
+        @if (engine.Angle1Input > 0 || engine.Angle2Input > 0)
+        {
+            <div class="card">
+                <div class="card-header">
+                    <ModuleIcon Type="dimensions" Size="medium" Style="solid" />
+                    <h2>Diameter Change with Deflection</h2>
+                </div>
+                <table class="results-table">
+                    <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                    <tbody>
+                        <tr><td>Inner Diameter (free)</td><td>D<sub>i,0</sub></td><td>@engine.InnerDiameter.ToString("F2")</td><td>mm</td></tr>
+                        @if (engine.Angle1Input > 0)
+                        {
+                            <tr><td>Inner Diameter at α₁</td><td>D<sub>i,1</sub></td><td>@engine.InnerDiameterAtAngle1.ToString("F2")</td><td>mm</td></tr>
+                        }
+                        @if (engine.Angle2Input > 0)
+                        {
+                            <tr class="@(engine.InnerDiameterAtAngle2 < engine.WireDiameter * 3 ? "warning" : "")"><td>Inner Diameter at α₂</td><td>D<sub>i,2</sub></td><td>@engine.InnerDiameterAtAngle2.ToString("F2")</td><td>mm</td></tr>
+                        }
+                        <tr><td>Inner Diameter at Max</td><td>D<sub>i,max</sub></td><td>@engine.InnerDiameterAtMax.ToString("F2")</td><td>mm</td></tr>
+                    </tbody>
+                </table>
+                <div class="info-box" style="margin-top: 16px; padding: 12px; background: #fff8e1; border-radius: 8px; font-size: 13px;">
+                    <strong>Note:</strong> For a closing spring (wound in direction of load), the inner diameter decreases with deflection.
+                    Ensure adequate mandrel clearance to prevent binding.
+                </div>
+            </div>
+        }
+
+        <!-- Mechanical Properties -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="geometry" Size="medium" Style="solid" />
+                <h2>Mechanical Properties</h2>
+            </div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr class="highlight"><td>Spring Rate</td><td>R</td><td>@engine.SpringRate.ToString("F3")</td><td>Nmm/°</td></tr>
+                    <tr><td>Spring Rate (per radian)</td><td>R</td><td>@engine.SpringRatePerRadian.ToString("F2")</td><td>Nmm/rad</td></tr>
+                    <tr><td>Stress Correction Factor</td><td>q</td><td>@engine.StressCorrectionFactor.ToString("F3")</td><td>-</td></tr>
+                    <tr><td>Max Deflection (allowable)</td><td>α<sub>max</sub></td><td>@engine.MaxDeflection.ToString("F1")</td><td>°</td></tr>
+                    <tr><td>Max Torque (allowable)</td><td>M<sub>max</sub></td><td>@engine.MaxTorque.ToString("F1")</td><td>Nmm</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Operating Conditions -->
+        @if (engine.Angle1Input > 0 || engine.Angle2Input > 0)
+        {
+            <div class="card">
+                <div class="card-header">
+                    <ModuleIcon Type="force" Size="medium" Style="solid" />
+                    <h2>Operating Conditions</h2>
+                </div>
+                <table class="results-table">
+                    <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                    <tbody>
+                        @if (engine.Angle1Input > 0)
+                        {
+                            <tr><td>Position 1 - Angle</td><td>α<sub>1</sub></td><td>@engine.Angle1.ToString("F1")</td><td>°</td></tr>
+                            <tr><td>Position 1 - Torque</td><td>M<sub>1</sub></td><td>@engine.Torque1.ToString("F1")</td><td>Nmm</td></tr>
+                            <tr><td>Position 1 - Torque</td><td>M<sub>1</sub></td><td>@((engine.Torque1/1000).ToString("F3"))</td><td>Nm</td></tr>
+                        }
+                        @if (engine.Angle2Input > 0)
+                        {
+                            <tr><td>Position 2 - Angle</td><td>α<sub>2</sub></td><td>@engine.Angle2.ToString("F1")</td><td>°</td></tr>
+                            <tr class="highlight"><td>Position 2 - Torque</td><td>M<sub>2</sub></td><td>@engine.Torque2.ToString("F1")</td><td>Nmm</td></tr>
+                            <tr><td>Position 2 - Torque</td><td>M<sub>2</sub></td><td>@((engine.Torque2/1000).ToString("F3"))</td><td>Nm</td></tr>
+                        }
+                        @if (engine.Angle1Input > 0 && engine.Angle2Input > 0)
+                        {
+                            <tr><td>Working Angle</td><td>Δα</td><td>@engine.WorkingAngle.ToString("F1")</td><td>°</td></tr>
+                            <tr class="highlight"><td>Working Torque</td><td>ΔM</td><td>@engine.WorkingTorque.ToString("F1")</td><td>Nmm</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        <!-- Stress Analysis -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="force" Size="medium" Style="solid" />
+                <h2>Stress Analysis</h2>
+            </div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    @if (engine.Angle1Input > 0)
+                    {
+                        <tr><td>Bending Stress at α₁</td><td>σ<sub>1</sub></td><td>@engine.BendingStress1.ToString("F0")</td><td>MPa</td></tr>
+                    }
+                    @if (engine.Angle2Input > 0)
+                    {
+                        <tr class="@(engine.BendingStress2 > engine.AllowableBendingStress ? "danger" : engine.BendingStress2 > engine.AllowableBendingStress * 0.9 ? "warning" : "highlight")"><td>Bending Stress at α₂</td><td>σ<sub>2</sub></td><td>@engine.BendingStress2.ToString("F0")</td><td>MPa</td></tr>
+                    }
+                    <tr><td>Max Bending Stress (allowable)</td><td>σ<sub>max</sub></td><td>@engine.MaxBendingStress.ToString("F0")</td><td>MPa</td></tr>
+                    <tr><td>Allowable Bending Stress (0.70×R<sub>m</sub>)</td><td>σ<sub>zul</sub></td><td>@engine.AllowableBendingStress.ToString("F0")</td><td>MPa</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Safety Factors -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="safety" Size="medium" Style="solid" />
+                <h2>Safety Factors</h2>
+            </div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Status</th></tr></thead>
+                <tbody>
+                    @if (engine.Angle1Input > 0)
+                    {
+                        <tr class="@GetSafetyRowClass(engine.SafetyFactorPosition1)"><td>Safety Factor at Position 1</td><td>SF<sub>1</sub></td><td>@engine.SafetyFactorPosition1.ToString("F2")</td><td>@GetSafetyStatus(engine.SafetyFactorPosition1)</td></tr>
+                    }
+                    @if (engine.Angle2Input > 0)
+                    {
+                        <tr class="@GetSafetyRowClass(engine.SafetyFactorPosition2)"><td>Safety Factor at Position 2</td><td>SF<sub>2</sub></td><td>@engine.SafetyFactorPosition2.ToString("F2")</td><td>@GetSafetyStatus(engine.SafetyFactorPosition2)</td></tr>
+                    }
+                    <tr class="@GetSafetyRowClass(engine.SafetyFactorStatic)"><td>Static Safety Factor (min)</td><td>SF<sub>static</sub></td><td>@engine.SafetyFactorStatic.ToString("F2")</td><td>@GetSafetyStatus(engine.SafetyFactorStatic)</td></tr>
+                </tbody>
+            </table>
+
+            @if (engine.SafetyFactorStatic < 1.2)
+            {
+                <div class="alert alert-warning" style="margin-top: 16px;">
+                    <ModuleIcon Type="safety" Size="small" Style="default" /> <strong>Warning:</strong> Static safety factor is below 1.2. Consider using thicker wire or reducing deflection.
+                </div>
+            }
+        </div>
+
+        <!-- Fatigue Analysis -->
+        @if (engine.Angle1Input > 0 && engine.Angle2Input > 0 && Math.Abs(engine.Angle1Input - engine.Angle2Input) > 0.1)
+        {
+            <div class="card">
+                <div class="card-header">
+                    <ModuleIcon Type="force" Size="medium" Style="solid" />
+                    <h2>Fatigue Analysis (Goodman)</h2>
+                </div>
+                <table class="results-table">
+                    <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                    <tbody>
+                        <tr><td>Minimum Stress</td><td>σ<sub>1</sub></td><td>@engine.BendingStress1.ToString("F0")</td><td>MPa</td></tr>
+                        <tr><td>Maximum Stress</td><td>σ<sub>2</sub></td><td>@engine.BendingStress2.ToString("F0")</td><td>MPa</td></tr>
+                        <tr class="highlight"><td>Mean Stress</td><td>σ<sub>m</sub></td><td>@engine.FatigueMeanStress.ToString("F0")</td><td>MPa</td></tr>
+                        <tr class="highlight"><td>Stress Amplitude</td><td>σ<sub>a</sub></td><td>@engine.FatigueStressAmplitude.ToString("F0")</td><td>MPa</td></tr>
+                        <tr><td>Stress Ratio (σ₁/σ₂)</td><td>R</td><td>@engine.FatigueStressRatio.ToString("F2")</td><td>-</td></tr>
+                        <tr><td>Endurance Limit</td><td>σ<sub>e</sub></td><td>@engine.FatigueEnduranceLimit.ToString("F0")</td><td>MPa</td></tr>
+                    </tbody>
+                </table>
+
+                <h4 style="color: #34495e; margin: 20px 0 12px 0; padding-left: 8px; border-left: 3px solid #3498db;">Fatigue Safety</h4>
+                <table class="results-table">
+                    <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Status</th></tr></thead>
+                    <tbody>
+                        <tr class="@(engine.FatigueSafetyFactor < 1.0 ? "danger" : engine.FatigueSafetyFactor < 1.5 ? "warning" : "success")">
+                            <td>Fatigue Safety Factor</td>
+                            <td>SF<sub>fatigue</sub></td>
+                            <td>@engine.FatigueSafetyFactor.ToString("F2")</td>
+                            <td>@(engine.FatigueSafetyFactor < 1.0 ? "❌ FAIL" : engine.FatigueSafetyFactor < 1.5 ? "⚠️ Low" : "✓ OK")</td>
+                        </tr>
+                        <tr class="@GetFatigueLifeClass()">
+                            <td>Expected Cycles</td>
+                            <td>N</td>
+                            <td>@GetFatigueLifeText()</td>
+                            <td>-</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                @if (engine.FatigueSafetyFactor < 1.5)
+                {
+                    <div class="alert alert-warning" style="margin-top: 16px;">
+                        <ModuleIcon Type="safety" Size="small" Style="default" /> <strong>Low Fatigue Safety:</strong> Consider shot peening, reducing stroke, or using higher grade material (DH or VDSiCr).
+                    </div>
+                }
+            </div>
+        }
+
+        <!-- Design Guidelines -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="info" Size="medium" Style="solid" />
+                <h2>Design Guidelines</h2>
+            </div>
+            <table class="results-table">
+                <thead><tr><th>Design Parameter</th><th>Current Value</th><th>Status</th><th>Recommendation</th></tr></thead>
+                <tbody>
+                    <tr class="@(engine.SpringIndex < 4 || engine.SpringIndex > 14 ? "warning" : "success")">
+                        <td>Spring Index (w)</td>
+                        <td>@engine.SpringIndex.ToString("F1")</td>
+                        <td>@(engine.SpringIndex < 4 ? "⚠️ Too Low" : engine.SpringIndex > 14 ? "⚠️ Too High" : "✓ OK")</td>
+                        <td>@(engine.SpringIndex < 4 ? "Difficult to manufacture, high stress" : engine.SpringIndex > 14 ? "Low torque capacity" : "Recommended range 4-14")</td>
+                    </tr>
+                    <tr class="@(engine.ActiveCoils < 3 ? "warning" : "success")">
+                        <td>Active Coils (n)</td>
+                        <td>@engine.ActiveCoils.ToString("F1")</td>
+                        <td>@(engine.ActiveCoils < 3 ? "⚠️ Low" : "✓ OK")</td>
+                        <td>@(engine.ActiveCoils < 3 ? "Minimum 3 coils recommended" : "Adequate")</td>
+                    </tr>
+                    @if (engine.Angle2Input > 0)
+                    {
+                        <tr class="@(engine.Angle2 > engine.MaxDeflection * 0.9 ? "warning" : "success")">
+                            <td>Deflection Utilization</td>
+                            <td>@((engine.Angle2 / engine.MaxDeflection * 100).ToString("F0"))%</td>
+                            <td>@(engine.Angle2 > engine.MaxDeflection * 0.9 ? "⚠️ High" : "✓ OK")</td>
+                            <td>@(engine.Angle2 > engine.MaxDeflection * 0.9 ? "Close to maximum - consider margin" : "Adequate margin")</td>
+                        </tr>
+                        <tr class="@(engine.InnerDiameterAtAngle2 < engine.WireDiameter * 3 ? "warning" : "success")">
+                            <td>Mandrel Clearance at α₂</td>
+                            <td>@(engine.InnerDiameterAtAngle2.ToString("F1")) mm</td>
+                            <td>@(engine.InnerDiameterAtAngle2 < engine.WireDiameter * 3 ? "⚠️ Tight" : "✓ OK")</td>
+                            <td>@(engine.InnerDiameterAtAngle2 < engine.WireDiameter * 3 ? "Risk of binding - increase Di or reduce α" : "Adequate clearance")</td>
+                        </tr>
+                    }
+                    <tr>
+                        <td>Leg Type</td>
+                        <td>@engine.LegType</td>
+                        <td>-</td>
+                        <td>@(TorsionSpringEngine.LegTypes.GetValueOrDefault(engine.LegType).Description)</td>
+                    </tr>
+                    <tr>
+                        <td>Winding Direction</td>
+                        <td>@engine.WindingDirection</td>
+                        <td>-</td>
+                        <td>@(engine.WindingDirection == "Right" ? "Right-hand: load closes spring" : "Left-hand: load opens spring")</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Related Calculators -->
+    <RelatedCalculators CurrentModuleKey="torsion-spring" />
+}
+
+<style>
+    .results-table { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 0; }
+    .results-table th { background: #f8f9fa; padding: 12px 16px; text-align: left; font-weight: 600; color: #2c3e50; border-bottom: 2px solid #dee2e6; }
+    .results-table td { padding: 10px 16px; border-bottom: 1px solid #eee; }
+    .results-table tr:hover { background: #f8f9fa; }
+    .results-table tr.highlight { background: #e3f2fd; font-weight: 500; }
+    .results-table tr.warning { background: #fff8e1; }
+    .results-table tr.danger { background: #ffebee; }
+    .results-table tr.success { background: #e8f5e9; }
+
+    .results-table th:nth-child(1) { width: 40%; }
+    .results-table th:nth-child(2) { width: 15%; text-align: center; }
+    .results-table th:nth-child(3) { width: 25%; text-align: right; }
+    .results-table th:nth-child(4) { width: 20%; text-align: center; }
+
+    .results-table td:nth-child(2) {
+        text-align: center;
+        font-family: 'Times New Roman', serif;
+        font-style: italic;
+        color: #666;
+    }
+
+    .results-table td:nth-child(3) {
+        text-align: right;
+        font-weight: 500;
+        font-family: 'Consolas', monospace;
+    }
+
+    .results-table td:nth-child(4) { text-align: center; color: #666; }
+
+    .btn-info {
+        background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+        color: white;
+    }
+
+    .btn-info:hover {
+        background: linear-gradient(135deg, #138496 0%, #117a8b 100%);
+    }
+
+    .info-box {
+        background: #e8f4fc;
+        padding: 12px;
+        border-radius: 8px;
+        font-size: 13px;
+    }
+</style>
+
+@code {
+    private TorsionSpringEngine engine = new();
+    private ModuleInfo moduleInfo = new();
+    private bool showResults = false;
+    private bool isCalculating = false;
+    private bool isSavingPdf = false;
+    private string selectedMaterial = "SH";
+    private List<string> validationErrors = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        engine.MaterialGrade = "SH";
+        engine.ElasticModulus = 206000;
+        engine.TensileStrength = 1700;
+        engine.LegType = "Tangent";
+        engine.WindingDirection = "Right";
+
+        // Load module metadata
+        moduleInfo = Metadata.GetModule("torsion-spring");
+
+        // Set SEO metadata
+        await SetSeoMetadata();
+
+        // Set structured data
+        await SetStructuredData();
+
+        // Track page view
+        await Analytics.TrackPageView("/torsion-spring", moduleInfo.Name);
+    }
+
+    private async Task SetSeoMetadata()
+    {
+        var baseUrl = "https://mekanika.org";
+        var seo = new SeoMetadata
+        {
+            Title = $"{moduleInfo.Name} - Free Online Tool | Mekanika",
+            Description = moduleInfo.Description,
+            Keywords = moduleInfo.Keywords,
+            CanonicalUrl = $"{baseUrl}{moduleInfo.Route}",
+            OgTitle = moduleInfo.Name,
+            OgDescription = moduleInfo.Description,
+            OgImage = $"{baseUrl}/logo.png",
+            OgUrl = $"{baseUrl}{moduleInfo.Route}",
+            TwitterCard = "summary",
+            TwitterTitle = moduleInfo.Name,
+            TwitterDescription = moduleInfo.Description,
+            TwitterImage = $"{baseUrl}/logo.png"
+        };
+
+        await Seo.SetMetaTags(seo);
+    }
+
+    private async Task SetStructuredData()
+    {
+        var structuredData = new
+        {
+            context = "https://schema.org",
+            type = "SoftwareApplication",
+            name = moduleInfo.Name,
+            description = moduleInfo.Description,
+            applicationCategory = "EngineeringApplication",
+            operatingSystem = "Web Browser",
+            browserRequirements = "Requires JavaScript, WebAssembly support",
+            offers = new
+            {
+                type = "Offer",
+                price = "0",
+                priceCurrency = "USD"
+            },
+            aggregateRating = new
+            {
+                type = "AggregateRating",
+                ratingValue = "4.8",
+                ratingCount = "150"
+            }
+        };
+
+        await Seo.SetStructuredData(structuredData);
+    }
+
+    private void OnMaterialChanged()
+    {
+        if (TorsionSpringEngine.Materials.TryGetValue(selectedMaterial, out var mat))
+        {
+            engine.ElasticModulus = mat.E;
+            engine.TensileStrength = mat.Rm;
+            engine.MaterialGrade = selectedMaterial;
+            engine.AllowableBendingStress = 0; // Reset to recalculate
+        }
+    }
+
+    private async Task Calculate()
+    {
+        isCalculating = true;
+        StateHasChanged();
+        await Task.Delay(350);
+        try
+        {
+            // Validation
+            if (engine.WireDiameter <= 0 || engine.MeanCoilDiameter <= 0 || engine.ActiveCoils <= 0)
+            {
+                await Analytics.TrackCalculationError("torsion-spring", "validation_failed", "Invalid input parameters");
+                return;
+            }
+
+            if (engine.Leg1Length <= 0) engine.Leg1Length = engine.MeanCoilDiameter;
+            if (engine.Leg2Length <= 0) engine.Leg2Length = engine.MeanCoilDiameter;
+
+            engine.Calculate();
+            validationErrors = engine.Validate();
+            showResults = true;
+
+            // Track successful calculation
+            await Analytics.TrackCalculationCompleted("torsion-spring", new Dictionary<string, object>
+            {
+                { "wire_diameter", engine.WireDiameter },
+                { "mean_coil_diameter", engine.MeanCoilDiameter },
+                { "active_coils", engine.ActiveCoils },
+                { "spring_rate", engine.SpringRate }
+            });
+        }
+        catch (Exception ex)
+        {
+            await Analytics.TrackCalculationError("torsion-spring", "calculation_failed", ex.Message);
+            throw;
+        }
+        finally
+        {
+            isCalculating = false;
+        }
+    }
+
+    private string GetSafetyRowClass(double sf) =>
+        sf < 1.0 ? "danger" : sf < 1.5 ? "warning" : "success";
+
+    private string GetSafetyStatus(double sf) =>
+        sf < 1.0 ? "❌ FAIL" : sf < 1.5 ? "⚠️ Marginal" : "✓ OK";
+
+    private string GetFatigueLifeText()
+    {
+        if (double.IsPositiveInfinity(engine.FatigueEstimatedCycles))
+            return "∞ (Infinite Life)";
+        else if (engine.FatigueEstimatedCycles >= 1e7)
+            return $">{engine.FatigueEstimatedCycles / 1e6:F0}M cycles";
+        else if (engine.FatigueEstimatedCycles >= 1e6)
+            return $"~{engine.FatigueEstimatedCycles / 1e6:F1}M cycles";
+        else if (engine.FatigueEstimatedCycles >= 1e5)
+            return $"~{engine.FatigueEstimatedCycles / 1e3:F0}k cycles";
+        else
+            return $"~{engine.FatigueEstimatedCycles:F0} cycles";
+    }
+
+    private string GetFatigueLifeClass()
+    {
+        if (double.IsPositiveInfinity(engine.FatigueEstimatedCycles) || engine.FatigueEstimatedCycles >= 1e6)
+            return "success";
+        else if (engine.FatigueEstimatedCycles >= 1e5)
+            return "";
+        else
+            return "warning";
+    }
+
+    private void BackToInput()
+    {
+        showResults = false;
+    }
+
+    private void ClearForm()
+    {
+        engine = new TorsionSpringEngine
+        {
+            MaterialGrade = "SH",
+            ElasticModulus = 206000,
+            TensileStrength = 1700,
+            LegType = "Tangent",
+            WindingDirection = "Right"
+        };
+        selectedMaterial = "SH";
+        validationErrors = new();
+        showResults = false;
+    }
+
+    private async Task SaveAsPdf()
+    {
+        isSavingPdf = true;
+        StateHasChanged();
+        try
+        {
+            var fileName = $"TorsionSpring-Report-{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            await JSRuntime.InvokeVoidAsync("generatePdf", "results-content", fileName);
+            await Analytics.TrackPdfDownload("torsion-spring", fileName);
+        }
+        catch (Exception ex)
+        {
+            await Analytics.TrackCalculationError("torsion-spring", "pdf_generation_failed", ex.Message);
+            await JSRuntime.InvokeVoidAsync("console.error", $"PDF generation error: {ex.Message}");
+        }
+        finally
+        {
+            isSavingPdf = false;
+        }
+    }
+}

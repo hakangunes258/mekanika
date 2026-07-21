@@ -1,0 +1,926 @@
+@page "/extension-spring"
+@using MechanicalCalculatorWeb.Services
+@using MechanicalCalculatorWeb.Models
+@inject AnalyticsService Analytics
+@inject SeoService Seo
+@inject ModuleMetadataService Metadata
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Extension Spring Calculator - Mekanika</PageTitle>
+
+<div class="page-header">
+    <h1>
+        <ModuleIcon Type="extension" Size="large" Style="transparent" CustomStyle="margin-right: 12px;" />
+        Helical Extension Spring Calculator
+    </h1>
+    <p>Extension spring design according to EN 13906-2</p>
+</div>
+
+@if (!showResults)
+{
+    <!-- INPUT FORM -->
+    <div class="form-grid">
+        <!-- Geometry Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="geometry" Size="medium" Style="solid" />
+                <h2>Spring Geometry</h2>
+            </div>
+            
+            <div class="form-group">
+                <label>Wire Diameter (d)</label>
+                <div class="input-group">
+                    <select @bind="engine.WireDiameter" style="flex: 1; padding: 10px; border: 1px solid #ced4da; border-radius: 8px 0 0 8px;">
+                        <option value="0">-- Select --</option>
+                        @foreach (var d in ExtensionSpringEngine.StandardWireDiameters)
+                        {
+                            <option value="@d">@d</option>
+                        }
+                    </select>
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Mean Coil Diameter (Dm)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="engine.MeanCoilDiameter" placeholder="e.g. 15" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Active Coils (n)</label>
+                <div class="input-group">
+                    <input type="number" step="0.5" @bind="engine.ActiveCoils" placeholder="e.g. 10" />
+                    <span class="unit">coils</span>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>
+                    Hook Type
+                    <button type="button" class="info-btn" @onclick="ToggleHookInfo" title="Show hook type details">ℹ️</button>
+                </label>
+                <select @bind="selectedHookType" @bind:after="OnHookTypeChanged">
+                    @foreach (var hook in ExtensionSpringEngine.HookTypes)
+                    {
+                        <option value="@hook.Key">@hook.Value.DisplayName</option>
+                    }
+                </select>
+                <small style="color: #6c757d; font-size: 12px;">
+                    @(ExtensionSpringEngine.HookTypes.GetValueOrDefault(selectedHookType)?.Description ?? "")
+                </small>
+            </div>
+            
+            @if (selectedHookType == "Raised")
+            {
+                <div class="form-group" style="background: #fff3cd; padding: 12px; border-radius: 8px; margin-top: 8px;">
+                    <label>Raise Amount</label>
+                    <div class="input-group">
+                        <input type="number" step="0.1" @bind="engine.RaiseAmount" placeholder="e.g. 5" />
+                        <span class="unit">mm</span>
+                    </div>
+                    <small style="color: #856404; font-size: 12px;">Height offset between hook center and body axis (0 = auto)</small>
+                </div>
+            }
+            
+            @if (selectedHookType == "Threaded")
+            {
+                <div class="form-group" style="background: #d1ecf1; padding: 12px; border-radius: 8px; margin-top: 8px;">
+                    <label>Thread Length (each end)</label>
+                    <div class="input-group">
+                        <input type="number" step="0.1" @bind="engine.ThreadLength" placeholder="e.g. 10" />
+                        <span class="unit">mm</span>
+                    </div>
+                    <small style="color: #0c5460; font-size: 12px;">Length of threaded insert on each end (0 = auto)</small>
+                </div>
+            }
+        </div>
+
+        <!-- Hook Info Modal -->
+        @if (showHookInfo)
+        {
+            <div class="modal-overlay" @onclick="ToggleHookInfo">
+                <div class="modal-content" @onclick:stopPropagation="true">
+                    <div class="modal-header">
+                        <h3>Hook Types Guide</h3>
+                        <button class="close-btn" @onclick="ToggleHookInfo">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="hook-grid">
+                            <div class="hook-item">
+                                <div class="hook-name">German Hook</div>
+                                <div class="hook-desc">Full loop, most common type. Good for general use. Hook opening equals inner diameter.</div>
+                                <div class="hook-stress">Stress: Standard</div>
+                            </div>
+                            <div class="hook-item">
+                                <div class="hook-name">English Hook</div>
+                                <div class="hook-desc">Machine formed loop, slightly smaller radius. Lower stress than German hook.</div>
+                                <div class="hook-stress">Stress: 10% lower</div>
+                            </div>
+                            <div class="hook-item" style="background: #d4edda;">
+                                <div class="hook-name">Raised Hook</div>
+                                <div class="hook-desc">Hook center raised above body axis. Significantly reduces stress concentration.</div>
+                                <div class="hook-stress">Stress: 25% lower (recommended)</div>
+                            </div>
+                            <div class="hook-item">
+                                <div class="hook-name">Side Hook</div>
+                                <div class="hook-desc">Hooks at 90° to each other. Useful for compact installations.</div>
+                                <div class="hook-stress">Stress: Standard</div>
+                            </div>
+                            <div class="hook-item">
+                                <div class="hook-name">Double Loop</div>
+                                <div class="hook-desc">Two full coil loops. Higher strength connection, good for high loads.</div>
+                                <div class="hook-stress">Stress: 15% lower</div>
+                            </div>
+                            <div class="hook-item" style="background: #d1ecf1;">
+                                <div class="hook-name">Threaded Insert</div>
+                                <div class="hook-desc">Threaded ends instead of hooks. No hook stress at all - highest strength option!</div>
+                                <div class="hook-stress">Stress: None! (best)</div>
+                            </div>
+                        </div>
+                        <div class="info-box" style="margin-top: 16px; padding: 12px; background: #f8f9fa; border-radius: 8px;">
+                            <strong>Tip:</strong> If hook safety factor is low, try Raised Hook or Threaded Insert for higher strength.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Material Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="material" Size="medium" Style="solid" />
+                <h2>Material</h2>
+            </div>
+            
+            <div class="form-group">
+                <label>Material Grade</label>
+                <select @bind="selectedMaterial" @bind:after="OnMaterialChanged">
+                    @foreach (var mat in ExtensionSpringEngine.Materials)
+                    {
+                        <option value="@mat.Key">@mat.Value.Name</option>
+                    }
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>Shear Modulus (G)</label>
+                <div class="input-group">
+                    <input type="number" step="100" @bind="engine.ShearModulus" />
+                    <span class="unit">MPa</span>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Tensile Strength (Rm)</label>
+                <div class="input-group">
+                    <input type="number" step="10" @bind="engine.TensileStrength" />
+                    <span class="unit">MPa</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Operating Conditions Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="dimensions" Size="medium" Style="solid" />
+                <h2>Operating Conditions (Optional)</h2>
+            </div>
+            
+            <p style="font-size: 13px; color: #6c757d; margin-bottom: 16px;">
+                Enter deflection amounts to calculate forces and stresses at each position.
+            </p>
+            
+            <div class="form-group">
+                <label>Initial Tension (F₀)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="engine.InitialTension" placeholder="0 = auto" />
+                    <span class="unit">N</span>
+                </div>
+                <small style="color: #6c757d; font-size: 12px;">Built-in preload when coils touch (0 = auto per EN 13906-2)</small>
+            </div>
+            
+            <div class="form-group">
+                <label>Operating Position 1 - Deflection (s₁)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="engine.Deflection1Input" placeholder="e.g. 5" />
+                    <span class="unit">mm</span>
+                </div>
+                <small style="color: #6c757d; font-size: 12px;">Extension from free length at first operating position</small>
+            </div>
+            
+            <div class="form-group">
+                <label>Operating Position 2 - Deflection (s₂)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="engine.Deflection2Input" placeholder="e.g. 15" />
+                    <span class="unit">mm</span>
+                </div>
+                <small style="color: #6c757d; font-size: 12px;">Extension from free length at second operating position</small>
+            </div>
+            
+            @if (engine.Deflection1Input > 0 || engine.Deflection2Input > 0)
+            {
+                <div class="info-box" style="padding: 12px; background: #e8f4fc; border-radius: 8px; font-size: 13px;">
+                    <strong>Calculated lengths:</strong><br/>
+                    @if (engine.MeanCoilDiameter > 0 && engine.WireDiameter > 0 && engine.ActiveCoils > 0)
+                    {
+                        var tempBodyLength = (engine.ActiveCoils + 1) * engine.WireDiameter;
+                        var tempDi = engine.MeanCoilDiameter - engine.WireDiameter;
+                        var hookFactor = ExtensionSpringEngine.HookTypes.GetValueOrDefault(selectedHookType)?.HookLengthFactor ?? 0.95;
+                        var tempHookLength = selectedHookType == "Threaded" ? 
+                            (engine.ThreadLength > 0 ? engine.ThreadLength : tempDi * 0.8) : 
+                            tempDi * hookFactor + (selectedHookType == "Raised" ? engine.RaiseAmount : 0);
+                        var tempFreeLength = tempBodyLength + 2 * tempHookLength;
+                        
+                        <text>
+                            L₀ (Free Length) ≈ @(tempFreeLength.ToString("F1")) mm<br/>
+                            @if (engine.Deflection1Input > 0)
+                            {
+                                <text>L₁ (Position 1) ≈ @((tempFreeLength + engine.Deflection1Input).ToString("F1")) mm<br/></text>
+                            }
+                            @if (engine.Deflection2Input > 0)
+                            {
+                                <text>L₂ (Position 2) ≈ @((tempFreeLength + engine.Deflection2Input).ToString("F1")) mm</text>
+                            }
+                        </text>
+                    }
+                    else
+                    {
+                        <text>Enter geometry to see calculated lengths</text>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="button-group">
+        <button class="btn btn-success btn-lg @(isCalculating ? "btn-calculating" : "")" @onclick="Calculate" disabled="@isCalculating">
+            @if (isCalculating)
+            {
+                <span class="spinner"></span>
+                <span>Calculating...</span>
+            }
+            else
+            {
+                <ModuleIcon Type="calculate" Size="button" Style="default" />
+                <span>Calculate</span>
+            }
+        </button>
+        <button class="btn btn-secondary" @onclick="ClearForm" disabled="@isCalculating">
+            <ModuleIcon Type="clear" Size="button" Style="default" /> Clear
+        </button>
+    </div>
+}
+else
+{
+    <!-- RESULTS -->
+    <div class="button-group" style="margin-bottom: 24px;">
+        <button class="btn btn-primary" @onclick="BackToInput">
+            <ModuleIcon Type="back" Size="button" Style="default" /> Back to Input
+        </button>
+        <button class="btn btn-secondary" @onclick="ClearForm">
+            <ModuleIcon Type="new" Size="button" Style="default" /> New Calculation
+        </button>
+        <button class="btn btn-info @(isSavingPdf ? "btn-saving" : "")" @onclick="SaveAsPdf" disabled="@isSavingPdf">
+            @if (isSavingPdf)
+            {
+                <span class="spinner"></span>
+                <span>Generating PDF...</span>
+            }
+            else
+            {
+                <ModuleIcon Type="pdf" Size="button" Style="default" />
+                <span>Save as PDF</span>
+            }
+        </button>
+    </div>
+
+    <!-- Validation Warnings -->
+    @if (validationErrors.Any())
+    {
+        <div class="alert alert-warning" style="margin-bottom: 24px;">
+            <span>⚠️</span>
+            <div>
+                <strong>Design Warnings:</strong>
+                <ul style="margin: 8px 0 0 0; padding-left: 20px;">
+                    @foreach (var error in validationErrors)
+                    {
+                        <li>@error</li>
+                    }
+                </ul>
+            </div>
+        </div>
+    }
+
+    <div id="results-content">
+
+    <!-- Geometry Results -->
+    <div class="card">
+        <div class="card-header">
+            <ModuleIcon Type="geometry" Size="medium" Style="solid" />
+            <h2>Spring Geometry</h2>
+        </div>
+        <table class="results-table">
+            <thead>
+                <tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>Wire Diameter</td><td>d</td><td>@(engine.WireDiameter)</td><td>mm</td></tr>
+                <tr><td>Mean Coil Diameter</td><td>D<sub>m</sub></td><td>@(engine.MeanCoilDiameter)</td><td>mm</td></tr>
+                <tr><td>Outer Diameter</td><td>D<sub>e</sub></td><td>@(engine.OuterDiameter.ToString("F1"))</td><td>mm</td></tr>
+                <tr><td>Inner Diameter</td><td>D<sub>i</sub></td><td>@(engine.InnerDiameter.ToString("F1"))</td><td>mm</td></tr>
+                <tr class="highlight"><td>Spring Index</td><td>w</td><td>@(engine.SpringIndex.ToString("F2"))</td><td>-</td></tr>
+                <tr><td>Active Coils</td><td>n</td><td>@(engine.ActiveCoils.ToString("F1"))</td><td>coils</td></tr>
+                <tr><td>Body Length</td><td>L<sub>k</sub></td><td>@(engine.BodyLength.ToString("F1"))</td><td>mm</td></tr>
+                <tr><td>Hook Length (each)</td><td>L<sub>h</sub></td><td>@(engine.HookLength1.ToString("F1"))</td><td>mm</td></tr>
+                <tr class="highlight"><td>Free Length</td><td>L<sub>0</sub></td><td>@(engine.FreeLength.ToString("F1"))</td><td>mm</td></tr>
+                <tr><td>Hook Opening (inner)</td><td>-</td><td>@(engine.HookOpeningInner.ToString("F1"))</td><td>mm</td></tr>
+                <tr><td>Wire Length</td><td>L<sub>d</sub></td><td>@(engine.WireLength.ToString("F0"))</td><td>mm</td></tr>
+                <tr><td>Spring Mass</td><td>m</td><td>@(engine.SpringMass.ToString("F1"))</td><td>g</td></tr>
+                <tr><td>Hook Type</td><td>-</td><td>@(ExtensionSpringEngine.HookTypes.GetValueOrDefault(engine.HookType)?.DisplayName ?? engine.HookType)</td><td>-</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Initial Tension Results -->
+    <div class="card">
+        <div class="card-header">
+            <ModuleIcon Type="force" Size="medium" Style="solid" />
+            <h2>Initial Tension</h2>
+        </div>
+        <table class="results-table">
+            <thead>
+                <tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr>
+            </thead>
+            <tbody>
+                <tr class="highlight"><td>Initial Tension</td><td>F<sub>0</sub></td><td>@(engine.InitialTension.ToString("F1"))</td><td>N</td></tr>
+                <tr><td>Initial Stress</td><td>τ<sub>0</sub></td><td>@(engine.InitialStress.ToString("F0"))</td><td>MPa</td></tr>
+                <tr><td>F₀ Min (recommended)</td><td>F<sub>0,min</sub></td><td>@(engine.InitialTensionMin.ToString("F1"))</td><td>N</td></tr>
+                <tr><td>F₀ Max (recommended)</td><td>F<sub>0,max</sub></td><td>@(engine.InitialTensionMax.ToString("F1"))</td><td>N</td></tr>
+            </tbody>
+        </table>
+
+        <div class="info-box" style="margin-top: 16px; padding: 12px; background: #e8f4fc; border-radius: 8px; font-size: 13px;">
+            <strong>Note:</strong> Initial tension is the built-in preload when coils are touching.
+            The spring won't deflect until applied force exceeds F₀. Per EN 13906-2, τ₀ typically ranges from 0.05×Rm to 0.20×Rm.
+        </div>
+    </div>
+
+    <!-- Mechanical Properties -->
+    <div class="card">
+        <div class="card-header">
+            <ModuleIcon Type="gear" Size="medium" Style="solid" />
+            <h2>Mechanical Properties</h2>
+        </div>
+        <table class="results-table">
+            <thead>
+                <tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr>
+            </thead>
+            <tbody>
+                <tr class="highlight"><td>Spring Rate</td><td>R</td><td>@(engine.SpringRateCalculated.ToString("F3"))</td><td>N/mm</td></tr>
+                <tr><td>Wahl Factor</td><td>k</td><td>@(engine.WahlFactor.ToString("F3"))</td><td>-</td></tr>
+                <tr><td>Max Force</td><td>F<sub>n</sub></td><td>@(engine.MaxForce.ToString("F1"))</td><td>N</td></tr>
+                <tr><td>Max Deflection</td><td>s<sub>n</sub></td><td>@(engine.MaxDeflection.ToString("F1"))</td><td>mm</td></tr>
+                <tr><td>Max Length</td><td>L<sub>n</sub></td><td>@(engine.MaxLength.ToString("F1"))</td><td>mm</td></tr>
+                <tr><td>Natural Frequency</td><td>f<sub>n</sub></td><td>@(engine.NaturalFrequency.ToString("F0"))</td><td>Hz</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Working Conditions -->
+    @if (engine.Deflection1Input > 0 || engine.Deflection2Input > 0)
+    {
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="info" Size="medium" Style="solid" />
+                <h2>Operating Conditions</h2>
+            </div>
+            <table class="results-table">
+                <thead>
+                    <tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr>
+                </thead>
+                <tbody>
+                    @if (engine.Deflection1Input > 0)
+                    {
+                        <tr><td>Position 1 - Deflection</td><td>s<sub>1</sub></td><td>@(engine.Deflection1.ToString("F2"))</td><td>mm</td></tr>
+                        <tr><td>Position 1 - Length</td><td>L<sub>1</sub></td><td>@(engine.Length1.ToString("F1"))</td><td>mm</td></tr>
+                        <tr><td>Position 1 - Force</td><td>F<sub>1</sub></td><td>@(engine.Force1.ToString("F1"))</td><td>N</td></tr>
+                    }
+                    @if (engine.Deflection2Input > 0)
+                    {
+                        <tr><td>Position 2 - Deflection</td><td>s<sub>2</sub></td><td>@(engine.Deflection2.ToString("F2"))</td><td>mm</td></tr>
+                        <tr><td>Position 2 - Length</td><td>L<sub>2</sub></td><td>@(engine.Length2.ToString("F1"))</td><td>mm</td></tr>
+                        <tr><td>Position 2 - Force</td><td>F<sub>2</sub></td><td>@(engine.Force2.ToString("F1"))</td><td>N</td></tr>
+                    }
+                    @if (engine.Deflection1Input > 0 && engine.Deflection2Input > 0)
+                    {
+                        <tr><td>Stroke Length</td><td>Δs</td><td>@(engine.StrokeLength.ToString("F2"))</td><td>mm</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    <!-- Stress Analysis & Safety Factors -->
+    <div class="card">
+        <div class="card-header">
+            <span>📈</span>
+            <h2>Stress Analysis</h2>
+        </div>
+
+        <h4 style="margin: 16px 0 12px; color: #495057;">Body Stresses</h4>
+        <table class="results-table">
+            <thead>
+                <tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr>
+            </thead>
+            <tbody>
+                @if (engine.Deflection1Input > 0)
+                {
+                    <tr><td>Position 1 - Stress</td><td>τ<sub>1</sub></td><td>@(engine.ShearStress1.ToString("F1"))</td><td>MPa</td></tr>
+                }
+                @if (engine.Deflection2Input > 0)
+                {
+                    <tr class="highlight"><td>Position 2 - Stress</td><td>τ<sub>2</sub></td><td>@(engine.ShearStress2.ToString("F1"))</td><td>MPa</td></tr>
+                }
+                @if (engine.Deflection1Input > 0 && engine.Deflection2Input > 0)
+                {
+                    <tr class="highlight"><td>Stress Range</td><td>Δτ</td><td>@(engine.StressRange.ToString("F1"))</td><td>MPa</td></tr>
+                }
+                <tr class="highlight"><td>Corrected Stress (with Wahl factor)</td><td>τ<sub>k</sub></td><td>@(engine.Deflection2Input > 0 ? engine.ShearStress2Corrected.ToString("F0") : (engine.WahlFactor * engine.ShearStressMax).ToString("F0"))</td><td>MPa</td></tr>
+                <tr><td>Allowable Stress</td><td>τ<sub>zul</sub></td><td>@(engine.AllowableShearStress.ToString("F0"))</td><td>MPa</td></tr>
+            </tbody>
+        </table>
+
+        <h4 style="margin: 24px 0 12px; color: #495057;">Hook Stresses</h4>
+        @if (engine.HookType == "Threaded")
+        {
+            <div class="info-box" style="padding: 16px; background: #d4edda; border-radius: 8px; text-align: center;">
+                <strong>Threaded Insert - No Hook Stress</strong><br/>
+                Hook stress is eliminated with threaded inserts
+            </div>
+        }
+        else
+        {
+            <table class="results-table">
+                <thead>
+                    <tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>Hook Bend Radius</td><td>R<sub>1</sub></td><td>@(engine.HookRadius.ToString("F1"))</td><td>mm</td></tr>
+                    <tr><td>Hook Stress Factor</td><td>K<sub>h</sub></td><td>@(engine.HookStressFactor.ToString("F2"))</td><td>-</td></tr>
+                    <tr class="highlight"><td>Hook Bending Stress</td><td>σ<sub>B</sub></td><td>@(engine.HookBendingStress.ToString("F0"))</td><td>MPa</td></tr>
+                    <tr><td>Hook Shear Stress</td><td>τ<sub>H</sub></td><td>@(engine.HookShearStress.ToString("F0"))</td><td>MPa</td></tr>
+                    <tr><td>Allowable Bending</td><td>0.7×R<sub>m</sub></td><td>@((0.7 * engine.TensileStrength).ToString("F0"))</td><td>MPa</td></tr>
+                </tbody>
+            </table>
+        }
+
+        @if (engine.SafetyFactorHook < engine.SafetyFactorBody && engine.HookType != "Threaded")
+        {
+            <div class="alert alert-info" style="margin-top: 16px;">
+                <ModuleIcon Type="info" Size="small" Style="default" />
+                <div>
+                    <strong>Tip:</strong> Hook is the weak point (lower safety factor). Consider using <strong>Raised Hook</strong> (25% lower stress)
+                    or <strong>Threaded Insert</strong> (no hook stress) for higher safety.
+                </div>
+            </div>
+        }
+    </div>
+
+    <!-- Safety Factors -->
+    <div class="card">
+        <div class="card-header">
+            <ModuleIcon Type="safety" Size="medium" Style="solid" />
+            <h2>Safety Factors</h2>
+        </div>
+        <table class="results-table">
+            <thead>
+                <tr><th>Description</th><th>Symbol</th><th>Value</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+                <tr class="@(GetSafetyRowClass(engine.SafetyFactorBody))"><td>Body Safety Factor</td><td>SF<sub>body</sub></td><td>@(engine.SafetyFactorBody.ToString("F2"))</td><td>@(GetSafetyStatus(engine.SafetyFactorBody))</td></tr>
+                @if (engine.HookType != "Threaded")
+                {
+                    <tr class="@(GetSafetyRowClass(engine.SafetyFactorHook))"><td>Hook Safety Factor</td><td>SF<sub>hook</sub></td><td>@(engine.SafetyFactorHook.ToString("F2"))</td><td>@(GetSafetyStatus(engine.SafetyFactorHook))</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Fatigue Analysis -->
+    @if (engine.Deflection1Input > 0 && engine.Deflection2Input > 0 && engine.Deflection1Input != engine.Deflection2Input)
+    {
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="loading" Size="medium" Style="solid" />
+                <h2>Fatigue Analysis</h2>
+            </div>
+            <table class="results-table">
+                <thead>
+                    <tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>Mean Stress</td><td>τ<sub>m</sub></td><td>@engine.FatigueMeanStress.ToString("F0")</td><td>MPa</td></tr>
+                    <tr><td>Stress Amplitude</td><td>τ<sub>a</sub></td><td>@engine.FatigueStressAmplitude.ToString("F0")</td><td>MPa</td></tr>
+                    <tr><td>Stress Ratio</td><td>R</td><td>@engine.FatigueStressRatio.ToString("F2")</td><td>-</td></tr>
+                    <tr><td>Endurance Limit</td><td>τ<sub>e</sub></td><td>@engine.FatigueEnduranceLimit.ToString("F0")</td><td>MPa</td></tr>
+                    <tr class="highlight @(engine.FatigueSafetyFactor < 1.5 ? "warning" : "")"><td>Fatigue Safety Factor</td><td>SF<sub>fatigue</sub></td><td>@engine.FatigueSafetyFactor.ToString("F2")</td><td>-</td></tr>
+                    <tr><td>Expected Cycles</td><td>N</td><td>@GetFatigueLifeText()</td><td>cycles</td></tr>
+                </tbody>
+            </table>
+
+            @if (engine.FatigueSafetyFactor < 1.5)
+            {
+                <div class="alert alert-warning" style="margin-top: 16px;">
+                    <span>⚠️</span>
+                    <div>
+                        <strong>Low Fatigue Safety:</strong> Consider shot peening, reducing stroke, or using higher grade material (DH or VDSiCr).
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    <!-- Design Guidelines -->
+    <div class="card">
+        <div class="card-header">
+            <ModuleIcon Type="info" Size="medium" Style="solid" />
+            <h2>Design Guidelines</h2>
+        </div>
+        <div class="info-box" style="padding: 16px; background: #f8f9fa; border-radius: 8px;">
+            <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
+                <li><strong>Spring Index:</strong> Recommended range 4-12. Current: @(engine.SpringIndex.ToString("F1")) 
+                    @(engine.SpringIndex < 4 ? "⚠️ Too low - difficult to manufacture" : engine.SpringIndex > 12 ? "⚠️ Too high - may tangle" : "✅")</li>
+                <li><strong>Active Coils:</strong> Minimum 3 recommended for extension springs. Current: @(engine.ActiveCoils.ToString("F1"))
+                    @(engine.ActiveCoils < 3 ? "⚠️" : "✅")</li>
+                <li><strong>Hook Type:</strong> @(ExtensionSpringEngine.HookTypes.GetValueOrDefault(engine.HookType)?.DisplayName ?? engine.HookType) - 
+                    @(ExtensionSpringEngine.HookTypes.GetValueOrDefault(engine.HookType)?.Description ?? "")</li>
+                <li><strong>Initial Tension:</strong> @(engine.InitialTension.ToString("F1"))N 
+                    @(engine.InitialTension >= engine.InitialTensionMin && engine.InitialTension <= engine.InitialTensionMax ? "✅ Within range" : "⚠️ Outside recommended range")</li>
+                <li><strong>Critical Location:</strong> @(engine.CriticalLocation) 
+                    @(engine.CriticalLocation == "Hook" && engine.HookType != "Threaded" ? "- Consider Raised Hook or Threaded Insert" : "")</li>
+            </ul>
+        </div>
+    </div>
+
+    </div> <!-- End results-content -->
+}
+
+<!-- Related Calculators Component -->
+<RelatedCalculators CurrentModule="extension-spring" />
+
+@code {
+    private ExtensionSpringEngine engine = new();
+    private bool showResults = false;
+    private bool isCalculating = false;
+    private bool isSavingPdf = false;
+    private string selectedMaterial = "SH";
+    private string selectedHookType = "German";
+    private bool showHookInfo = false;
+    private List<string> validationErrors = new();
+    private ModuleInfo moduleInfo = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Initialize module metadata
+        moduleInfo = Metadata.GetModule("extension-spring");
+
+        // Set SEO metadata
+        await SetSeoMetadata();
+
+        // Set structured data
+        await SetStructuredData();
+
+        // Track page view
+        await Analytics.TrackPageView("/extension-spring", moduleInfo.Name);
+
+        // Initialize default values
+        engine.MaterialGrade = "SH";
+        engine.ShearModulus = 81500;
+        engine.ElasticModulus = 206000;
+        engine.TensileStrength = 1700;
+        engine.HookType = "German";
+        selectedHookType = "German";
+    }
+
+    private void OnMaterialChanged()
+    {
+        if (ExtensionSpringEngine.Materials.TryGetValue(selectedMaterial, out var mat))
+        {
+            engine.ShearModulus = mat.G;
+            engine.ElasticModulus = mat.E;
+            engine.TensileStrength = mat.Rm;
+            engine.MaterialGrade = selectedMaterial;
+            // Reset allowable shear stress so it will be recalculated with new Rm
+            engine.AllowableShearStress = 0;
+        }
+    }
+
+    private void OnHookTypeChanged()
+    {
+        engine.HookType = selectedHookType;
+        
+        if (selectedHookType != "Raised")
+        {
+            engine.RaiseAmount = 0;
+        }
+        if (selectedHookType != "Threaded")
+        {
+            engine.ThreadLength = 0;
+        }
+    }
+
+    private void ToggleHookInfo()
+    {
+        showHookInfo = !showHookInfo;
+    }
+
+    private async Task Calculate()
+    {
+        isCalculating = true;
+        StateHasChanged();
+        await Task.Delay(350);
+        if (engine.WireDiameter <= 0 || engine.MeanCoilDiameter <= 0 || engine.ActiveCoils <= 0)
+        {
+            isCalculating = false;
+            return;
+        }
+
+        engine.Calculate();
+
+        validationErrors = engine.Validate();
+
+        showResults = true;
+        isCalculating = false;
+
+        // Track calculation event
+        await Analytics.TrackCalculationCompleted("extension-spring", new Dictionary<string, object>
+        {
+            { "wire_diameter", engine.WireDiameter },
+            { "mean_coil_diameter", engine.MeanCoilDiameter },
+            { "active_coils", engine.ActiveCoils },
+            { "spring_index", engine.SpringIndex },
+            { "material_grade", engine.MaterialGrade },
+            { "hook_type", engine.HookType },
+            { "initial_tension", engine.InitialTension },
+            { "spring_rate", engine.SpringRateCalculated },
+            { "free_length", engine.FreeLength },
+            { "safety_factor_body", engine.SafetyFactorBody },
+            { "safety_factor_hook", engine.SafetyFactorHook },
+            { "critical_location", engine.CriticalLocation }
+        });
+    }
+    
+    private string GetFatigueLifeText()
+    {
+        if (double.IsPositiveInfinity(engine.FatigueEstimatedCycles))
+            return "∞ (Infinite Life)";
+        else if (engine.FatigueEstimatedCycles >= 1e7)
+            return $">{engine.FatigueEstimatedCycles/1e6:F0}M cycles";
+        else if (engine.FatigueEstimatedCycles >= 1e6)
+            return "~{engine.FatigueEstimatedCycles/1e6:F1}M cycles";
+        else if (engine.FatigueEstimatedCycles >= 1e5)
+            return "~{engine.FatigueEstimatedCycles/1e3:F0}k cycles";
+        else
+            return "~{engine.FatigueEstimatedCycles:F0} cycles";
+    }
+
+    private string GetSafetyRowClass(double sf) =>
+        sf < 1.0 ? "danger" : sf < 1.5 ? "warning" : "success";
+
+    private string GetSafetyStatus(double sf) =>
+        sf < 1.0 ? "❌ FAIL" : sf < 1.5 ? "⚠️ Marginal" : "✓ OK";
+
+    private void BackToInput()
+    {
+        showResults = false;
+    }
+
+    private void ClearForm()
+    {
+        engine = new ExtensionSpringEngine
+        {
+            MaterialGrade = "SH",
+            ShearModulus = 81500,
+            ElasticModulus = 206000,
+            TensileStrength = 1700,
+            HookType = "German"
+        };
+        selectedMaterial = "SH";
+        selectedHookType = "German";
+        validationErrors = new();
+        showResults = false;
+    }
+
+    private async Task SaveAsPdf()
+    {
+        isSavingPdf = true;
+        StateHasChanged();
+        try
+        {
+            var filename = $"ExtensionSpring-Report-{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            await JSRuntime.InvokeVoidAsync("generatePdf", "results-content", filename);
+
+            // Track PDF download
+            await Analytics.TrackPdfDownload("extension-spring", filename);
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error", $"PDF generation error: {ex.Message}");
+        }
+    }
+
+    // SEO Helper Methods
+    private async Task SetSeoMetadata()
+    {
+        var baseUrl = "https://mekanika.org";
+        var seo = new SeoMetadata
+        {
+            Title = $"{moduleInfo.Name} - Free Online Tool | Mekanika",
+            Description = moduleInfo.Description,
+            Keywords = moduleInfo.Keywords,
+            CanonicalUrl = $"{baseUrl}{moduleInfo.Route}",
+            OgTitle = moduleInfo.Name,
+            OgDescription = moduleInfo.Description,
+            OgImage = $"{baseUrl}/images/og-image.png",
+            OgUrl = $"{baseUrl}{moduleInfo.Route}",
+            TwitterTitle = moduleInfo.Name,
+            TwitterDescription = moduleInfo.Description,
+            TwitterImage = $"{baseUrl}/images/og-image.png"
+        };
+        await Seo.SetMetaTags(seo);
+    }
+
+    private async Task SetStructuredData()
+    {
+        var structuredData = new
+        {
+            context = "https://schema.org",
+            type = "SoftwareApplication",
+            name = moduleInfo.Name,
+            description = moduleInfo.Description,
+            applicationCategory = "EngineeringApplication",
+            offers = new
+            {
+                type = "Offer",
+                price = "0",
+                priceCurrency = "USD"
+            },
+            operatingSystem = "Web Browser"
+        };
+        await Seo.SetStructuredData(structuredData);
+    }
+}
+
+<style>
+    .info-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        padding: 0 4px;
+        vertical-align: middle;
+    }
+    
+    .info-btn:hover {
+        opacity: 0.7;
+    }
+    
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    }
+    
+    .modal-content {
+        background: white;
+        border-radius: 12px;
+        max-width: 700px;
+        width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    }
+    
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .modal-header h3 {
+        margin: 0;
+        font-size: 18px;
+    }
+    
+    .close-btn {
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        color: #6c757d;
+        padding: 0;
+        line-height: 1;
+    }
+    
+    .close-btn:hover {
+        color: #343a40;
+    }
+    
+    .modal-body {
+        padding: 20px;
+    }
+    
+    .hook-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px;
+    }
+    
+    .hook-item {
+        padding: 12px;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        background: #f8f9fa;
+    }
+    
+    .hook-name {
+        font-weight: 600;
+        margin-bottom: 8px;
+        color: #343a40;
+    }
+    
+    .hook-desc {
+        font-size: 12px;
+        color: #6c757d;
+        margin-bottom: 8px;
+    }
+    
+    .hook-stress {
+        font-size: 11px;
+        color: #28a745;
+        font-weight: 500;
+    }
+    
+    .text-success { color: #28a745 !important; }
+    .text-warning { color: #ffc107 !important; }
+    .text-danger { color: #dc3545 !important; }
+
+    /* Results Tables */
+    .results-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .results-table th {
+        background: #f8f9fa;
+        padding: 12px 16px;
+        text-align: left;
+        font-weight: 600;
+        color: #2c3e50;
+        border-bottom: 2px solid #dee2e6;
+    }
+    .results-table td { padding: 10px 16px; border-bottom: 1px solid #eee; }
+    .results-table tr:hover { background: #f8f9fa; }
+    .results-table tr.highlight { background: #e3f2fd; font-weight: 500; }
+    .results-table tr.warning { background: #fff8e1; }
+    .results-table tr.danger { background: #ffebee; }
+    .results-table tr.success { background: #e8f5e9; }
+
+    /* Column Widths */
+    .results-table th:nth-child(1) { width: 40%; }
+    .results-table th:nth-child(2) { width: 15%; text-align: center; }
+    .results-table th:nth-child(3) { width: 25%; text-align: right; }
+    .results-table th:nth-child(4) { width: 20%; text-align: center; }
+
+    /* Column Styling */
+    .results-table td:nth-child(2) {
+        text-align: center;
+        font-family: 'Times New Roman', serif;
+        font-style: italic;
+        color: #666;
+    }
+    .results-table td:nth-child(3) {
+        text-align: right;
+        font-weight: 500;
+        font-family: 'Consolas', monospace;
+    }
+    .results-table td:nth-child(4) { text-align: center; color: #666; }
+
+    /* Buttons */
+    .btn-info {
+        background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+        color: white;
+    }
+    .btn-info:hover {
+        background: linear-gradient(135deg, #138496 0%, #117a8b 100%);
+    }
+</style>
+

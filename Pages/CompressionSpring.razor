@@ -1,0 +1,1307 @@
+@page "/spring"
+@page "/compression-spring"
+@using MechanicalCalculatorWeb.Services
+@using MechanicalCalculatorWeb.Models
+@inject IJSRuntime JSRuntime
+@inject AnalyticsService Analytics
+@inject SeoService Seo
+@inject ModuleMetadataService Metadata
+
+<PageTitle>Compression Spring Calculator - Mekanika</PageTitle>
+
+<div class="page-header">
+    <h1>
+        <ModuleIcon Type="compression" Size="large" Style="transparent" CustomStyle="margin-right: 12px;" />
+        Helical Compression Spring Calculator
+    </h1>
+    <p>Compression spring design according to EN 13906-1</p>
+</div>
+
+@if (!showResults)
+{
+    <!-- INPUT FORM -->
+    <div class="form-grid">
+        <!-- Geometry Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="geometry" Size="medium" Style="solid" />
+                <h2>Spring Geometry</h2>
+            </div>
+            
+            <div class="form-group">
+                <label>Wire Diameter (d)</label>
+                <div class="input-group">
+                    <select @bind="engine.WireDiameter" style="flex: 1; padding: 10px; border: 1px solid #ced4da; border-radius: 8px 0 0 8px;">
+                        <option value="0">-- Select --</option>
+                        @foreach (var d in SpringEngine.StandardWireDiameters)
+                        {
+                            <option value="@d">@d</option>
+                        }
+                    </select>
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Mean Coil Diameter (Dm)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="engine.MeanCoilDiameter" placeholder="e.g. 20" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Free Length (L₀)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="engine.FreeLength" placeholder="e.g. 50" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Active Coils (n)</label>
+                <div class="input-group">
+                    <input type="number" step="0.5" @bind="engine.ActiveCoils" placeholder="e.g. 8" />
+                    <span class="unit">coils</span>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>End Type</label>
+                <select @bind="engine.EndType">
+                    <option value="ClosedGround">Closed & Ground</option>
+                    <option value="Closed">Closed (not ground)</option>
+                    <option value="Open">Open</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Material Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="material" Size="medium" Style="solid" />
+                <h2>Material</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Material Grade</label>
+                <select @bind="selectedMaterial" @bind:after="OnMaterialChanged">
+                    @foreach (var mat in SpringEngine.Materials)
+                    {
+                        <option value="@mat.Key">@mat.Value.Name</option>
+                    }
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Shear Modulus (G)</label>
+                <div class="input-group">
+                    <input type="number" step="100" @bind="engine.ShearModulus" />
+                    <span class="unit">MPa</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Tensile Strength (Rm)</label>
+                <div class="input-group">
+                    <input type="number" step="10" @bind="engine.TensileStrength" />
+                    <span class="unit">MPa</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Shot Peening</label>
+                <div class="toggle-row">
+                    <label class="toggle-switch">
+                        <input type="checkbox" @bind="engine.ShotPeened" />
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="toggle-label">@(engine.ShotPeened ? "Yes — fatigue limit +27% (τe = 0.38 × Rm)" : "No — standard fatigue limit (τe = 0.30 × Rm)")</span>
+                </div>
+                <small style="color: #6c757d; font-size: 12px;">Shot peening increases surface compressive stress, improving fatigue life</small>
+            </div>
+        </div>
+
+        <!-- Operating Conditions Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="loading" Size="medium" Style="solid" />
+                <h2>Operating Conditions</h2>
+            </div>
+
+            <!-- Load Type -->
+            <div class="form-group">
+                <label>Load Type</label>
+                <select @bind="loadType" @bind:after="OnLoadTypeChanged" class="form-select" style="padding: 10px; border: 1px solid #ced4da; border-radius: 8px;">
+                    <option value="Static">Static: Constant or slowly varying load</option>
+                    <option value="Dynamic">Dynamic: Cyclic / fluctuating load</option>
+                </select>
+            </div>
+
+            <!-- End Support with info button -->
+            <div class="form-group">
+                <label>
+                    Spring End Support
+                    <button type="button" class="info-btn" @onclick="ToggleEndConditionInfo" title="Show support types diagram">ℹ️</button>
+                </label>
+                <select @bind="engine.EndCondition">
+                    <option value="BothFlat">Both ends on flat surfaces (v = 1.0)</option>
+                    <option value="OneFixedOneFlat">One end fixed, one end flat (v = 0.7)</option>
+                    <option value="BothFixed">Both ends fixed / guided rod (v = 0.5)</option>
+                    <option value="OneFixedOneFree">One end fixed, one end free (v = 2.0)</option>
+                </select>
+                <small style="color: #6c757d; font-size: 12px;">Affects buckling threshold — guide sleeves/rods allow longer springs without buckling</small>
+            </div>
+
+            @if (loadType == "Static")
+            {
+                <!-- Static: single working position → L1 only -->
+                <div class="form-group">
+                    <label>Working Length — L₁ <span style="color: #e74c3c;">*</span></label>
+                    <div class="input-group">
+                        <input type="number" step="0.1" @bind="assembledLength" placeholder="e.g. 40" />
+                        <span class="unit">mm</span>
+                    </div>
+                    <small style="color: #6c757d; font-size: 12px;">Spring length at the static working position (under constant load)</small>
+                </div>
+            }
+            else
+            {
+                <!-- Dynamic: oscillates between L1 (preload) and L2 (max compression) -->
+                <div class="form-group">
+                    <label>Assembled Length — L₁ <span style="color: #e74c3c;">*</span></label>
+                    <div class="input-group">
+                        <input type="number" step="0.1" @bind="assembledLength" placeholder="e.g. 45" />
+                        <span class="unit">mm</span>
+                    </div>
+                    <small style="color: #6c757d; font-size: 12px;">Spring length at preload / minimum compression position</small>
+                </div>
+                <div class="form-group">
+                    <label>Compressed Length — L₂ <span style="color: #e74c3c;">*</span></label>
+                    <div class="input-group">
+                        <input type="number" step="0.1" @bind="compressedLength" placeholder="e.g. 35" />
+                        <span class="unit">mm</span>
+                    </div>
+                    <small style="color: #6c757d; font-size: 12px;">Spring length at maximum compression position</small>
+                </div>
+            }
+
+        </div>
+    </div>
+
+    <div class="button-group">
+        <button class="btn btn-success btn-lg @(isCalculating ? "btn-calculating" : "")"
+                @onclick="Calculate" disabled="@isCalculating">
+            @if (isCalculating)
+            {
+                <span class="spinner"></span>
+                <span>Calculating...</span>
+            }
+            else
+            {
+                <ModuleIcon Type="calculate" Size="button" Style="default" />
+                <span>Calculate</span>
+            }
+        </button>
+        <button class="btn btn-secondary" @onclick="ClearForm" disabled="@isCalculating">
+            <ModuleIcon Type="clear" Size="button" Style="default" /> Clear
+        </button>
+    </div>
+}
+else
+{
+    <!-- RESULTS -->
+    <div class="button-group" style="margin-bottom: 24px;">
+        <button class="btn btn-primary" @onclick="BackToInput">
+            <ModuleIcon Type="back" Size="button" Style="default" /> Back to Input
+        </button>
+        <button class="btn btn-secondary" @onclick="ClearForm">
+            <ModuleIcon Type="new" Size="button" Style="default" /> New Calculation
+        </button>
+        <button class="btn btn-info @(isSavingPdf ? "btn-saving" : "")" @onclick="SaveAsPdf" disabled="@isSavingPdf">
+            @if (isSavingPdf)
+            {
+                <span class="spinner"></span>
+                <span>Generating PDF...</span>
+            }
+            else
+            {
+                <ModuleIcon Type="pdf" Size="button" Style="default" />
+                <span>Save as PDF</span>
+            }
+        </button>
+        <Viewer3D Module="compression-spring" Parameters="@Build3dParameters()" />
+    </div>
+
+    <div id="results-content">
+
+    <!-- Geometry Results -->
+    <div class="card">
+        <div class="card-header">
+            <ModuleIcon Type="geometry" Size="medium" Style="solid" />
+            <h2>Spring Geometry</h2>
+        </div>
+        <table class="results-table">
+            <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+            <tbody>
+                <tr><td>Wire Diameter</td><td>d</td><td>@engine.WireDiameter.ToString("F1")</td><td>mm</td></tr>
+                <tr><td>Mean Coil Diameter</td><td>D<sub>m</sub></td><td>@engine.MeanCoilDiameter.ToString("F1")</td><td>mm</td></tr>
+                <tr><td>Outer Diameter</td><td>D<sub>e</sub></td><td>@engine.OuterDiameter.ToString("F1")</td><td>mm</td></tr>
+                <tr><td>Inner Diameter</td><td>D<sub>i</sub></td><td>@engine.InnerDiameter.ToString("F1")</td><td>mm</td></tr>
+                <tr class="highlight"><td>Spring Index</td><td>w</td><td>@engine.SpringIndex.ToString("F2")</td><td>-</td></tr>
+                <tr><td>Active Coils</td><td>n</td><td>@engine.ActiveCoils.ToString("F1")</td><td>coils</td></tr>
+                <tr><td>Total Coils</td><td>n<sub>t</sub></td><td>@engine.TotalCoils.ToString("F1")</td><td>coils</td></tr>
+                <tr><td>Free Length</td><td>L<sub>0</sub></td><td>@engine.FreeLength.ToString("F1")</td><td>mm</td></tr>
+                <tr class="highlight"><td>Solid Length</td><td>L<sub>c</sub></td><td>@engine.SolidLength.ToString("F1")</td><td>mm</td></tr>
+                <tr><td>Coil Pitch</td><td>p</td><td>@engine.CoilPitch.ToString("F2")</td><td>mm</td></tr>
+                <tr><td>Wire Length</td><td>L<sub>d</sub></td><td>@engine.WireLength.ToString("F0")</td><td>mm</td></tr>
+                <tr><td>Spring Mass</td><td>m</td><td>@engine.SpringMass.ToString("F1")</td><td>g</td></tr>
+                <tr><td>Natural Frequency</td><td>f<sub>e</sub></td><td>@engine.NaturalFrequency.ToString("F0")</td><td>Hz</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Mechanical Properties -->
+    <div class="card">
+        <div class="card-header">
+            <ModuleIcon Type="gear" Size="medium" Style="solid" />
+            <h2>Mechanical Properties</h2>
+        </div>
+        <table class="results-table">
+            <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+            <tbody>
+                <tr class="highlight"><td>Spring Rate</td><td>R</td><td>@engine.SpringRateCalculated.ToString("F2")</td><td>N/mm</td></tr>
+                <tr><td>Max Deflection</td><td>s<sub>max</sub></td><td>@engine.MaxDeflection.ToString("F1")</td><td>mm</td></tr>
+                <tr class="highlight"><td>Max Force at Solid</td><td>F<sub>n</sub></td><td>@engine.MaxForce.ToString("F1")</td><td>N</td></tr>
+            </tbody>
+        </table>
+
+        @if (assembledLength > 0)
+        {
+            <h4 style="color: #34495e; margin: 20px 0 12px 0; padding-left: 8px; border-left: 3px solid #3498db;">Working Conditions</h4>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    @if (loadType == "Static")
+                    {
+                        <tr><td>Working Length</td><td>L<sub>1</sub></td><td>@assembledLength.ToString("F1")</td><td>mm</td></tr>
+                        <tr><td>Deflection</td><td>s<sub>1</sub></td><td>@deflection1.ToString("F2")</td><td>mm</td></tr>
+                        <tr class="highlight"><td>Working Force</td><td>F<sub>1</sub></td><td>@force1.ToString("F1")</td><td>N</td></tr>
+                        <tr class="@((assembledLength - engine.SolidLength) < 0 ? "danger" : (assembledLength - engine.SolidLength) < 2 ? "warning" : "")">
+                            <td>Clearance to Solid</td><td>-</td>
+                            <td>@((assembledLength - engine.SolidLength).ToString("F1"))</td><td>mm</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        <tr><td>Assembled Length (preload)</td><td>L<sub>1</sub></td><td>@assembledLength.ToString("F1")</td><td>mm</td></tr>
+                        <tr><td>Deflection at L₁</td><td>s<sub>1</sub></td><td>@deflection1.ToString("F2")</td><td>mm</td></tr>
+                        <tr class="highlight"><td>Preload Force</td><td>F<sub>1</sub></td><td>@force1.ToString("F1")</td><td>N</td></tr>
+                        @if (compressedLength > 0)
+                        {
+                            <tr><td>Compressed Length (max)</td><td>L<sub>2</sub></td><td>@compressedLength.ToString("F1")</td><td>mm</td></tr>
+                            <tr><td>Deflection at L₂</td><td>s<sub>2</sub></td><td>@deflection2.ToString("F2")</td><td>mm</td></tr>
+                            <tr class="highlight"><td>Working Force (max)</td><td>F<sub>2</sub></td><td>@force2.ToString("F1")</td><td>N</td></tr>
+                            <tr><td>Working Stroke</td><td>s<sub>h</sub></td><td>@((assembledLength - compressedLength).ToString("F1"))</td><td>mm</td></tr>
+                            <tr class="highlight"><td>Force Difference</td><td>ΔF</td><td>@((force2 - force1).ToString("F1"))</td><td>N</td></tr>
+                        }
+                    }
+                </tbody>
+            </table>
+
+            @if (loadType == "Static" && assembledLength < engine.SolidLength)
+            {
+                <div class="alert alert-danger" style="margin-top: 16px;">
+                    ❌ <strong>Error:</strong> Working length (@assembledLength mm) is less than solid length (@engine.SolidLength.ToString("F1") mm). Spring cannot be compressed this much!
+                </div>
+            }
+            @if (loadType == "Dynamic" && compressedLength > 0 && compressedLength < engine.SolidLength)
+            {
+                <div class="alert alert-danger" style="margin-top: 16px;">
+                    ❌ <strong>Error:</strong> Compressed length (@compressedLength mm) is less than solid length (@engine.SolidLength.ToString("F1") mm). Spring cannot be compressed this much!
+                </div>
+            }
+        }
+    </div>
+
+    <!-- Stress Analysis -->
+    <div class="card">
+        <div class="card-header">
+            <span>📈</span>
+            <h2>Stress Analysis</h2>
+        </div>
+
+        <h4 style="color: #34495e; margin-bottom: 12px; padding-left: 8px; border-left: 3px solid #3498db;">Shear Stress at Operating Positions</h4>
+        <table class="results-table">
+            <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+            <tbody>
+                @if (loadType == "Static")
+                {
+                    @if (assembledLength > 0)
+                    {
+                        <tr class="@(shearStress1 > engine.AllowableShearStress ? "warning" : "highlight")">
+                            <td>At Working Length L₁</td><td>τ<sub>1</sub></td><td>@shearStress1.ToString("F0")</td><td>MPa</td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    @if (assembledLength > 0)
+                    {
+                        <tr><td>At Assembled Length L₁ (min)</td><td>τ<sub>1</sub></td><td>@shearStress1.ToString("F0")</td><td>MPa</td></tr>
+                    }
+                    @if (compressedLength > 0)
+                    {
+                        <tr class="@(shearStress2 > engine.AllowableShearStress ? "warning" : "highlight")">
+                            <td>At Compressed Length L₂ (max)</td><td>τ<sub>2</sub></td><td>@shearStress2.ToString("F0")</td><td>MPa</td>
+                        </tr>
+                    }
+                }
+                <tr class="@(engine.ShearStressMax > engine.AllowableShearStress ? "warning" : "")"><td>At Solid Length</td><td>τ<sub>n</sub></td><td>@engine.ShearStressMax.ToString("F0")</td><td>MPa</td></tr>
+                <tr><td>Allowable Shear Stress (0.45×R<sub>m</sub>)</td><td>τ<sub>zul</sub></td><td>@engine.AllowableShearStress.ToString("F0")</td><td>MPa</td></tr>
+            </tbody>
+        </table>
+
+        <h4 style="color: #34495e; margin: 20px 0 12px 0; padding-left: 8px; border-left: 3px solid #3498db;">Correction Factors</h4>
+        <table class="results-table">
+            <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+            <tbody>
+                <tr class="highlight"><td>Wahl Correction Factor</td><td>k</td><td>@engine.WahlFactor.ToString("F3")</td><td>-</td></tr>
+                <tr><td>Spring Index (D<sub>m</sub>/d)</td><td>w</td><td>@engine.SpringIndex.ToString("F2")</td><td>-</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Safety & Stability -->
+    <div class="card">
+        <div class="card-header">
+            <ModuleIcon Type="safety" Size="medium" Style="solid" />
+            <h2>Safety Factors & Stability</h2>
+        </div>
+        <table class="results-table">
+            <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Status</th></tr></thead>
+            <tbody>
+                <tr class="@(staticSafetyFactor < 1.0 ? "danger" : staticSafetyFactor < 1.2 ? "warning" : "success")">
+                    <td>Static Safety Factor</td>
+                    <td>SF<sub>static</sub></td>
+                    <td>@staticSafetyFactor.ToString("F2")</td>
+                    <td>@(staticSafetyFactor < 1.0 ? "❌ FAIL" : staticSafetyFactor < 1.2 ? "⚠️ Low" : "✓ OK")</td>
+                </tr>
+                <tr>
+                    <td>Load Type</td>
+                    <td>-</td>
+                    <td>@(loadType == "Dynamic" ? "Dynamic (fatigue)" : "Static")</td>
+                    <td>-</td>
+                </tr>
+                <tr>
+                    <td>Safety Based On</td>
+                    <td>-</td>
+                    <td>@(loadType == "Static" ? (assembledLength > 0 ? "τ₁ at L₁" : "τn at Solid") : (compressedLength > 0 ? "τ₂ at L₂" : "τn at Solid"))</td>
+                    <td>-</td>
+                </tr>
+                <tr>
+                    <td>End Condition Factor</td>
+                    <td>v</td>
+                    <td>@engine.EndConditionFactor.ToString("F1")</td>
+                    <td>-</td>
+                </tr>
+                <tr class="@(engine.SlendernessRatio > 4 ? "warning" : "")">
+                    <td>Slenderness Ratio (L₀/D<sub>m</sub>)</td>
+                    <td>λ</td>
+                    <td>@engine.SlendernessRatio.ToString("F2")</td>
+                    <td>-</td>
+                </tr>
+                <tr class="@(engine.EffectiveSlenderness > 2.62 ? "warning" : "")">
+                    <td>Effective Slenderness (λ/v)</td>
+                    <td>λ<sub>eff</sub></td>
+                    <td>@engine.EffectiveSlenderness.ToString("F2")</td>
+                    <td>@(engine.EffectiveSlenderness > 2.62 ? "⚠️ > 2.62" : "✓ OK")</td>
+                </tr>
+                <tr class="@(engine.BucklingRisk ? "warning" : "success")">
+                    <td>Buckling Risk</td>
+                    <td>-</td>
+                    <td>@(engine.BucklingRisk ? "Yes — Guide Required" : "No")</td>
+                    <td>@(engine.BucklingRisk ? "⚠️ Warning" : "✓ OK")</td>
+                </tr>
+            </tbody>
+        </table>
+
+        @if (staticSafetyFactor < 1.2)
+        {
+            <div class="alert alert-warning" style="margin-top: 16px;">
+                ⚠️ <strong>Warning:</strong> Static safety factor is below 1.2. Consider using thicker wire or reducing compression.
+            </div>
+        }
+
+        @if (engine.BucklingRisk)
+        {
+            <div class="alert alert-warning" style="margin-top: 16px;">
+                ⚠️ <strong>Buckling Risk:</strong> Effective slenderness λ/v = @engine.EffectiveSlenderness.ToString("F2") exceeds critical limit (2.62).
+                @if (engine.EndCondition == "BothFlat")
+                {
+                    <span> Consider using a guide rod/sleeve (switch to "Both fixed" support) or shorten the free length.</span>
+                }
+                else if (engine.EndCondition == "OneFixed")
+                {
+                    <span> Consider using a full guide rod/sleeve (switch to "Both fixed" support) or shorten the free length.</span>
+                }
+                else
+                {
+                    <span> Shorten the free length or increase the coil diameter to reduce slenderness.</span>
+                }
+            </div>
+        }
+    </div>
+    
+    <!-- Fatigue Analysis -->
+    @if (loadType == "Dynamic" && assembledLength > 0 && compressedLength > 0)
+    {
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="loading" Size="medium" Style="solid" />
+                <h2>Fatigue Analysis (Goodman)</h2>
+            </div>
+
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Minimum Stress</td><td>τ<sub>1</sub></td><td>@shearStress1.ToString("F0")</td><td>MPa</td></tr>
+                    <tr><td>Maximum Stress</td><td>τ<sub>2</sub></td><td>@shearStress2.ToString("F0")</td><td>MPa</td></tr>
+                    <tr class="highlight"><td>Mean Stress</td><td>τ<sub>m</sub></td><td>@meanStress.ToString("F0")</td><td>MPa</td></tr>
+                    <tr class="highlight"><td>Stress Amplitude</td><td>τ<sub>a</sub></td><td>@stressAmplitude.ToString("F0")</td><td>MPa</td></tr>
+                    <tr><td>Stress Ratio (τ₁/τ₂)</td><td>R</td><td>@stressRatio.ToString("F2")</td><td>-</td></tr>
+                    <tr><td>Endurance Limit (@(engine.ShotPeened ? "peened, 0.38×Rm" : "unpeened, 0.30×Rm"))</td><td>τ<sub>e</sub></td><td>@fatigueEnduranceLimit.ToString("F0")</td><td>MPa</td></tr>
+                </tbody>
+            </table>
+
+            <h4 style="color: #34495e; margin: 20px 0 12px 0; padding-left: 8px; border-left: 3px solid #3498db;">Fatigue Safety</h4>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Status</th></tr></thead>
+                <tbody>
+                    <tr class="@(fatigueSafetyFactor < 1.0 ? "danger" : fatigueSafetyFactor < 1.5 ? "warning" : "success")">
+                        <td>Fatigue Safety Factor</td>
+                        <td>SF<sub>fatigue</sub></td>
+                        <td>@fatigueSafetyFactor.ToString("F2")</td>
+                        <td>@(fatigueSafetyFactor < 1.0 ? "❌ FAIL" : fatigueSafetyFactor < 1.5 ? "⚠️ Low" : "✓ OK")</td>
+                    </tr>
+                    <tr class="@(GetFatigueLifeClass())">
+                        <td>Expected Cycles</td>
+                        <td>N</td>
+                        <td>@GetFatigueLifeText()</td>
+                        <td>-</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            @if (fatigueSafetyFactor < 1.5)
+            {
+                <div class="alert alert-warning" style="margin-top: 16px;">
+                    ⚠️ <strong>Low Fatigue Safety (SF = @fatigueSafetyFactor.ToString("F2")):</strong>
+                    @if (!engine.ShotPeened)
+                    {
+                        <span> Try enabling <strong>shot peening</strong> (+27% endurance limit), reducing working stroke, or switching to a higher-grade material (DH or VDC).</span>
+                    }
+                    else
+                    {
+                        <span> Shot peening is already applied. Consider reducing working stroke (decrease s₂-s₁), increasing wire diameter, or switching to higher-grade material (DH or VDC).</span>
+                    }
+                </div>
+            }
+        </div>
+    }
+
+    <!-- Design Guidelines -->
+    <div class="card">
+        <div class="card-header">
+            <ModuleIcon Type="info" Size="medium" Style="solid" />
+            <h2>Design Guidelines</h2>
+        </div>
+        <table class="results-table">
+            <thead><tr><th>Design Parameter</th><th>Current Value</th><th>Status</th><th>Recommendation</th></tr></thead>
+            <tbody>
+                <tr class="@(engine.SpringIndex < 4 || engine.SpringIndex > 12 ? "warning" : "success")">
+                    <td>Spring Index (w)</td>
+                    <td>@engine.SpringIndex.ToString("F1")</td>
+                    <td>@(engine.SpringIndex < 4 ? "⚠️ Too Low" : engine.SpringIndex > 12 ? "⚠️ Too High" : "✓ OK")</td>
+                    <td>@(engine.SpringIndex < 4 ? "Difficult to manufacture, high stress" : engine.SpringIndex > 12 ? "May tangle, prone to buckling" : "Recommended range 4-12")</td>
+                </tr>
+                <tr class="@(engine.ActiveCoils < 3 ? "warning" : "success")">
+                    <td>Active Coils (n)</td>
+                    <td>@engine.ActiveCoils.ToString("F1")</td>
+                    <td>@(engine.ActiveCoils < 3 ? "⚠️ Low" : "✓ OK")</td>
+                    <td>@(engine.ActiveCoils < 3 ? "Minimum 3 coils recommended" : "Adequate")</td>
+                </tr>
+                <tr class="@(engine.BucklingRisk ? "warning" : "success")">
+                    <td>Buckling (λ/v)</td>
+                    <td>@engine.EffectiveSlenderness.ToString("F2")</td>
+                    <td>@(engine.BucklingRisk ? "⚠️ Risk" : "✓ OK")</td>
+                    <td>@(engine.BucklingRisk ? "λ/v > 2.62, buckling risk - use guide" : "No buckling concern (λ/v ≤ 2.62)")</td>
+                </tr>
+                <tr>
+                    <td>End Type</td>
+                    <td>@engine.EndType</td>
+                    <td>-</td>
+                    <td>@(engine.EndType == "ClosedGround" ? "Best stability and load distribution" : engine.EndType == "Closed" ? "Good stability, lower cost" : "Simple, for light loads")</td>
+                </tr>
+                @{
+                    // Clearance check: Static → against L1, Dynamic → against L2
+                    double checkLength = loadType == "Static" ? assembledLength : compressedLength;
+                    string checkLabel = loadType == "Static" ? "Enter L₁ to check" : "Enter L₂ to check";
+                }
+                @if (checkLength > 0)
+                {
+                    var clearance = checkLength - engine.SolidLength;
+                    <tr class="@(clearance < 0 ? "danger" : clearance < 2 ? "warning" : "success")">
+                        <td>Solid Length Clearance</td>
+                        <td>@clearance.ToString("F1") mm</td>
+                        <td>@(clearance < 0 ? "❌ FAIL" : clearance < 2 ? "⚠️ Tight" : "✓ OK")</td>
+                        <td>@(clearance < 0 ? "Over-compressed!" : clearance < 2 ? "Very tight clearance" : "Adequate clearance")</td>
+                    </tr>
+                }
+                else
+                {
+                    <tr>
+                        <td>Solid Length Clearance</td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td>@checkLabel</td>
+                    </tr>
+                }
+                <tr class="@(Math.Atan(engine.CoilPitch / (Math.PI * engine.MeanCoilDiameter)) * 180 / Math.PI > 12 ? "warning" : "success")">
+                    <td>Pitch Angle</td>
+                    <td>@((Math.Atan(engine.CoilPitch / (Math.PI * engine.MeanCoilDiameter)) * 180 / Math.PI).ToString("F1"))°</td>
+                    <td>@(Math.Atan(engine.CoilPitch / (Math.PI * engine.MeanCoilDiameter)) * 180 / Math.PI > 12 ? "⚠️ High" : "✓ OK")</td>
+                    <td>@(Math.Atan(engine.CoilPitch / (Math.PI * engine.MeanCoilDiameter)) * 180 / Math.PI > 12 ? "> 12° may affect spring rate accuracy" : "Within acceptable range")</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    </div>
+}
+
+<RelatedCalculators CurrentModuleKey="compression-spring" />
+
+<!-- End Condition Info Modal -->
+@if (showEndConditionInfo)
+{
+    <div class="modal-overlay" @onclick="ToggleEndConditionInfo">
+        <div class="modal-content" @onclick:stopPropagation="true" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3>Spring End Support Types</h3>
+                <button class="close-btn" @onclick="ToggleEndConditionInfo">×</button>
+            </div>
+            <div class="modal-body">
+                <p style="color: #555; margin-bottom: 16px; font-size: 14px;">
+                    The end support condition determines how the spring is constrained at each end.
+                    It directly affects the <strong>buckling threshold</strong> via the support factor <em>v</em>
+                    (EN 13906-1, Table 1). A spring buckles when the effective slenderness λ/v exceeds 2.62.
+                </p>
+                <table class="info-table">
+                    <thead>
+                        <tr>
+                            <th>Support Type</th>
+                            <th style="text-align:center;">v</th>
+                            <th>Typical Application</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Both ends free on flat surfaces</strong></td>
+                            <td style="text-align:center; font-family:monospace;">1.0</td>
+                            <td>Spring seated freely on plates or in counterbores — most common case</td>
+                        </tr>
+                        <tr>
+                            <td><strong>One end fixed, one end flat</strong></td>
+                            <td style="text-align:center; font-family:monospace;">0.7</td>
+                            <td>One end pressed or screwed into a fixed pocket; other end on flat plate</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Both ends fixed / guided rod</strong></td>
+                            <td style="text-align:center; font-family:monospace;">0.5</td>
+                            <td>Spring on a guide rod or inside a guide sleeve on both ends — best buckling resistance</td>
+                        </tr>
+                        <tr>
+                            <td><strong>One end fixed, one end free</strong></td>
+                            <td style="text-align:center; font-family:monospace;">2.0</td>
+                            <td>Cantilever spring — one end clamped, other end completely free; worst case for buckling</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div style="margin-top: 16px; padding: 12px; background: #e8f4fd; border-radius: 8px; font-size: 13px; color: #2c3e50;">
+                    <strong>💡 Buckling criterion (EN 13906-1):</strong><br />
+                    A spring may buckle when its <em>effective slenderness</em> λ/v exceeds 2.62.<br />
+                    <code style="font-size: 13px;">λ = L₀ / Dm</code> &nbsp;→&nbsp; <code style="font-size: 13px;">λ<sub>eff</sub> = λ / v &gt; 2.62</code> → buckling risk
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    /* Results Tables */
+    .results-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+        margin-bottom: 0;
+    }
+
+    .results-table th {
+        background: #f8f9fa;
+        padding: 12px 16px;
+        text-align: left;
+        font-weight: 600;
+        color: #2c3e50;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    .results-table td {
+        padding: 10px 16px;
+        border-bottom: 1px solid #eee;
+    }
+
+    .results-table tr:hover {
+        background: #f8f9fa;
+    }
+
+    .results-table tr.highlight {
+        background: #e3f2fd;
+        font-weight: 500;
+    }
+
+    .results-table tr.warning {
+        background: #fff8e1;
+    }
+
+    .results-table tr.danger {
+        background: #ffebee;
+    }
+
+    .results-table tr.success {
+        background: #e8f5e9;
+    }
+
+    /* Column widths - CRITICAL for proper layout */
+    .results-table th:nth-child(1) { width: 40%; }
+    .results-table th:nth-child(2) { width: 15%; text-align: center; }
+    .results-table th:nth-child(3) { width: 25%; text-align: right; }
+    .results-table th:nth-child(4) { width: 20%; text-align: center; }
+
+    /* Column alignment and styling */
+    .results-table td:nth-child(2) {
+        text-align: center;
+        font-family: 'Times New Roman', serif;
+        font-style: italic;
+        color: #666;
+    }
+
+    .results-table td:nth-child(3) {
+        text-align: right;
+        font-weight: 500;
+        font-family: 'Consolas', monospace;
+    }
+
+    .results-table td:nth-child(4) {
+        text-align: center;
+        color: #666;
+    }
+
+    /* Load Type Selector */
+    .load-type-selector {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 4px;
+    }
+
+    .load-type-option {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        border: 2px solid #dee2e6;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.2s;
+        background: #fafafa;
+        user-select: none;
+    }
+
+    .load-type-option:hover {
+        border-color: #adb5bd;
+        background: #f0f0f0;
+    }
+
+    .load-type-option.selected {
+        border-color: #3498db;
+        background: #ebf5fb;
+    }
+
+    .load-type-icon {
+        font-size: 22px;
+        line-height: 1;
+        flex-shrink: 0;
+    }
+
+    .load-type-text {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .load-type-text strong {
+        font-size: 13px;
+        color: #2c3e50;
+    }
+
+    .load-type-text span {
+        font-size: 11px;
+        color: #6c757d;
+    }
+
+    /* Info Button */
+    .info-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 15px;
+        margin-left: 6px;
+        padding: 0;
+        vertical-align: middle;
+        opacity: 0.75;
+        transition: opacity 0.15s;
+    }
+
+    .info-btn:hover {
+        opacity: 1;
+    }
+
+    /* Modal */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    }
+
+    .modal-content {
+        background: white;
+        border-radius: 12px;
+        width: 90%;
+        max-width: 700px;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    }
+
+    .modal-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid #e0e0e0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        position: sticky;
+        top: 0;
+        background: white;
+        border-radius: 12px 12px 0 0;
+    }
+
+    .modal-header h3 {
+        margin: 0;
+        font-size: 18px;
+        color: #2c3e50;
+    }
+
+    .close-btn {
+        background: none;
+        border: none;
+        font-size: 26px;
+        cursor: pointer;
+        color: #666;
+        line-height: 1;
+        padding: 0;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: background 0.15s;
+    }
+
+    .close-btn:hover {
+        background: #f0f0f0;
+        color: #333;
+    }
+
+    .modal-body {
+        padding: 24px;
+    }
+
+    .info-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+        margin-bottom: 4px;
+    }
+
+    .info-table th {
+        background: #f8f9fa;
+        padding: 10px 14px;
+        text-align: left;
+        font-weight: 600;
+        color: #2c3e50;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    .info-table td {
+        padding: 10px 14px;
+        border-bottom: 1px solid #eee;
+        vertical-align: top;
+        color: #495057;
+    }
+
+    .info-table tr:hover td {
+        background: #f8f9fa;
+    }
+
+    /* Toggle Switch */
+    .toggle-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 6px;
+    }
+
+    .toggle-switch {
+        position: relative;
+        display: inline-block;
+        width: 44px;
+        height: 24px;
+        flex-shrink: 0;
+    }
+
+    .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        inset: 0;
+        background-color: #ccc;
+        border-radius: 24px;
+        transition: 0.3s;
+    }
+
+    .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        border-radius: 50%;
+        transition: 0.3s;
+    }
+
+    .toggle-switch input:checked + .toggle-slider {
+        background-color: #28a745;
+    }
+
+    .toggle-switch input:checked + .toggle-slider:before {
+        transform: translateX(20px);
+    }
+
+    .toggle-label {
+        font-size: 13px;
+        color: #495057;
+        line-height: 1.4;
+    }
+
+    /* Calculate Button Spinner */
+    .spinner {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 2px solid rgba(255, 255, 255, 0.4);
+        border-top-color: white;
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+        margin-right: 8px;
+        flex-shrink: 0;
+    }
+
+    @@keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .btn-calculating {
+        opacity: 0.85;
+        cursor: not-allowed;
+        background: linear-gradient(135deg, #27ae60 0%, #1e8449 100%) !important;
+    }
+
+    /* Button Styles */
+    .btn-info {
+        background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+        color: white;
+    }
+
+    .btn-info:hover {
+        background: linear-gradient(135deg, #138496 0%, #117a8b 100%);
+    }
+</style>
+
+@code {
+    private SpringEngine engine = new();
+    private bool showResults = false;
+    private bool isCalculating = false;
+    private bool isSavingPdf = false;
+    private string selectedMaterial = "SH";
+    private string loadType = "Static"; // "Static" or "Dynamic"
+
+    // Modal visibility
+    private bool showEndConditionInfo = false;
+    private void ToggleEndConditionInfo() => showEndConditionInfo = !showEndConditionInfo;
+
+    // Operating lengths
+    private double assembledLength = 0;
+    private double compressedLength = 0;
+
+    /// <summary>
+    /// Geometry handed to the 3D viewer. Keys must match the "compression-spring"
+    /// builder in wwwroot/js/viewer3d.js. L1/L2 drive the compression states the
+    /// user can step through; 0 means "not used in this calculation".
+    /// </summary>
+    private object Build3dParameters() => new
+    {
+        d = engine.WireDiameter,
+        Dm = engine.MeanCoilDiameter,
+        L0 = engine.FreeLength,
+        nt = engine.TotalCoils,
+        na = engine.ActiveCoils,
+        Lc = engine.SolidLength,
+        L1 = assembledLength,
+        L2 = loadType == "Dynamic" ? compressedLength : 0
+    };
+
+    // Calculated working values
+    private double deflection1 = 0;
+    private double deflection2 = 0;
+    private double force1 = 0;
+    private double force2 = 0;
+    private double shearStress1 = 0;
+    private double shearStress2 = 0;
+
+    // Safety factors
+    private double staticSafetyFactor = 0;
+
+    // Fatigue analysis
+    private double meanStress = 0;
+    private double stressAmplitude = 0;
+    private double stressRatio = 0;
+    private double fatigueSafetyFactor = 0;
+    private double fatigueEnduranceLimit = 0;
+    private double estimatedCycles = 0;
+
+    // Module metadata for SEO and analytics
+    private ModuleInfo moduleInfo = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        engine.MaterialGrade = "SH";
+        engine.ShearModulus = 81500;
+        engine.TensileStrength = 1700;
+        engine.EndType = "ClosedGround";
+        engine.EndCondition = "BothFlat";
+        engine.ShotPeened = false;
+
+        // SEO and Analytics
+        moduleInfo = Metadata.GetModule("compression-spring");
+        await SetSeoMetadata();
+        await SetStructuredData();
+        await Analytics.TrackPageView("/compression-spring", moduleInfo.Name);
+    }
+
+    private void OnMaterialChanged()
+    {
+        if (SpringEngine.Materials.TryGetValue(selectedMaterial, out var mat))
+        {
+            engine.ShearModulus = mat.G;
+            engine.TensileStrength = mat.Rm;
+            engine.MaterialGrade = selectedMaterial;
+            // Reset allowable shear stress so it will be recalculated with new Rm
+            engine.AllowableShearStress = 0;
+        }
+    }
+
+    private void OnLoadTypeChanged()
+    {
+        // Static: only L1 (single working position) — clear L2
+        // Dynamic: L1 + L2 (oscillates between two positions) — clear both for clean start
+        assembledLength = 0;
+        compressedLength = 0;
+    }
+
+    private async Task Calculate()
+    {
+        if (engine.WireDiameter <= 0 || engine.MeanCoilDiameter <= 0 ||
+            engine.FreeLength <= 0 || engine.ActiveCoils <= 0)
+        {
+            return;
+        }
+
+        isCalculating = true;
+        StateHasChanged();
+        await Task.Delay(350); // let the spinner render + feel responsive
+
+        engine.Calculate();
+
+        double stressConstant = (8 * engine.MeanCoilDiameter) / (Math.PI * Math.Pow(engine.WireDiameter, 3));
+
+        if (loadType == "Static")
+        {
+            // Static: user enters only L1 (the single working position)
+            // L1 is the compressed/working length → stress is calculated here
+            if (assembledLength > 0)
+            {
+                deflection1 = engine.FreeLength - assembledLength;
+                force1 = engine.SpringRateCalculated * deflection1;
+                shearStress1 = engine.WahlFactor * stressConstant * force1;
+            }
+            // L2 is not used in static mode — clear it
+            compressedLength = 0;
+            deflection2 = 0; force2 = 0; shearStress2 = 0;
+
+            // Safety factor: against the working stress (L1), or solid length if L1 not given
+            staticSafetyFactor = shearStress1 > 0
+                ? engine.AllowableShearStress / shearStress1
+                : engine.AllowableShearStress / engine.ShearStressMax;
+        }
+        else
+        {
+            // Dynamic: spring oscillates between L1 (preload) and L2 (max compression)
+            if (assembledLength > 0)
+            {
+                deflection1 = engine.FreeLength - assembledLength;
+                force1 = engine.SpringRateCalculated * deflection1;
+                shearStress1 = engine.WahlFactor * stressConstant * force1;
+            }
+            if (compressedLength > 0)
+            {
+                deflection2 = engine.FreeLength - compressedLength;
+                force2 = engine.SpringRateCalculated * deflection2;
+                shearStress2 = engine.WahlFactor * stressConstant * force2;
+            }
+
+            // Safety factor: against max stress at L2
+            staticSafetyFactor = shearStress2 > 0
+                ? engine.AllowableShearStress / shearStress2
+                : engine.AllowableShearStress / engine.ShearStressMax;
+
+            // Fatigue analysis — both L1 and L2 required
+            if (assembledLength > 0 && compressedLength > 0 && shearStress1 > 0 && shearStress2 > 0)
+            {
+                CalculateFatigue();
+            }
+        }
+
+        isCalculating = false;
+        showResults = true;
+
+        // Analytics tracking
+        await Analytics.TrackCalculationCompleted("compression-spring", new Dictionary<string, object>
+        {
+            { "wire_diameter", engine.WireDiameter },
+            { "mean_coil_diameter", engine.MeanCoilDiameter },
+            { "spring_rate", engine.SpringRateCalculated },
+            { "load_type", loadType },
+            { "shot_peened", engine.ShotPeened }
+        });
+    }
+    
+    private void CalculateFatigue()
+    {
+        // Mean stress and amplitude (Goodman diagram)
+        meanStress = (shearStress1 + shearStress2) / 2;
+        stressAmplitude = (shearStress2 - shearStress1) / 2;
+        stressRatio = shearStress1 / shearStress2;
+
+        // Endurance limit — factor set by engine based on shot peening state:
+        //   Unpeened: τe = 0.30 × Rm   (EN 13906-1 conservative)
+        //   Peened:   τe = 0.38 × Rm   (+27% improvement)
+        fatigueEnduranceLimit = engine.FatigueEnduranceFactor * engine.TensileStrength;
+
+        // Goodman criterion: τa/τe + τm/τu = 1/SF
+        // where τu = 0.65 × Rm (ultimate shear strength)
+        double ultimateShear = 0.65 * engine.TensileStrength;
+
+        // Safety factor from Goodman equation
+        if (stressAmplitude > 0)
+        {
+            double goodmanValue = (stressAmplitude / fatigueEnduranceLimit) + (meanStress / ultimateShear);
+            fatigueSafetyFactor = 1.0 / goodmanValue;
+        }
+        else
+        {
+            fatigueSafetyFactor = 999;
+        }
+
+        // Estimate fatigue life using simplified S-N curve
+        // Infinite life threshold: τa < 30% of τe
+        if (stressAmplitude < fatigueEnduranceLimit * 0.3)
+        {
+            estimatedCycles = double.PositiveInfinity;
+        }
+        else if (stressAmplitude < fatigueEnduranceLimit)
+        {
+            // High cycle fatigue region (~10⁶–10⁷ cycles)
+            double ratio = stressAmplitude / fatigueEnduranceLimit;
+            estimatedCycles = Math.Pow(10, 7 - 3 * (ratio - 0.3) / 0.7);
+        }
+        else
+        {
+            // Low cycle fatigue region
+            double ratio = stressAmplitude / fatigueEnduranceLimit;
+            estimatedCycles = Math.Pow(10, 6 - 4 * (ratio - 1));
+            if (estimatedCycles < 1000) estimatedCycles = 1000;
+        }
+    }
+    
+    private string GetFatigueLifeText()
+    {
+        if (double.IsPositiveInfinity(estimatedCycles))
+            return "∞ (Infinite Life)";
+        else if (estimatedCycles >= 1e7)
+            return $">{estimatedCycles/1e6:F0}M cycles";
+        else if (estimatedCycles >= 1e6)
+            return $"~{estimatedCycles/1e6:F1}M cycles";
+        else if (estimatedCycles >= 1e5)
+            return $"~{estimatedCycles/1e3:F0}k cycles";
+        else
+            return $"~{estimatedCycles:F0} cycles";
+    }
+    
+    private string GetFatigueLifeClass()
+    {
+        if (double.IsPositiveInfinity(estimatedCycles) || estimatedCycles >= 1e6)
+            return "success";
+        else if (estimatedCycles >= 1e5)
+            return "";
+        else
+            return "warning";
+    }
+    
+    private string GetSafetyColor(double safetyFactor)
+    {
+        if (safetyFactor < 1.0)
+            return "#dc3545 0%, #a71d2a 100%";
+        else if (safetyFactor < 1.5)
+            return "#ffc107 0%, #d39e00 100%";
+        else
+            return "#28a745 0%, #1e7e34 100%";
+    }
+
+    private void BackToInput()
+    {
+        showResults = false;
+    }
+
+    private void ClearForm()
+    {
+        engine = new SpringEngine
+        {
+            MaterialGrade = "SH",
+            ShearModulus = 81500,
+            TensileStrength = 1700,
+            EndType = "ClosedGround",
+            EndCondition = "BothFlat",
+            ShotPeened = false
+        };
+        selectedMaterial = "SH";
+        loadType = "Static";
+        assembledLength = 0;
+        compressedLength = 0;
+        deflection1 = 0;
+        deflection2 = 0;
+        force1 = 0;
+        force2 = 0;
+        shearStress1 = 0;
+        shearStress2 = 0;
+        staticSafetyFactor = 0;
+        meanStress = 0;
+        stressAmplitude = 0;
+        stressRatio = 0;
+        fatigueSafetyFactor = 0;
+        fatigueEnduranceLimit = 0;
+        estimatedCycles = 0;
+        showResults = false;
+    }
+
+    private async Task SaveAsPdf()
+    {
+        isSavingPdf = true;
+        StateHasChanged();
+        try
+        {
+            var filename = $"CompressionSpring-Report-{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            await JSRuntime.InvokeVoidAsync("generatePdf", "results-content", filename);
+            await Analytics.TrackPdfDownload("compression-spring", filename);
+        }
+        catch (Exception ex)
+        {
+            await Analytics.TrackCalculationError("compression-spring", "pdf_generation_failed", ex.Message);
+        }
+    }
+
+    private async Task SetSeoMetadata()
+    {
+        var baseUrl = "https://mekanika.org";
+        var seo = new SeoMetadata
+        {
+            Title = $"{moduleInfo.Name} - Free Online Tool | Mekanika",
+            Description = moduleInfo.Description,
+            Keywords = moduleInfo.Keywords,
+            CanonicalUrl = $"{baseUrl}{moduleInfo.Route}",
+            OgTitle = moduleInfo.Name,
+            OgDescription = moduleInfo.Description,
+            OgImage = $"{baseUrl}/images/og-image.png",
+            OgUrl = $"{baseUrl}{moduleInfo.Route}",
+            TwitterTitle = moduleInfo.Name,
+            TwitterDescription = moduleInfo.Description,
+            TwitterImage = $"{baseUrl}/images/og-image.png"
+        };
+        await Seo.SetMetaTags(seo);
+    }
+
+    private async Task SetStructuredData()
+    {
+        var structuredData = new
+        {
+            context = "https://schema.org",
+            type = "SoftwareApplication",
+            name = moduleInfo.Name,
+            description = moduleInfo.Description,
+            applicationCategory = "EngineeringApplication",
+            operatingSystem = "Web Browser",
+            offers = new
+            {
+                type = "Offer",
+                price = "0",
+                priceCurrency = "USD"
+            }
+        };
+        await Seo.SetStructuredData(structuredData);
+    }
+}

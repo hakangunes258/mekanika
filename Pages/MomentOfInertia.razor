@@ -1,0 +1,1338 @@
+@page "/moment-of-inertia"
+@inject IJSRuntime JSRuntime
+@inject MaterialService MaterialService
+@inject ModuleMetadataService MetadataService
+@inject AnalyticsService Analytics
+@using MechanicalCalculatorWeb.Services
+@using MechanicalCalculatorWeb.Models
+@using System.Globalization
+
+<PageTitle>Moment of Inertia Calculator - Mekanika</PageTitle>
+
+<div class="page-header">
+    <h1><ModuleIcon Type="moment-inertia" Size="large" Style="transparent" CustomStyle="margin-right: 12px;" /> Moment of Inertia Calculator</h1>
+    <p>Calculate section properties for various cross-sectional shapes</p>
+</div>
+
+
+
+@if (!showResults)
+{
+    <!-- INPUT FORM -->
+    <div class="form-grid">
+        <!-- Cross-Section Shape Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="moment-inertia" Size="medium" Style="solid" />
+                <h2>Cross-Section Shape</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Select Shape</label>
+                <select @bind="selectedShapeIndex" @bind:after="OnShapeChanged">
+                    <option value="0">▬ Rectangle</option>
+                    <option value="1">▭ Hollow Rectangle (Box)</option>
+                    <option value="2">● Circle</option>
+                    <option value="3">○ Hollow Circle (Tube)</option>
+                    <option value="4">工 I-Beam (H-Beam)</option>
+                    <option value="5">⊏ C-Channel</option>
+                    <option value="6">⊤ T-Section</option>
+                    <option value="7">∟ L-Section (Angle)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Material</label>
+                <select @bind="selectedMaterialIndex" @bind:after="OnMaterialChanged">
+                    @for (int i = 0; i < materials.Count; i++)
+                    {
+                        <option value="@i">@materials[i].Name</option>
+                    }
+                </select>
+                @if (materials.Any())
+                {
+                    <div class="material-info">
+                        <span>Density: @materials[selectedMaterialIndex].Density kg/m³</span>
+                    </div>
+                }
+            </div>
+
+            <div class="form-group">
+                <label>Profile Length</label>
+                <div class="input-group">
+                    <input type="number" step="1" @bind="engine.Length" placeholder="1000" />
+                    <span class="unit">mm</span>
+                </div>
+                <small class="hint">For weight calculation</small>
+            </div>
+        </div>
+
+        <!-- Dimensions Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="dimensions" Size="medium" Style="solid" />
+                <h2>Dimensions</h2>
+            </div>
+
+            @switch (engine.SelectedShape)
+            {
+                case ShapeType.Rectangle:
+                    @RenderDimensionInput("Width (b)", "mm", () => engine.Width, v => engine.Width = v)
+                    @RenderDimensionInput("Height (h)", "mm", () => engine.Height, v => engine.Height = v)
+                    break;
+
+                case ShapeType.HollowRectangle:
+                    @RenderDimensionInput("Outer Width (b)", "mm", () => engine.Width, v => engine.Width = v)
+                    @RenderDimensionInput("Outer Height (h)", "mm", () => engine.Height, v => engine.Height = v)
+                    @RenderDimensionInput("Inner Width (b<sub>i</sub>)", "mm", () => engine.InnerWidth, v => engine.InnerWidth = v, HasInnerWidthError)
+                    @RenderDimensionInput("Inner Height (h<sub>i</sub>)", "mm", () => engine.InnerHeight, v => engine.InnerHeight = v, HasInnerHeightError)
+                    break;
+
+                case ShapeType.Circle:
+                    @RenderDimensionInput("Diameter (d)", "mm", () => engine.Diameter, v => engine.Diameter = v)
+                    break;
+
+                case ShapeType.HollowCircle:
+                    @RenderDimensionInput("Outer Diameter (d)", "mm", () => engine.Diameter, v => engine.Diameter = v)
+                    @RenderDimensionInput("Inner Diameter (d<sub>i</sub>)", "mm", () => engine.InnerDiameter, v => engine.InnerDiameter = v, HasInnerDiameterError)
+                    break;
+
+                case ShapeType.IBeam:
+                    @RenderDimensionInput("Flange Width (b<sub>f</sub>)", "mm", () => engine.FlangeWidth, v => engine.FlangeWidth = v)
+                    @RenderDimensionInput("Total Height (h)", "mm", () => engine.TotalHeight, v => engine.TotalHeight = v)
+                    @RenderDimensionInput("Flange Thickness (t<sub>f</sub>)", "mm", () => engine.FlangeThickness, v => engine.FlangeThickness = v, HasFlangeThicknessError)
+                    @RenderDimensionInput("Web Thickness (t<sub>w</sub>)", "mm", () => engine.WebThickness, v => engine.WebThickness = v)
+                    break;
+
+                case ShapeType.CChannel:
+                    @RenderDimensionInput("Width (b)", "mm", () => engine.ChannelWidth, v => engine.ChannelWidth = v)
+                    @RenderDimensionInput("Height (h)", "mm", () => engine.ChannelHeight, v => engine.ChannelHeight = v)
+                    @RenderDimensionInput("Flange Thickness (t<sub>f</sub>)", "mm", () => engine.ChannelFlangeThickness, v => engine.ChannelFlangeThickness = v, HasChannelFlangeError)
+                    @RenderDimensionInput("Web Thickness (t<sub>w</sub>)", "mm", () => engine.ChannelWebThickness, v => engine.ChannelWebThickness = v)
+                    break;
+
+                case ShapeType.TSection:
+                    @RenderDimensionInput("Flange Width (b<sub>f</sub>)", "mm", () => engine.TFlangeWidth, v => engine.TFlangeWidth = v)
+                    @RenderDimensionInput("Total Height (h)", "mm", () => engine.THeight, v => engine.THeight = v)
+                    @RenderDimensionInput("Flange Thickness (t<sub>f</sub>)", "mm", () => engine.TFlangeThickness, v => engine.TFlangeThickness = v, HasTFlangeError)
+                    @RenderDimensionInput("Stem Thickness (t<sub>w</sub>)", "mm", () => engine.TStemThickness, v => engine.TStemThickness = v)
+                    break;
+
+                case ShapeType.LSection:
+                    @RenderDimensionInput("Horizontal Leg Width (b)", "mm", () => engine.LegWidth, v => engine.LegWidth = v)
+                    @RenderDimensionInput("Vertical Leg Height (h)", "mm", () => engine.LegHeight, v => engine.LegHeight = v)
+                    @RenderDimensionInput("Leg Thickness (t)", "mm", () => engine.LegThickness, v => engine.LegThickness = v, HasLegThicknessError)
+                    break;
+            }
+        </div>
+
+        <!-- Shape Preview Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="info" Size="medium" Style="solid" />
+                <h2>Shape Preview</h2>
+            </div>
+            <div class="shape-preview-container">
+                @((MarkupString)GetSvgWithAxes(350, 300, false))
+            </div>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(validationError))
+    {
+        <div class="alert alert-danger" style="margin: 16px 0;">
+            <ModuleIcon Type="warning" Size="small" Style="default" CustomStyle="margin-right: 8px;" /> @validationError
+        </div>
+    }
+
+    <div class="button-group">
+        <button class="btn btn-success btn-lg @(isCalculating ? "btn-calculating" : "")" @onclick="Calculate" disabled="@(HasAnyError || isCalculating)">
+            @if (isCalculating)
+            {
+                <span class="spinner"></span>
+                <span>Calculating...</span>
+            }
+            else
+            {
+                <ModuleIcon Type="calculate" Size="button" Style="default" />
+                <span>Calculate</span>
+            }
+        </button>
+        <button class="btn btn-secondary" @onclick="ClearForm" disabled="@isCalculating">
+            <ModuleIcon Type="clear" Size="button" Style="default" /> Clear
+        </button>
+    </div>
+}
+else
+{
+    <!-- RESULTS -->
+    <div class="button-group" style="margin-bottom: 24px;">
+        <button class="btn btn-primary" @onclick="BackToInput">
+            <ModuleIcon Type="back" Size="button" Style="default" /> Back to Input
+        </button>
+        <button class="btn btn-secondary" @onclick="ClearForm">
+            <ModuleIcon Type="new" Size="button" Style="default" /> New Calculation
+        </button>
+        <button class="btn btn-info @(isSavingPdf ? "btn-saving" : "")" @onclick="SaveAsPdf" disabled="@isSavingPdf">
+            @if (isSavingPdf)
+            {
+                <span class="spinner"></span>
+                <span>Generating PDF...</span>
+            }
+            else
+            {
+                <ModuleIcon Type="pdf" Size="button" Style="default" />
+                <span>Save as PDF</span>
+            }
+        </button>
+    </div>
+
+    <!-- Detailed Results Container -->
+    <div id="results-content">
+        <!-- Shape Visualization -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="moment-inertia" Size="medium" Style="solid" /><h2>Cross-Section Visualization</h2></div>
+            <div class="shape-result-preview">
+                @if (!string.IsNullOrEmpty(svgBase64Image))
+                {
+                    <img src="@svgBase64Image" alt="Cross-Section" style="max-width: 100%; height: auto;" />
+                }
+                else
+                {
+                    @((MarkupString)GetSvgWithAxes(450, 350, true))
+                }
+            </div>
+        </div>
+
+        <!-- Input Dimensions -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="dimensions" Size="medium" Style="solid" /><h2>Input Dimensions</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    @((MarkupString)GetInputDimensionsRows())
+                    <tr><td>Material</td><td>-</td><td>@materials[selectedMaterialIndex].Name</td><td>-</td></tr>
+                    <tr><td>Density</td><td>ρ</td><td>@engine.Density.ToString("F0")</td><td>kg/m³</td></tr>
+                    <tr><td>Profile Length</td><td>L</td><td>@engine.Length.ToString("F0")</td><td>mm</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Area & Mass Properties -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="dimensions" Size="medium" Style="solid" /><h2>Area & Mass Properties</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr class="highlight"><td>Cross-Sectional Area</td><td>A</td><td>@engine.Area.ToString("F2")</td><td>mm²</td></tr>
+                    <tr><td>Centroid X (from origin)</td><td>x<sub>c</sub></td><td>@engine.CentroidX.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Centroid Y (from origin)</td><td>y<sub>c</sub></td><td>@engine.CentroidY.ToString("F2")</td><td>mm</td></tr>
+                    <tr class="highlight"><td>Mass per Meter</td><td>m'</td><td>@engine.MassPerMeter.ToString("F3")</td><td>kg/m</td></tr>
+                    <tr class="highlight"><td>Total Mass</td><td>m</td><td>@engine.TotalMass.ToString("F3")</td><td>kg</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Moment of Inertia -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="moment-inertia" Size="medium" Style="solid" /><h2>Moment of Inertia</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr class="highlight"><td>Moment of Inertia (X-axis)</td><td>I<sub>x</sub></td><td>@FormatLargeNumber(engine.Ix)</td><td>mm⁴</td></tr>
+                    <tr class="highlight"><td>Moment of Inertia (Y-axis)</td><td>I<sub>y</sub></td><td>@FormatLargeNumber(engine.Iy)</td><td>mm⁴</td></tr>
+                    <tr><td>Polar Moment of Inertia</td><td>I<sub>p</sub></td><td>@FormatLargeNumber(engine.Ip)</td><td>mm⁴</td></tr>
+                    @if (!engine.AxesArePrincipal)
+                    {
+                        <tr><td>Product of Inertia</td><td>I<sub>xy</sub></td><td>@FormatLargeNumber(engine.Ixy)</td><td>mm⁴</td></tr>
+                        <tr class="highlight"><td>Major Principal Moment</td><td>I<sub>u</sub></td><td>@FormatLargeNumber(engine.IuPrincipal)</td><td>mm⁴</td></tr>
+                        <tr class="highlight"><td>Minor Principal Moment</td><td>I<sub>v</sub></td><td>@FormatLargeNumber(engine.IvPrincipal)</td><td>mm⁴</td></tr>
+                        <tr><td>Principal Axis Angle</td><td>α</td><td>@engine.PrincipalAngle.ToString("F2")</td><td>°</td></tr>
+                    }
+                </tbody>
+            </table>
+
+            @if (!engine.AxesArePrincipal)
+            {
+                <div class="alert alert-warning" style="margin-top: 16px;">
+                    <span>⚠️</span>
+                    <div>
+                        <strong>X and Y are not principal axes for this section</strong> (I<sub>xy</sub> ≠ 0).
+                        Bending applied about X alone will also deflect the section sideways.
+                        For bending design use the principal values: the minor principal moment
+                        I<sub>v</sub> = @FormatLargeNumber(engine.IvPrincipal) mm⁴ governs, and the
+                        principal axes are rotated @engine.PrincipalAngle.ToString("F2")° from X/Y.
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- Section Modulus -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="force" Size="medium" Style="solid" /><h2>Section Modulus</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr class="highlight"><td>Section Modulus (X-axis)</td><td>W<sub>x</sub></td><td>@FormatLargeNumber(engine.Wx)</td><td>mm³</td></tr>
+                    <tr class="highlight"><td>Section Modulus (Y-axis)</td><td>W<sub>y</sub></td><td>@FormatLargeNumber(engine.Wy)</td><td>mm³</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Radius of Gyration -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="geometry" Size="medium" Style="solid" /><h2>Radius of Gyration</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Radius of Gyration (X-axis)</td><td>r<sub>x</sub></td><td>@engine.rx.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Radius of Gyration (Y-axis)</td><td>r<sub>y</sub></td><td>@engine.ry.ToString("F2")</td><td>mm</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Extreme Fiber Distances -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="dimensions" Size="medium" Style="solid" /><h2>Extreme Fiber Distances</h2></div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Distance to Top Fiber</td><td>c<sub>top</sub></td><td>@engine.DistanceToTopFiber.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Distance to Bottom Fiber</td><td>c<sub>bot</sub></td><td>@engine.DistanceToBottomFiber.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Distance to Left Fiber</td><td>c<sub>left</sub></td><td>@engine.DistanceToLeftFiber.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Distance to Right Fiber</td><td>c<sub>right</sub></td><td>@engine.DistanceToRightFiber.ToString("F2")</td><td>mm</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Formulas Used -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="info" Size="medium" Style="solid" /><h2>Formulas Used</h2></div>
+            <div class="formula-section">
+                @((MarkupString)GetFormulasHtml())
+            </div>
+        </div>
+    </div>
+
+    <!-- Related Calculators -->
+    <RelatedCalculators CurrentModuleKey="moment-of-inertia" />
+}
+
+@code {
+    private RenderFragment RenderDimensionInput(string label, string unit, Func<double> getter, Action<double> setter, bool hasError = false) => __builder =>
+    {
+        <div class="form-group">
+            <label>@((MarkupString)label)</label>
+            <div class="input-group">
+                <input type="number" step="0.1" value="@getter()"
+                       @onchange="e => { if (double.TryParse(e.Value?.ToString(), out var v)) { setter(v); UpdatePreview(); } }"
+                       class="@(hasError ? "input-error" : "")" />
+                <span class="unit">@unit</span>
+            </div>
+            @if (hasError)
+            {
+                <small class="error-hint">Invalid value</small>
+            }
+        </div>
+    };
+}
+
+<style>
+    .shape-preview-container {
+        min-height: 300px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: #fafafa;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .shape-result-preview {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 350px;
+        background: #fafafa;
+        border-radius: 8px;
+        padding: 16px;
+        overflow: hidden;
+    }
+
+    .material-info {
+        font-size: 12px;
+        color: #6c757d;
+        margin-top: 4px;
+        padding-left: 4px;
+    }
+
+    .hint {
+        font-size: 11px;
+        color: #6c757d;
+        margin-top: 2px;
+    }
+
+    .error-hint {
+        font-size: 11px;
+        color: #dc3545;
+        margin-top: 2px;
+    }
+
+    .input-error {
+        border-color: #dc3545 !important;
+        background-color: #fff5f5 !important;
+    }
+
+    .results-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .results-table th { background: #f8f9fa; padding: 12px 16px; text-align: left; font-weight: 600; color: #2c3e50; border-bottom: 2px solid #dee2e6; }
+    .results-table td { padding: 10px 16px; border-bottom: 1px solid #eee; }
+    .results-table tr:hover { background: #f8f9fa; }
+    .results-table tr.highlight { background: #e3f2fd; font-weight: 500; }
+
+    .results-table th:nth-child(1) { width: 45%; }
+    .results-table th:nth-child(2) { width: 15%; text-align: center; }
+    .results-table th:nth-child(3) { width: 25%; text-align: right; }
+    .results-table th:nth-child(4) { width: 15%; text-align: center; }
+
+    .results-table td:nth-child(2) {
+        text-align: center;
+        font-family: 'Times New Roman', serif;
+        font-style: italic;
+        color: #666;
+    }
+
+    .results-table td:nth-child(3) {
+        text-align: right;
+        font-weight: 500;
+        font-family: 'Consolas', monospace;
+    }
+
+    .results-table td:nth-child(4) {
+        text-align: center;
+        color: #666;
+    }
+
+    .formula-section {
+        padding: 16px;
+        font-family: 'Times New Roman', serif;
+        font-size: 15px;
+        line-height: 2;
+    }
+
+    .formula-section .formula {
+        background: #f8f9fa;
+        padding: 8px 16px;
+        border-radius: 4px;
+        margin: 8px 0;
+        font-family: 'Consolas', monospace;
+    }
+
+    .btn-info {
+        background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+        color: white;
+    }
+
+    .btn-info:hover {
+        background: linear-gradient(135deg, #138496 0%, #117a8b 100%);
+    }
+</style>
+
+@code {
+    private MomentOfInertiaEngine engine = new();
+    private List<Material> materials = new();
+    private bool showResults = false;
+    private bool isCalculating = false;
+    private bool isSavingPdf = false;
+    private int selectedShapeIndex = 0;
+    private int selectedMaterialIndex = 2;
+    private string validationError = "";
+    private string svgBase64Image = "";
+    private ModuleInfo moduleInfo = new();
+
+    // Shape index mapping
+    private static readonly ShapeType[] ShapeIndexMap = new[]
+    {
+        ShapeType.Rectangle,       // 0
+        ShapeType.HollowRectangle, // 1
+        ShapeType.Circle,          // 2
+        ShapeType.HollowCircle,    // 3
+        ShapeType.IBeam,           // 4
+        ShapeType.CChannel,        // 5
+        ShapeType.TSection,        // 6
+        ShapeType.LSection         // 7
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        materials = MaterialService.GetMaterials();
+        SetDefaultValues();
+        moduleInfo = MetadataService.GetModule("moment-of-inertia");
+        await SetSeoMetadata();
+    }
+
+    private void OnShapeChanged()
+    {
+        if (selectedShapeIndex >= 0 && selectedShapeIndex < ShapeIndexMap.Length)
+        {
+            engine.SelectedShape = ShapeIndexMap[selectedShapeIndex];
+        }
+        SetDefaultValues();
+        validationError = "";
+    }
+
+    private void OnMaterialChanged()
+    {
+        if (selectedMaterialIndex >= 0 && selectedMaterialIndex < materials.Count)
+        {
+            engine.Density = materials[selectedMaterialIndex].Density;
+        }
+    }
+
+    private void UpdatePreview()
+    {
+        StateHasChanged();
+    }
+
+    private void SetDefaultValues()
+    {
+        switch (engine.SelectedShape)
+        {
+            case ShapeType.Rectangle:
+                engine.Width = 100;
+                engine.Height = 150;
+                break;
+            case ShapeType.HollowRectangle:
+                engine.Width = 100;
+                engine.Height = 150;
+                engine.InnerWidth = 80;
+                engine.InnerHeight = 130;
+                break;
+            case ShapeType.Circle:
+                engine.Diameter = 100;
+                break;
+            case ShapeType.HollowCircle:
+                engine.Diameter = 100;
+                engine.InnerDiameter = 80;
+                break;
+            case ShapeType.IBeam:
+                engine.FlangeWidth = 100;
+                engine.TotalHeight = 200;
+                engine.FlangeThickness = 15;
+                engine.WebThickness = 10;
+                break;
+            case ShapeType.CChannel:
+                engine.ChannelWidth = 80;
+                engine.ChannelHeight = 160;
+                engine.ChannelFlangeThickness = 12;
+                engine.ChannelWebThickness = 8;
+                break;
+            case ShapeType.TSection:
+                engine.TFlangeWidth = 120;
+                engine.THeight = 150;
+                engine.TFlangeThickness = 15;
+                engine.TStemThickness = 12;
+                break;
+            case ShapeType.LSection:
+                engine.LegWidth = 100;
+                engine.LegHeight = 100;
+                engine.LegThickness = 12;
+                break;
+        }
+    }
+
+    // Validation helpers
+    private bool HasInnerWidthError => engine.InnerWidth >= engine.Width && engine.InnerWidth > 0;
+    private bool HasInnerHeightError => engine.InnerHeight >= engine.Height && engine.InnerHeight > 0;
+    private bool HasInnerDiameterError => engine.InnerDiameter >= engine.Diameter && engine.InnerDiameter > 0;
+    private bool HasFlangeThicknessError => 2 * engine.FlangeThickness >= engine.TotalHeight && engine.FlangeThickness > 0;
+    private bool HasChannelFlangeError => 2 * engine.ChannelFlangeThickness >= engine.ChannelHeight && engine.ChannelFlangeThickness > 0;
+    private bool HasTFlangeError => engine.TFlangeThickness >= engine.THeight && engine.TFlangeThickness > 0;
+    private bool HasLegThicknessError => (engine.LegThickness >= engine.LegWidth || engine.LegThickness >= engine.LegHeight) && engine.LegThickness > 0;
+    private bool HasAnyError => HasInnerWidthError || HasInnerHeightError || HasInnerDiameterError ||
+                                HasFlangeThicknessError || HasChannelFlangeError || HasTFlangeError || HasLegThicknessError;
+
+    private async Task Calculate()
+    {
+        isCalculating = true;
+        StateHasChanged();
+        await Task.Delay(350);
+        if (!engine.ValidateInputs())
+        {
+            validationError = engine.GetValidationError();
+            await Analytics.TrackCalculationError("moment-of-inertia", "validation_failed", validationError);
+            isCalculating = false;
+            return;
+        }
+        validationError = "";
+        engine.Calculate();
+
+        // Convert SVG to Base64 image for PDF compatibility
+        await ConvertSvgToBase64();
+
+        // Track successful calculation
+        await Analytics.TrackCalculationCompleted("moment-of-inertia", new Dictionary<string, object>
+        {
+            { "shape_type", engine.SelectedShape.ToString() },
+            { "area", engine.Area },
+            { "moment_ix", engine.Ix },
+            { "moment_iy", engine.Iy }
+        });
+
+        showResults = true;
+        isCalculating = false;
+    }
+
+    private void BackToInput()
+    {
+        svgBase64Image = "";
+        showResults = false;
+    }
+
+    private void ClearForm()
+    {
+        engine = new MomentOfInertiaEngine();
+        selectedShapeIndex = 0;
+        engine.SelectedShape = ShapeType.Rectangle;
+        SetDefaultValues();
+        validationError = "";
+        svgBase64Image = "";
+        showResults = false;
+    }
+
+    private async Task ConvertSvgToBase64()
+    {
+        try
+        {
+            var svgContent = GetSvgWithAxes(450, 350, true);
+            svgBase64Image = await JSRuntime.InvokeAsync<string>("convertSvgToBase64", svgContent);
+        }
+        catch
+        {
+            svgBase64Image = "";
+        }
+    }
+
+    private async Task SaveAsPdf()
+    {
+        isSavingPdf = true;
+        StateHasChanged();
+        try
+        {
+            var fileName = $"MomentOfInertia-Report-{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            await JSRuntime.InvokeVoidAsync("generatePdf", "results-content", fileName);
+            await Analytics.TrackPdfDownload("moment-of-inertia", fileName);
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error", $"PDF generation error: {ex.Message}");
+        }
+    }
+
+    private string FormatLargeNumber(double value)
+    {
+        if (Math.Abs(value) >= 1_000_000)
+            return value.ToString("E3", CultureInfo.InvariantCulture);
+        return value.ToString("F2", CultureInfo.InvariantCulture);
+    }
+
+    // ============ SVG GENERATION WITH ORIGIN-CENTERED AXES ============
+
+    private string GetSvgWithAxes(int width, int height, bool showCentroid)
+    {
+        var svg = new System.Text.StringBuilder();
+        var ci = CultureInfo.InvariantCulture;
+
+        // Get shape dimensions for scaling
+        var (shapeWidth, shapeHeight) = GetShapeDimensions();
+        if (shapeWidth <= 0 || shapeHeight <= 0)
+        {
+            return $"<svg width=\"{width}\" height=\"{height}\" viewBox=\"0 0 {width} {height}\"><text x=\"{width/2}\" y=\"{height/2}\" text-anchor=\"middle\" fill=\"#999\">Enter dimensions</text></svg>";
+        }
+
+        // Calculate padding and scale
+        int padding = 60;
+        int drawWidth = width - 2 * padding;
+        int drawHeight = height - 2 * padding;
+
+        double scaleX = drawWidth / (shapeWidth * 1.4);
+        double scaleY = drawHeight / (shapeHeight * 1.4);
+        double scale = Math.Min(scaleX, scaleY);
+
+        // Origin at center of drawing area
+        double originX = width / 2.0;
+        double originY = height / 2.0;
+
+        svg.AppendLine($"<svg width=\"{width}\" height=\"{height}\" viewBox=\"0 0 {width} {height}\" xmlns=\"http://www.w3.org/2000/svg\">");
+
+        // Definitions for markers
+        svg.AppendLine("<defs>");
+        // Arrow marker for axes
+        svg.AppendLine("<marker id=\"arrowhead\" markerWidth=\"10\" markerHeight=\"7\" refX=\"9\" refY=\"3.5\" orient=\"auto\">");
+        svg.AppendLine("<polygon points=\"0 0, 10 3.5, 0 7\" fill=\"#2c3e50\"/>");
+        svg.AppendLine("</marker>");
+        // Dimension arrow markers
+        svg.AppendLine("<marker id=\"dimArrowStart\" markerWidth=\"8\" markerHeight=\"6\" refX=\"0\" refY=\"3\" orient=\"auto\">");
+        svg.AppendLine("<polygon points=\"8 0, 0 3, 8 6\" fill=\"#1a5276\"/>");
+        svg.AppendLine("</marker>");
+        svg.AppendLine("<marker id=\"dimArrowEnd\" markerWidth=\"8\" markerHeight=\"6\" refX=\"8\" refY=\"3\" orient=\"auto\">");
+        svg.AppendLine("<polygon points=\"0 0, 8 3, 0 6\" fill=\"#1a5276\"/>");
+        svg.AppendLine("</marker>");
+        svg.AppendLine("</defs>");
+
+        // Background
+        svg.AppendLine($"<rect x=\"0\" y=\"0\" width=\"{width}\" height=\"{height}\" fill=\"#fafafa\"/>");
+
+        // Grid lines (subtle)
+        double gridSpacing = CalculateGridSpacing(Math.Max(shapeWidth, shapeHeight));
+        DrawGrid(svg, originX, originY, drawWidth, drawHeight, scale, gridSpacing, ci);
+
+        // Draw coordinate axes through origin
+        DrawAxes(svg, originX, originY, drawWidth, drawHeight, scale, gridSpacing, ci);
+
+        // Draw the shape centered at origin
+        DrawShape(svg, originX, originY, scale, ci);
+
+        // Draw dimensions
+        DrawDimensions(svg, originX, originY, scale, ci);
+
+        // Draw centroid marker if showing results
+        if (showCentroid)
+        {
+            // Centroid is at origin (0,0) - just show the marker
+            svg.AppendLine($"<circle cx=\"{F(originX, ci)}\" cy=\"{F(originY, ci)}\" r=\"6\" fill=\"#e74c3c\" stroke=\"white\" stroke-width=\"2\"/>");
+            svg.AppendLine($"<text x=\"{F(originX + 12, ci)}\" y=\"{F(originY - 8, ci)}\" font-size=\"12\" font-weight=\"bold\" fill=\"#e74c3c\">C</text>");
+        }
+
+        svg.AppendLine("</svg>");
+        return svg.ToString();
+    }
+
+    private (double width, double height) GetShapeDimensions()
+    {
+        return engine.SelectedShape switch
+        {
+            ShapeType.Rectangle => (engine.Width, engine.Height),
+            ShapeType.HollowRectangle => (engine.Width, engine.Height),
+            ShapeType.Circle => (engine.Diameter, engine.Diameter),
+            ShapeType.HollowCircle => (engine.Diameter, engine.Diameter),
+            ShapeType.IBeam => (engine.FlangeWidth, engine.TotalHeight),
+            ShapeType.CChannel => (engine.ChannelWidth, engine.ChannelHeight),
+            ShapeType.TSection => (engine.TFlangeWidth, engine.THeight),
+            ShapeType.LSection => (engine.LegWidth, engine.LegHeight),
+            _ => (100, 100)
+        };
+    }
+
+    private double CalculateGridSpacing(double maxDim)
+    {
+        double[] niceIntervals = { 1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000 };
+        double targetCount = 4;
+        double idealSpacing = maxDim / targetCount;
+
+        foreach (var interval in niceIntervals)
+        {
+            if (interval >= idealSpacing * 0.5)
+                return interval;
+        }
+        return niceIntervals[^1];
+    }
+
+    private void DrawGrid(System.Text.StringBuilder svg, double originX, double originY, int drawWidth, int drawHeight, double scale, double gridSpacing, CultureInfo ci)
+    {
+        // Draw subtle grid lines
+        int gridCount = 6;
+        for (int i = -gridCount; i <= gridCount; i++)
+        {
+            double offset = i * gridSpacing * scale;
+
+            // Vertical grid line
+            double x = originX + offset;
+            if (x > 20 && x < drawWidth + 100)
+            {
+                svg.AppendLine($"<line x1=\"{F(x, ci)}\" y1=\"30\" x2=\"{F(x, ci)}\" y2=\"{drawHeight + 80}\" stroke=\"#e0e0e0\" stroke-width=\"1\"/>");
+            }
+
+            // Horizontal grid line
+            double y = originY - offset;
+            if (y > 20 && y < drawHeight + 100)
+            {
+                svg.AppendLine($"<line x1=\"30\" y1=\"{F(y, ci)}\" x2=\"{drawWidth + 80}\" y2=\"{F(y, ci)}\" stroke=\"#e0e0e0\" stroke-width=\"1\"/>");
+            }
+        }
+    }
+
+    private void DrawAxes(System.Text.StringBuilder svg, double originX, double originY, int drawWidth, int drawHeight, double scale, double gridSpacing, CultureInfo ci)
+    {
+        // X-axis (horizontal)
+        svg.AppendLine($"<line x1=\"30\" y1=\"{F(originY, ci)}\" x2=\"{drawWidth + 80}\" y2=\"{F(originY, ci)}\" stroke=\"#2c3e50\" stroke-width=\"2\" marker-end=\"url(#arrowhead)\"/>");
+        svg.AppendLine($"<text x=\"{drawWidth + 85}\" y=\"{F(originY + 5, ci)}\" font-size=\"14\" font-weight=\"bold\" fill=\"#2c3e50\">X</text>");
+
+        // Y-axis (vertical) - pointing up
+        svg.AppendLine($"<line x1=\"{F(originX, ci)}\" y1=\"{drawHeight + 80}\" x2=\"{F(originX, ci)}\" y2=\"30\" stroke=\"#2c3e50\" stroke-width=\"2\" marker-end=\"url(#arrowhead)\"/>");
+        svg.AppendLine($"<text x=\"{F(originX - 5, ci)}\" y=\"20\" font-size=\"14\" font-weight=\"bold\" fill=\"#2c3e50\">Y</text>");
+
+        // Origin label
+        svg.AppendLine($"<text x=\"{F(originX - 15, ci)}\" y=\"{F(originY + 18, ci)}\" font-size=\"11\" fill=\"#666\">0</text>");
+
+        // Axis tick marks and labels
+        int tickCount = 3;
+        for (int i = 1; i <= tickCount; i++)
+        {
+            double value = i * gridSpacing;
+            double offset = i * gridSpacing * scale;
+
+            // Positive X tick
+            double xPos = originX + offset;
+            if (xPos < drawWidth + 60)
+            {
+                svg.AppendLine($"<line x1=\"{F(xPos, ci)}\" y1=\"{F(originY - 4, ci)}\" x2=\"{F(xPos, ci)}\" y2=\"{F(originY + 4, ci)}\" stroke=\"#2c3e50\" stroke-width=\"1.5\"/>");
+                svg.AppendLine($"<text x=\"{F(xPos, ci)}\" y=\"{F(originY + 18, ci)}\" font-size=\"10\" text-anchor=\"middle\" fill=\"#666\">{value:0}</text>");
+            }
+
+            // Negative X tick
+            double xNeg = originX - offset;
+            if (xNeg > 40)
+            {
+                svg.AppendLine($"<line x1=\"{F(xNeg, ci)}\" y1=\"{F(originY - 4, ci)}\" x2=\"{F(xNeg, ci)}\" y2=\"{F(originY + 4, ci)}\" stroke=\"#2c3e50\" stroke-width=\"1.5\"/>");
+                svg.AppendLine($"<text x=\"{F(xNeg, ci)}\" y=\"{F(originY + 18, ci)}\" font-size=\"10\" text-anchor=\"middle\" fill=\"#666\">-{value:0}</text>");
+            }
+
+            // Positive Y tick (going up - SVG Y decreases)
+            double yPos = originY - offset;
+            if (yPos > 40)
+            {
+                svg.AppendLine($"<line x1=\"{F(originX - 4, ci)}\" y1=\"{F(yPos, ci)}\" x2=\"{F(originX + 4, ci)}\" y2=\"{F(yPos, ci)}\" stroke=\"#2c3e50\" stroke-width=\"1.5\"/>");
+                svg.AppendLine($"<text x=\"{F(originX - 10, ci)}\" y=\"{F(yPos + 4, ci)}\" font-size=\"10\" text-anchor=\"end\" fill=\"#666\">{value:0}</text>");
+            }
+
+            // Negative Y tick (going down - SVG Y increases)
+            double yNeg = originY + offset;
+            if (yNeg < drawHeight + 60)
+            {
+                svg.AppendLine($"<line x1=\"{F(originX - 4, ci)}\" y1=\"{F(yNeg, ci)}\" x2=\"{F(originX + 4, ci)}\" y2=\"{F(yNeg, ci)}\" stroke=\"#2c3e50\" stroke-width=\"1.5\"/>");
+                svg.AppendLine($"<text x=\"{F(originX - 10, ci)}\" y=\"{F(yNeg + 4, ci)}\" font-size=\"10\" text-anchor=\"end\" fill=\"#666\">-{value:0}</text>");
+            }
+        }
+    }
+
+    private void DrawShape(System.Text.StringBuilder svg, double originX, double originY, double scale, CultureInfo ci)
+    {
+        switch (engine.SelectedShape)
+        {
+            case ShapeType.Rectangle:
+                DrawRectangleShape(svg, originX, originY, scale, ci);
+                break;
+            case ShapeType.HollowRectangle:
+                DrawHollowRectangleShape(svg, originX, originY, scale, ci);
+                break;
+            case ShapeType.Circle:
+                DrawCircleShape(svg, originX, originY, scale, ci);
+                break;
+            case ShapeType.HollowCircle:
+                DrawHollowCircleShape(svg, originX, originY, scale, ci);
+                break;
+            case ShapeType.IBeam:
+                DrawIBeamShape(svg, originX, originY, scale, ci);
+                break;
+            case ShapeType.CChannel:
+                DrawCChannelShape(svg, originX, originY, scale, ci);
+                break;
+            case ShapeType.TSection:
+                DrawTSectionShape(svg, originX, originY, scale, ci);
+                break;
+            case ShapeType.LSection:
+                DrawLSectionShape(svg, originX, originY, scale, ci);
+                break;
+        }
+    }
+
+    // ============ SHAPE DRAWING METHODS (CENTERED AT ORIGIN) ============
+
+    private void DrawRectangleShape(System.Text.StringBuilder svg, double ox, double oy, double scale, CultureInfo ci)
+    {
+        double w = engine.Width * scale;
+        double h = engine.Height * scale;
+        double x = ox - w / 2;
+        double y = oy - h / 2;
+
+        svg.AppendLine($"<rect x=\"{F(x, ci)}\" y=\"{F(y, ci)}\" width=\"{F(w, ci)}\" height=\"{F(h, ci)}\" fill=\"#5dade2\" fill-opacity=\"0.6\" stroke=\"#2471a3\" stroke-width=\"2\"/>");
+    }
+
+    private void DrawHollowRectangleShape(System.Text.StringBuilder svg, double ox, double oy, double scale, CultureInfo ci)
+    {
+        double w = engine.Width * scale;
+        double h = engine.Height * scale;
+        double wi = engine.InnerWidth * scale;
+        double hi = engine.InnerHeight * scale;
+
+        // Outer rectangle
+        double x = ox - w / 2;
+        double y = oy - h / 2;
+        svg.AppendLine($"<rect x=\"{F(x, ci)}\" y=\"{F(y, ci)}\" width=\"{F(w, ci)}\" height=\"{F(h, ci)}\" fill=\"#5dade2\" fill-opacity=\"0.6\" stroke=\"#2471a3\" stroke-width=\"2\"/>");
+
+        // Inner rectangle (hollow)
+        double xi = ox - wi / 2;
+        double yi = oy - hi / 2;
+        svg.AppendLine($"<rect x=\"{F(xi, ci)}\" y=\"{F(yi, ci)}\" width=\"{F(wi, ci)}\" height=\"{F(hi, ci)}\" fill=\"#fafafa\" stroke=\"#2471a3\" stroke-width=\"1.5\"/>");
+    }
+
+    private void DrawCircleShape(System.Text.StringBuilder svg, double ox, double oy, double scale, CultureInfo ci)
+    {
+        double r = (engine.Diameter / 2) * scale;
+        svg.AppendLine($"<circle cx=\"{F(ox, ci)}\" cy=\"{F(oy, ci)}\" r=\"{F(r, ci)}\" fill=\"#5dade2\" fill-opacity=\"0.6\" stroke=\"#2471a3\" stroke-width=\"2\"/>");
+    }
+
+    private void DrawHollowCircleShape(System.Text.StringBuilder svg, double ox, double oy, double scale, CultureInfo ci)
+    {
+        double ro = (engine.Diameter / 2) * scale;
+        double ri = (engine.InnerDiameter / 2) * scale;
+
+        svg.AppendLine($"<circle cx=\"{F(ox, ci)}\" cy=\"{F(oy, ci)}\" r=\"{F(ro, ci)}\" fill=\"#5dade2\" fill-opacity=\"0.6\" stroke=\"#2471a3\" stroke-width=\"2\"/>");
+        svg.AppendLine($"<circle cx=\"{F(ox, ci)}\" cy=\"{F(oy, ci)}\" r=\"{F(ri, ci)}\" fill=\"#fafafa\" stroke=\"#2471a3\" stroke-width=\"1.5\"/>");
+    }
+
+    private void DrawIBeamShape(System.Text.StringBuilder svg, double ox, double oy, double scale, CultureInfo ci)
+    {
+        double bf = engine.FlangeWidth * scale;
+        double h = engine.TotalHeight * scale;
+        double tf = engine.FlangeThickness * scale;
+        double tw = engine.WebThickness * scale;
+
+        // I-beam centered at origin
+        double left = ox - bf / 2;
+        double top = oy - h / 2;
+
+        // Path for I-beam
+        string path = $"M {F(left, ci)} {F(top, ci)} " +
+                      $"L {F(left + bf, ci)} {F(top, ci)} " +
+                      $"L {F(left + bf, ci)} {F(top + tf, ci)} " +
+                      $"L {F(ox + tw/2, ci)} {F(top + tf, ci)} " +
+                      $"L {F(ox + tw/2, ci)} {F(top + h - tf, ci)} " +
+                      $"L {F(left + bf, ci)} {F(top + h - tf, ci)} " +
+                      $"L {F(left + bf, ci)} {F(top + h, ci)} " +
+                      $"L {F(left, ci)} {F(top + h, ci)} " +
+                      $"L {F(left, ci)} {F(top + h - tf, ci)} " +
+                      $"L {F(ox - tw/2, ci)} {F(top + h - tf, ci)} " +
+                      $"L {F(ox - tw/2, ci)} {F(top + tf, ci)} " +
+                      $"L {F(left, ci)} {F(top + tf, ci)} Z";
+
+        svg.AppendLine($"<path d=\"{path}\" fill=\"#5dade2\" fill-opacity=\"0.6\" stroke=\"#2471a3\" stroke-width=\"2\"/>");
+    }
+
+    private void DrawCChannelShape(System.Text.StringBuilder svg, double ox, double oy, double scale, CultureInfo ci)
+    {
+        double b = engine.ChannelWidth * scale;
+        double h = engine.ChannelHeight * scale;
+        double tf = engine.ChannelFlangeThickness * scale;
+        double tw = engine.ChannelWebThickness * scale;
+
+        // Calculate actual centroid offset for C-channel (asymmetric)
+        double Af = engine.ChannelWidth * engine.ChannelFlangeThickness;
+        double Aw = (engine.ChannelHeight - 2 * engine.ChannelFlangeThickness) * engine.ChannelWebThickness;
+        double totalArea = 2 * Af + Aw;
+        double centroidFromBack = (2 * Af * (engine.ChannelWidth / 2) + Aw * (engine.ChannelWebThickness / 2)) / totalArea;
+        double shiftX = centroidFromBack * scale;
+
+        // C-channel with centroid at origin (shift shape so centroid is at origin)
+        double left = ox - shiftX;
+        double top = oy - h / 2;
+
+        string path = $"M {F(left, ci)} {F(top, ci)} " +
+                      $"L {F(left + b, ci)} {F(top, ci)} " +
+                      $"L {F(left + b, ci)} {F(top + tf, ci)} " +
+                      $"L {F(left + tw, ci)} {F(top + tf, ci)} " +
+                      $"L {F(left + tw, ci)} {F(top + h - tf, ci)} " +
+                      $"L {F(left + b, ci)} {F(top + h - tf, ci)} " +
+                      $"L {F(left + b, ci)} {F(top + h, ci)} " +
+                      $"L {F(left, ci)} {F(top + h, ci)} Z";
+
+        svg.AppendLine($"<path d=\"{path}\" fill=\"#5dade2\" fill-opacity=\"0.6\" stroke=\"#2471a3\" stroke-width=\"2\"/>");
+    }
+
+    private void DrawTSectionShape(System.Text.StringBuilder svg, double ox, double oy, double scale, CultureInfo ci)
+    {
+        double bf = engine.TFlangeWidth * scale;
+        double h = engine.THeight * scale;
+        double tf = engine.TFlangeThickness * scale;
+        double tw = engine.TStemThickness * scale;
+
+        // Calculate actual centroid offset for T-section (asymmetric about X)
+        double Af = engine.TFlangeWidth * engine.TFlangeThickness;
+        double hs = engine.THeight - engine.TFlangeThickness;
+        double As = hs * engine.TStemThickness;
+        double totalArea = Af + As;
+        double yFlange = engine.THeight - engine.TFlangeThickness / 2;
+        double yStem = hs / 2;
+        double centroidFromBottom = (Af * yFlange + As * yStem) / totalArea;
+        double shiftY = (engine.THeight / 2 - centroidFromBottom) * scale;
+
+        // T-section with centroid at origin
+        double left = ox - bf / 2;
+        double top = oy - h / 2 - shiftY;
+
+        string path = $"M {F(left, ci)} {F(top, ci)} " +
+                      $"L {F(left + bf, ci)} {F(top, ci)} " +
+                      $"L {F(left + bf, ci)} {F(top + tf, ci)} " +
+                      $"L {F(ox + tw/2, ci)} {F(top + tf, ci)} " +
+                      $"L {F(ox + tw/2, ci)} {F(top + h, ci)} " +
+                      $"L {F(ox - tw/2, ci)} {F(top + h, ci)} " +
+                      $"L {F(ox - tw/2, ci)} {F(top + tf, ci)} " +
+                      $"L {F(left, ci)} {F(top + tf, ci)} Z";
+
+        svg.AppendLine($"<path d=\"{path}\" fill=\"#5dade2\" fill-opacity=\"0.6\" stroke=\"#2471a3\" stroke-width=\"2\"/>");
+    }
+
+    private void DrawLSectionShape(System.Text.StringBuilder svg, double ox, double oy, double scale, CultureInfo ci)
+    {
+        double b = engine.LegWidth * scale;
+        double h = engine.LegHeight * scale;
+        double t = engine.LegThickness * scale;
+
+        // Calculate actual centroid offset for L-section (asymmetric)
+        double A1 = engine.LegWidth * engine.LegThickness;
+        double A2 = (engine.LegHeight - engine.LegThickness) * engine.LegThickness;
+        double totalArea = A1 + A2;
+        double centroidXFromCorner = (A1 * (engine.LegWidth / 2) + A2 * (engine.LegThickness / 2)) / totalArea;
+        double centroidYFromCorner = (A1 * (engine.LegThickness / 2) + A2 * (engine.LegThickness + (engine.LegHeight - engine.LegThickness) / 2)) / totalArea;
+
+        double shiftX = centroidXFromCorner * scale;
+        double shiftY = centroidYFromCorner * scale;
+
+        // L-section with centroid at origin
+        double cornerX = ox - shiftX;
+        double cornerY = oy + shiftY;
+
+        string path = $"M {F(cornerX, ci)} {F(cornerY, ci)} " +
+                      $"L {F(cornerX + b, ci)} {F(cornerY, ci)} " +
+                      $"L {F(cornerX + b, ci)} {F(cornerY - t, ci)} " +
+                      $"L {F(cornerX + t, ci)} {F(cornerY - t, ci)} " +
+                      $"L {F(cornerX + t, ci)} {F(cornerY - h, ci)} " +
+                      $"L {F(cornerX, ci)} {F(cornerY - h, ci)} Z";
+
+        svg.AppendLine($"<path d=\"{path}\" fill=\"#5dade2\" fill-opacity=\"0.6\" stroke=\"#2471a3\" stroke-width=\"2\"/>");
+    }
+
+    // ============ DIMENSION DRAWING ============
+
+    private void DrawDimensions(System.Text.StringBuilder svg, double ox, double oy, double scale, CultureInfo ci)
+    {
+        switch (engine.SelectedShape)
+        {
+            case ShapeType.Rectangle:
+                DrawRectangleDimensions(svg, ox, oy, scale, ci);
+                break;
+            case ShapeType.HollowRectangle:
+                DrawHollowRectangleDimensions(svg, ox, oy, scale, ci);
+                break;
+            case ShapeType.Circle:
+                DrawCircleDimensions(svg, ox, oy, scale, ci);
+                break;
+            case ShapeType.HollowCircle:
+                DrawHollowCircleDimensions(svg, ox, oy, scale, ci);
+                break;
+            case ShapeType.IBeam:
+                DrawIBeamDimensions(svg, ox, oy, scale, ci);
+                break;
+            case ShapeType.CChannel:
+                DrawCChannelDimensions(svg, ox, oy, scale, ci);
+                break;
+            case ShapeType.TSection:
+                DrawTSectionDimensions(svg, ox, oy, scale, ci);
+                break;
+            case ShapeType.LSection:
+                DrawLSectionDimensions(svg, ox, oy, scale, ci);
+                break;
+        }
+    }
+
+    private void DrawRectangleDimensions(System.Text.StringBuilder svg, double ox, double oy, double scale, CultureInfo ci)
+    {
+        double w = engine.Width * scale;
+        double h = engine.Height * scale;
+        double offset = 25;
+
+        // Width dimension (bottom)
+        DrawHorizontalDimension(svg, ox - w/2, ox + w/2, oy + h/2 + offset, $"b = {engine.Width}", ci);
+
+        // Height dimension (right)
+        DrawVerticalDimension(svg, oy - h/2, oy + h/2, ox + w/2 + offset, $"h = {engine.Height}", ci);
+    }
+
+    private void DrawHollowRectangleDimensions(System.Text.StringBuilder svg, double ox, double oy, double scale, CultureInfo ci)
+    {
+        double w = engine.Width * scale;
+        double h = engine.Height * scale;
+        double offset = 25;
+
+        DrawHorizontalDimension(svg, ox - w/2, ox + w/2, oy + h/2 + offset, $"b = {engine.Width}", ci);
+        DrawVerticalDimension(svg, oy - h/2, oy + h/2, ox + w/2 + offset, $"h = {engine.Height}", ci);
+    }
+
+    private void DrawCircleDimensions(System.Text.StringBuilder svg, double ox, double oy, double scale, CultureInfo ci)
+    {
+        double r = (engine.Diameter / 2) * scale;
+
+        // Diameter line
+        svg.AppendLine($"<line x1=\"{F(ox - r, ci)}\" y1=\"{F(oy, ci)}\" x2=\"{F(ox + r, ci)}\" y2=\"{F(oy, ci)}\" stroke=\"#1a5276\" stroke-width=\"1.5\" marker-start=\"url(#dimArrowStart)\" marker-end=\"url(#dimArrowEnd)\"/>");
+        svg.AppendLine($"<text x=\"{F(ox, ci)}\" y=\"{F(oy - 8, ci)}\" font-size=\"11\" text-anchor=\"middle\" fill=\"#1a5276\" font-weight=\"500\">d = {engine.Diameter}</text>");
+    }
+
+    private void DrawHollowCircleDimensions(System.Text.StringBuilder svg, double ox, double oy, double scale, CultureInfo ci)
+    {
+        double ro = (engine.Diameter / 2) * scale;
+        double ri = (engine.InnerDiameter / 2) * scale;
+
+        // Outer diameter
+        svg.AppendLine($"<line x1=\"{F(ox - ro, ci)}\" y1=\"{F(oy, ci)}\" x2=\"{F(ox + ro, ci)}\" y2=\"{F(oy, ci)}\" stroke=\"#1a5276\" stroke-width=\"1.5\" marker-start=\"url(#dimArrowStart)\" marker-end=\"url(#dimArrowEnd)\"/>");
+        svg.AppendLine($"<text x=\"{F(ox, ci)}\" y=\"{F(oy - 8, ci)}\" font-size=\"11\" text-anchor=\"middle\" fill=\"#1a5276\" font-weight=\"500\">d = {engine.Diameter}</text>");
+
+        // Inner diameter (at angle)
+        double angle = Math.PI / 4;
+        svg.AppendLine($"<line x1=\"{F(ox - ri * Math.Cos(angle), ci)}\" y1=\"{F(oy + ri * Math.Sin(angle), ci)}\" x2=\"{F(ox + ri * Math.Cos(angle), ci)}\" y2=\"{F(oy - ri * Math.Sin(angle), ci)}\" stroke=\"#1a5276\" stroke-width=\"1\" stroke-dasharray=\"4,2\"/>");
+        svg.AppendLine($"<text x=\"{F(ox + 5, ci)}\" y=\"{F(oy + ri/2 + 15, ci)}\" font-size=\"10\" fill=\"#1a5276\">di = {engine.InnerDiameter}</text>");
+    }
+
+    private void DrawIBeamDimensions(System.Text.StringBuilder svg, double ox, double oy, double scale, CultureInfo ci)
+    {
+        double bf = engine.FlangeWidth * scale;
+        double h = engine.TotalHeight * scale;
+        double offset = 25;
+
+        DrawHorizontalDimension(svg, ox - bf/2, ox + bf/2, oy + h/2 + offset, $"bf = {engine.FlangeWidth}", ci);
+        DrawVerticalDimension(svg, oy - h/2, oy + h/2, ox + bf/2 + offset, $"h = {engine.TotalHeight}", ci);
+    }
+
+    private void DrawCChannelDimensions(System.Text.StringBuilder svg, double ox, double oy, double scale, CultureInfo ci)
+    {
+        double b = engine.ChannelWidth * scale;
+        double h = engine.ChannelHeight * scale;
+        double offset = 25;
+
+        // Approximate positions
+        double Af = engine.ChannelWidth * engine.ChannelFlangeThickness;
+        double Aw = (engine.ChannelHeight - 2 * engine.ChannelFlangeThickness) * engine.ChannelWebThickness;
+        double totalArea = 2 * Af + Aw;
+        double centroidFromBack = (2 * Af * (engine.ChannelWidth / 2) + Aw * (engine.ChannelWebThickness / 2)) / totalArea;
+        double shiftX = centroidFromBack * scale;
+        double left = ox - shiftX;
+
+        DrawHorizontalDimension(svg, left, left + b, oy + h/2 + offset, $"b = {engine.ChannelWidth}", ci);
+        DrawVerticalDimension(svg, oy - h/2, oy + h/2, left + b + offset, $"h = {engine.ChannelHeight}", ci);
+    }
+
+    private void DrawTSectionDimensions(System.Text.StringBuilder svg, double ox, double oy, double scale, CultureInfo ci)
+    {
+        double bf = engine.TFlangeWidth * scale;
+        double h = engine.THeight * scale;
+        double offset = 25;
+
+        DrawHorizontalDimension(svg, ox - bf/2, ox + bf/2, oy + h/2 + offset + 20, $"bf = {engine.TFlangeWidth}", ci);
+        DrawVerticalDimension(svg, oy - h/2 - 20, oy + h/2 + 20, ox + bf/2 + offset, $"h = {engine.THeight}", ci);
+    }
+
+    private void DrawLSectionDimensions(System.Text.StringBuilder svg, double ox, double oy, double scale, CultureInfo ci)
+    {
+        double b = engine.LegWidth * scale;
+        double h = engine.LegHeight * scale;
+        double offset = 25;
+
+        // Calculate centroid offsets
+        double A1 = engine.LegWidth * engine.LegThickness;
+        double A2 = (engine.LegHeight - engine.LegThickness) * engine.LegThickness;
+        double totalArea = A1 + A2;
+        double centroidXFromCorner = (A1 * (engine.LegWidth / 2) + A2 * (engine.LegThickness / 2)) / totalArea;
+        double centroidYFromCorner = (A1 * (engine.LegThickness / 2) + A2 * (engine.LegThickness + (engine.LegHeight - engine.LegThickness) / 2)) / totalArea;
+
+        double shiftX = centroidXFromCorner * scale;
+        double shiftY = centroidYFromCorner * scale;
+        double cornerX = ox - shiftX;
+        double cornerY = oy + shiftY;
+
+        DrawHorizontalDimension(svg, cornerX, cornerX + b, cornerY + offset, $"b = {engine.LegWidth}", ci);
+        DrawVerticalDimension(svg, cornerY - h, cornerY, cornerX - offset, $"h = {engine.LegHeight}", ci);
+    }
+
+    // ============ DIMENSION HELPER METHODS ============
+
+    private void DrawHorizontalDimension(System.Text.StringBuilder svg, double x1, double x2, double y, string label, CultureInfo ci)
+    {
+        svg.AppendLine($"<line x1=\"{F(x1, ci)}\" y1=\"{F(y, ci)}\" x2=\"{F(x2, ci)}\" y2=\"{F(y, ci)}\" stroke=\"#1a5276\" stroke-width=\"1.5\" marker-start=\"url(#dimArrowStart)\" marker-end=\"url(#dimArrowEnd)\"/>");
+        svg.AppendLine($"<text x=\"{F((x1 + x2) / 2, ci)}\" y=\"{F(y - 5, ci)}\" font-size=\"11\" text-anchor=\"middle\" fill=\"#1a5276\" font-weight=\"500\">{label}</text>");
+    }
+
+    private void DrawVerticalDimension(System.Text.StringBuilder svg, double y1, double y2, double x, string label, CultureInfo ci)
+    {
+        svg.AppendLine($"<line x1=\"{F(x, ci)}\" y1=\"{F(y1, ci)}\" x2=\"{F(x, ci)}\" y2=\"{F(y2, ci)}\" stroke=\"#1a5276\" stroke-width=\"1.5\" marker-start=\"url(#dimArrowStart)\" marker-end=\"url(#dimArrowEnd)\"/>");
+        svg.AppendLine($"<text x=\"{F(x + 5, ci)}\" y=\"{F((y1 + y2) / 2, ci)}\" font-size=\"11\" fill=\"#1a5276\" font-weight=\"500\">{label}</text>");
+    }
+
+    private string F(double value, CultureInfo ci) => value.ToString("F1", ci);
+
+    // ============ HELPER METHODS ============
+
+    private string GetInputDimensionsRows()
+    {
+        var rows = new System.Text.StringBuilder();
+
+        switch (engine.SelectedShape)
+        {
+            case ShapeType.Rectangle:
+                rows.AppendLine($"<tr><td>Width</td><td>b</td><td>{engine.Width:F1}</td><td>mm</td></tr>");
+                rows.AppendLine($"<tr><td>Height</td><td>h</td><td>{engine.Height:F1}</td><td>mm</td></tr>");
+                break;
+            case ShapeType.HollowRectangle:
+                rows.AppendLine($"<tr><td>Outer Width</td><td>b</td><td>{engine.Width:F1}</td><td>mm</td></tr>");
+                rows.AppendLine($"<tr><td>Outer Height</td><td>h</td><td>{engine.Height:F1}</td><td>mm</td></tr>");
+                rows.AppendLine($"<tr><td>Inner Width</td><td>b<sub>i</sub></td><td>{engine.InnerWidth:F1}</td><td>mm</td></tr>");
+                rows.AppendLine($"<tr><td>Inner Height</td><td>h<sub>i</sub></td><td>{engine.InnerHeight:F1}</td><td>mm</td></tr>");
+                break;
+            case ShapeType.Circle:
+                rows.AppendLine($"<tr><td>Diameter</td><td>d</td><td>{engine.Diameter:F1}</td><td>mm</td></tr>");
+                break;
+            case ShapeType.HollowCircle:
+                rows.AppendLine($"<tr><td>Outer Diameter</td><td>d</td><td>{engine.Diameter:F1}</td><td>mm</td></tr>");
+                rows.AppendLine($"<tr><td>Inner Diameter</td><td>d<sub>i</sub></td><td>{engine.InnerDiameter:F1}</td><td>mm</td></tr>");
+                break;
+            case ShapeType.IBeam:
+                rows.AppendLine($"<tr><td>Flange Width</td><td>b<sub>f</sub></td><td>{engine.FlangeWidth:F1}</td><td>mm</td></tr>");
+                rows.AppendLine($"<tr><td>Total Height</td><td>h</td><td>{engine.TotalHeight:F1}</td><td>mm</td></tr>");
+                rows.AppendLine($"<tr><td>Flange Thickness</td><td>t<sub>f</sub></td><td>{engine.FlangeThickness:F1}</td><td>mm</td></tr>");
+                rows.AppendLine($"<tr><td>Web Thickness</td><td>t<sub>w</sub></td><td>{engine.WebThickness:F1}</td><td>mm</td></tr>");
+                break;
+            case ShapeType.CChannel:
+                rows.AppendLine($"<tr><td>Width</td><td>b</td><td>{engine.ChannelWidth:F1}</td><td>mm</td></tr>");
+                rows.AppendLine($"<tr><td>Height</td><td>h</td><td>{engine.ChannelHeight:F1}</td><td>mm</td></tr>");
+                rows.AppendLine($"<tr><td>Flange Thickness</td><td>t<sub>f</sub></td><td>{engine.ChannelFlangeThickness:F1}</td><td>mm</td></tr>");
+                rows.AppendLine($"<tr><td>Web Thickness</td><td>t<sub>w</sub></td><td>{engine.ChannelWebThickness:F1}</td><td>mm</td></tr>");
+                break;
+            case ShapeType.TSection:
+                rows.AppendLine($"<tr><td>Flange Width</td><td>b<sub>f</sub></td><td>{engine.TFlangeWidth:F1}</td><td>mm</td></tr>");
+                rows.AppendLine($"<tr><td>Total Height</td><td>h</td><td>{engine.THeight:F1}</td><td>mm</td></tr>");
+                rows.AppendLine($"<tr><td>Flange Thickness</td><td>t<sub>f</sub></td><td>{engine.TFlangeThickness:F1}</td><td>mm</td></tr>");
+                rows.AppendLine($"<tr><td>Stem Thickness</td><td>t<sub>w</sub></td><td>{engine.TStemThickness:F1}</td><td>mm</td></tr>");
+                break;
+            case ShapeType.LSection:
+                rows.AppendLine($"<tr><td>Horizontal Leg Width</td><td>b</td><td>{engine.LegWidth:F1}</td><td>mm</td></tr>");
+                rows.AppendLine($"<tr><td>Vertical Leg Height</td><td>h</td><td>{engine.LegHeight:F1}</td><td>mm</td></tr>");
+                rows.AppendLine($"<tr><td>Leg Thickness</td><td>t</td><td>{engine.LegThickness:F1}</td><td>mm</td></tr>");
+                break;
+        }
+
+        return rows.ToString();
+    }
+
+    private string GetFormulasHtml()
+    {
+        return engine.SelectedShape switch
+        {
+            ShapeType.Rectangle => @"
+                <p><strong>Rectangle (centered at origin):</strong></p>
+                <div class='formula'>A = b × h</div>
+                <div class='formula'>I<sub>x</sub> = (b × h³) / 12</div>
+                <div class='formula'>I<sub>y</sub> = (h × b³) / 12</div>
+                <div class='formula'>W<sub>x</sub> = I<sub>x</sub> / (h/2)</div>",
+
+            ShapeType.HollowRectangle => @"
+                <p><strong>Hollow Rectangle (centered at origin):</strong></p>
+                <div class='formula'>A = b×h - b<sub>i</sub>×h<sub>i</sub></div>
+                <div class='formula'>I<sub>x</sub> = (b×h³ - b<sub>i</sub>×h<sub>i</sub>³) / 12</div>
+                <div class='formula'>I<sub>y</sub> = (h×b³ - h<sub>i</sub>×b<sub>i</sub>³) / 12</div>",
+
+            ShapeType.Circle => @"
+                <p><strong>Circle (centered at origin):</strong></p>
+                <div class='formula'>A = π × r²</div>
+                <div class='formula'>I<sub>x</sub> = I<sub>y</sub> = (π × d⁴) / 64</div>
+                <div class='formula'>W<sub>x</sub> = W<sub>y</sub> = (π × d³) / 32</div>",
+
+            ShapeType.HollowCircle => @"
+                <p><strong>Hollow Circle (centered at origin):</strong></p>
+                <div class='formula'>A = π × (r<sub>o</sub>² - r<sub>i</sub>²)</div>
+                <div class='formula'>I<sub>x</sub> = I<sub>y</sub> = (π/64) × (d⁴ - d<sub>i</sub>⁴)</div>",
+
+            ShapeType.IBeam => @"
+                <p><strong>I-Beam (centered at origin):</strong></p>
+                <div class='formula'>A = 2×b<sub>f</sub>×t<sub>f</sub> + h<sub>w</sub>×t<sub>w</sub></div>
+                <div class='formula'>I<sub>x</sub> = Σ(I<sub>i</sub> + A<sub>i</sub>×d<sub>i</sub>²) (Parallel axis theorem)</div>",
+
+            ShapeType.CChannel => @"
+                <p><strong>C-Channel (centroid at origin):</strong></p>
+                <div class='formula'>A = 2×b×t<sub>f</sub> + h<sub>w</sub>×t<sub>w</sub></div>
+                <div class='formula'>I<sub>x</sub>, I<sub>y</sub> calculated using parallel axis theorem</div>
+                <div class='formula'>Centroid shifted to origin</div>",
+
+            ShapeType.TSection => @"
+                <p><strong>T-Section (centroid at origin):</strong></p>
+                <div class='formula'>A = b<sub>f</sub>×t<sub>f</sub> + h<sub>s</sub>×t<sub>w</sub></div>
+                <div class='formula'>I<sub>x</sub>, I<sub>y</sub> calculated using parallel axis theorem</div>
+                <div class='formula'>Centroid shifted to origin</div>",
+
+            ShapeType.LSection => @"
+                <p><strong>L-Section (centroid at origin):</strong></p>
+                <div class='formula'>A = b×t + (h-t)×t</div>
+                <div class='formula'>I<sub>x</sub>, I<sub>y</sub> calculated using parallel axis theorem</div>
+                <div class='formula'>Centroid shifted to origin</div>",
+
+            _ => "<p>Select a shape to see formulas</p>"
+        };
+    }
+
+    // ============ SEO & ANALYTICS ============
+
+    private async Task SetSeoMetadata()
+    {
+        try
+        {
+            var metaTags = new
+            {
+                title = moduleInfo.Name + " - Mekanika",
+                description = moduleInfo.Description,
+                keywords = moduleInfo.Keywords,
+                url = "https://mekanika.org" + moduleInfo.Route,
+                image = "https://mekanika.org/images/og-moment-of-inertia.png"
+            };
+
+            await JSRuntime.InvokeVoidAsync("setMetaTags", metaTags);
+            await SetStructuredData();
+        }
+        catch
+        {
+            // Fail silently - SEO metadata is not critical
+        }
+    }
+
+    private async Task SetStructuredData()
+    {
+        try
+        {
+            var structuredData = new
+            {
+                context = "https://schema.org",
+                type = "SoftwareApplication",
+                name = moduleInfo.Name,
+                applicationCategory = "EngineeringApplication",
+                operatingSystem = "Web Browser",
+                browserRequirements = "Requires JavaScript, WebAssembly support",
+                offers = new
+                {
+                    type = "Offer",
+                    price = "0",
+                    priceCurrency = "USD"
+                },
+                featureList = new[]
+                {
+                    "Standards-based calculations",
+                    "PDF export",
+                    "No registration required",
+                    "Privacy-focused (client-side)"
+                },
+                screenshot = $"https://mekanika.org/screenshots/{moduleInfo.Key}.png"
+            };
+
+            await JSRuntime.InvokeVoidAsync("setStructuredData", structuredData);
+        }
+        catch
+        {
+            // Fail silently - structured data is not critical
+        }
+    }
+}
