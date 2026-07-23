@@ -1,0 +1,196 @@
+@page "/privacy"
+
+@*
+    DRAFT privacy policy — a drafted starting point, NOT legal advice.
+    Before publishing you MUST:
+      1. Replace every [BRACKETED] placeholder (legal entity, jurisdiction, dates).
+      2. Have someone confirm it covers KVKK (Turkey) + GDPR (EU) for your situation.
+    The [BRACKETED] tokens are intentionally visible so this cannot ship half-filled.
+*@
+
+<PageTitle>Privacy Policy - Mekanika</PageTitle>
+
+<div class="page-header">
+    <h1>Privacy Policy</h1>
+    <p>How Mekanika handles your data — last updated [EFFECTIVE DATE]</p>
+</div>
+
+<div class="card">
+    <div class="card-header"><h2>Summary</h2></div>
+    <div class="policy-body">
+        <p>
+            Mekanika is a free engineering-calculation tool that runs in your browser.
+            <strong>Your calculation inputs are processed entirely on your device</strong>
+            and are never sent to a server unless you choose to save them to an account.
+            We do not sell your data. This page explains what is collected, why, and the
+            choices you have.
+        </p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><h2>Who is responsible</h2></div>
+    <div class="policy-body">
+        <p>
+            The data controller for this site is <strong>[LEGAL ENTITY / OPERATOR NAME]</strong>,
+            operating <strong>mekanika.org</strong>. For any privacy question or request,
+            contact <a href="mailto:contact@@mekanika.org">contact@@mekanika.org</a>.
+        </p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><h2>What we collect, and why</h2></div>
+    <div class="policy-body">
+        <div class="about-section-label">Calculations you run</div>
+        <p>
+            Inputs you type into a calculator are processed locally in your browser using
+            WebAssembly. They are <strong>not transmitted to any server</strong> while you
+            calculate, and a shareable link you generate encodes those inputs into the link
+            itself — we do not store it.
+        </p>
+
+        <div class="about-section-label" style="margin-top: 20px;">If you create an account (optional)</div>
+        <p>
+            Accounts are optional. The tool works fully without one. If you sign up, we
+            process:
+        </p>
+        <ul>
+            <li><strong>Your email address</strong> — to identify your account and sign you in.</li>
+            <li><strong>An optional display name and company</strong> — only if you enter them.</li>
+            <li>
+                <strong>Calculations you explicitly save</strong> — the input values and a
+                title you give them, so you can reopen them later.
+            </li>
+        </ul>
+        <p>
+            The legal basis is performance of the service you request (providing your
+            account and saved work). Authentication and this data are handled by our
+            processor, <strong>Supabase</strong>, on servers in the <strong>European Union
+            (Frankfurt, Germany)</strong>.
+        </p>
+
+        <div class="about-section-label" style="margin-top: 20px;">Analytics</div>
+        <p>
+            We use <strong>Google Analytics</strong> to understand which calculators are
+            used, in aggregate, so we can improve them. This sets cookies and collects usage
+            data such as pages visited and approximate location. The legal basis is your
+            consent and our legitimate interest in improving the service.
+        </p>
+
+        <div class="about-section-label" style="margin-top: 20px;">Advertising</div>
+        <p>
+            This site may display ads through <strong>Google AdSense</strong>, which can use
+            cookies to serve and measure ads. You can manage ad personalisation via
+            <a href="https://adssettings.google.com" target="_blank" rel="noopener">Google Ad Settings</a>.
+        </p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><h2>What we never do</h2></div>
+    <div class="policy-body">
+        <ul>
+            <li>We do not sell or rent your personal data.</li>
+            <li>We do not upload your calculation inputs to a server unless you save them.</li>
+            <li>We do not use your saved calculations for advertising.</li>
+        </ul>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><h2>How long we keep it</h2></div>
+    <div class="policy-body">
+        <p>
+            Account data and saved calculations are kept until you delete them or close your
+            account. When you delete your account, your profile and all your saved
+            calculations are permanently removed. Analytics data is retained according to
+            Google's retention settings.
+        </p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><h2>Your rights</h2></div>
+    <div class="policy-body">
+        <p>
+            Under GDPR and KVKK you have the right to access, correct, export, or delete your
+            personal data, and to withdraw consent. In the app you can:
+        </p>
+        <ul>
+            <li><strong>Delete your account and all saved data</strong> yourself, from your account settings.</li>
+            <li>Edit or remove any individual saved calculation.</li>
+        </ul>
+        <p>
+            For anything else, email <a href="mailto:contact@@mekanika.org">contact@@mekanika.org</a>
+            and we will respond within the period required by [APPLICABLE LAW / JURISDICTION].
+            You also have the right to lodge a complaint with your local data protection
+            authority.
+        </p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><h2>Cookies</h2></div>
+    <div class="policy-body">
+        <p>
+            The calculators themselves do not require cookies. Cookies are used by the
+            analytics and advertising services above, and, if you sign in, a token is stored
+            in your browser to keep you logged in. You can clear these at any time through
+            your browser settings.
+        </p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><h2>Changes</h2></div>
+    <div class="policy-body">
+        <p>
+            We may update this policy as the service evolves. Material changes will be
+            reflected in the "last updated" date above.
+        </p>
+    </div>
+</div>
+
+<style>
+    .policy-body {
+        padding: 8px 4px;
+        line-height: 1.85;
+        color: #495057;
+        font-size: 15px;
+    }
+
+    .policy-body p {
+        margin-bottom: 12px;
+    }
+
+    .policy-body ul {
+        margin: 8px 0 12px 0;
+        padding-left: 22px;
+    }
+
+    .policy-body li {
+        margin-bottom: 6px;
+    }
+
+    .policy-body a {
+        color: #0077be;
+        text-decoration: none;
+        font-weight: 600;
+    }
+
+    .policy-body a:hover {
+        text-decoration: underline;
+    }
+
+    .about-section-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #0077be;
+        font-weight: 700;
+        padding: 0 0 8px 0;
+        border-bottom: 2px solid #e6f3fa;
+        margin-bottom: 8px;
+    }
+</style>
