@@ -1,0 +1,69 @@
+@page "/auth/callback"
+@inject SupabaseAuthService Auth
+@inject NavigationManager Navigation
+
+@*
+    Landing page for the redirect back from Google / a magic link. Supabase leaves the
+    session in the URL fragment; we consume it, persist the session, and move on. This
+    route must be in the Supabase "Redirect URLs" list, and it relies on the GitHub
+    Pages 404.html SPA rewrite to resolve on a hard load.
+*@
+
+<PageTitle>Signing in… - Mekanika</PageTitle>
+
+<div class="callback-wrap">
+    @if (error == null)
+    {
+        <div class="spinner spinner-lg"></div>
+        <p>Signing you in…</p>
+    }
+    else
+    {
+        <div class="alert alert-danger" style="max-width: 420px;">
+            <div>
+                <strong>Sign-in could not be completed.</strong>
+                <div style="margin-top: 6px;">@error</div>
+            </div>
+        </div>
+        <a href="/login" class="btn btn-primary" style="margin-top: 16px;">Back to sign in</a>
+    }
+</div>
+
+<style>
+    .callback-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        min-height: 50vh;
+        color: #495057;
+    }
+    .spinner-lg {
+        width: 36px;
+        height: 36px;
+        border-width: 4px;
+    }
+</style>
+
+@code {
+    private string? error = null;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // JS interop (reading the fragment) is only safe after the first render.
+        if (!firstRender) return;
+
+        var (ok, err) = await Auth.CompleteFromCallbackAsync();
+
+        if (ok)
+        {
+            Navigation.NavigateTo("/account", forceLoad: false);
+        }
+        else
+        {
+            error = err ?? "The sign-in link may have expired.";
+            StateHasChanged();
+        }
+    }
+}

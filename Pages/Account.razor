@@ -1,0 +1,135 @@
+@page "/account"
+@inject SupabaseAuthService Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Your Account - Mekanika</PageTitle>
+
+<div class="page-header">
+    <h1>Your Account</h1>
+    <p>Manage how you sign in and what data Mekanika keeps.</p>
+</div>
+
+@if (!ready)
+{
+    <div class="card"><div style="padding: 12px;">Loading…</div></div>
+}
+else if (session == null)
+{
+    <div class="card">
+        <div style="padding: 12px 4px;">
+            <p>You are not signed in.</p>
+            <a href="/login" class="btn btn-primary" style="margin-top: 8px;">Sign in</a>
+        </div>
+    </div>
+}
+else
+{
+    <div class="card">
+        <div class="card-header"><h2>Profile</h2></div>
+        <table class="results-table">
+            <tbody>
+                <tr><td>Email</td><td>@session.Email</td></tr>
+                <tr><td>Signed in with</td><td>Magic link / Google</td></tr>
+            </tbody>
+        </table>
+        <div style="margin-top: 16px;">
+            <button class="btn btn-secondary" @onclick="SignOut">Sign out</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header"><h2>Delete account</h2></div>
+        <div style="padding: 8px 4px; line-height: 1.7; color: #495057;">
+            <p>
+                Permanently deletes your account and <strong>every calculation you have
+                saved</strong>. This cannot be undone.
+            </p>
+
+            @if (deleteError != null)
+            {
+                <div class="alert alert-danger" style="margin: 12px 0;"><div>@deleteError</div></div>
+            }
+
+            @if (!confirmingDelete)
+            {
+                <button class="btn btn-danger" @onclick="() => confirmingDelete = true">
+                    Delete my account
+                </button>
+            }
+            else
+            {
+                <div class="alert alert-warning" style="margin: 12px 0;">
+                    <div>Are you sure? This removes your account and all saved calculations for good.</div>
+                </div>
+                <div class="button-group">
+                    <button class="btn btn-danger @(isDeleting ? "btn-calculating" : "")"
+                            @onclick="DeleteAccount" disabled="@isDeleting">
+                        @if (isDeleting)
+                        {
+                            <span class="spinner"></span>
+                            <span>Deleting…</span>
+                        }
+                        else
+                        {
+                            <span>Yes, delete everything</span>
+                        }
+                    </button>
+                    <button class="btn btn-secondary" @onclick="() => confirmingDelete = false" disabled="@isDeleting">
+                        Cancel
+                    </button>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+<style>
+    .btn-danger {
+        background: linear-gradient(135deg, #dc3545 0%, #b02a37 100%);
+        color: white;
+    }
+    .btn-danger:hover { background: linear-gradient(135deg, #b02a37 0%, #922331 100%); }
+
+    .results-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .results-table td { padding: 10px 16px; border-bottom: 1px solid #eee; }
+    .results-table td:first-child { color: #6c757d; width: 40%; }
+</style>
+
+@code {
+    private Models.UserSession? session;
+    private bool ready = false;
+    private bool confirmingDelete = false;
+    private bool isDeleting = false;
+    private string? deleteError = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        session = await Auth.InitializeAsync();
+        ready = true;
+    }
+
+    private async Task SignOut()
+    {
+        await Auth.SignOutAsync();
+        Navigation.NavigateTo("/");
+    }
+
+    private async Task DeleteAccount()
+    {
+        isDeleting = true;
+        deleteError = null;
+        StateHasChanged();
+
+        var (ok, err) = await Auth.DeleteAccountAsync();
+
+        isDeleting = false;
+        if (ok)
+        {
+            Navigation.NavigateTo("/", forceLoad: true);
+        }
+        else
+        {
+            deleteError = err ?? "Could not delete the account. Please try again.";
+        }
+    }
+}

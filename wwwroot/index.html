@@ -94,6 +94,10 @@
     <!-- Analytics Wrapper (BEFORE Blazor scripts) -->
     <script src="js/analytics.js"></script>
 
+    <!-- Auth storage helper. Must load BEFORE Blazor, because the persisted session is
+         restored during host startup (Program.cs) before the app's first render. -->
+    <script src="js/auth.js"></script>
+
     <!-- Core Blazor Framework -->
     <script src="_framework/blazor.webassembly.js"></script>
 
