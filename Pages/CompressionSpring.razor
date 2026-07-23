@@ -17,6 +17,8 @@
     <p>Compression spring design according to EN 13906-1</p>
 </div>
 
+<SharedCalculationLoader Module="compression-spring" OnRestore="ApplyShareState" />
+
 @if (!showResults)
 {
     <!-- INPUT FORM -->
@@ -231,7 +233,19 @@ else
             }
         </button>
         <Viewer3D Module="compression-spring" Parameters="@Build3dParameters()" />
+        <ShareCalculation Module="compression-spring" State="@BuildShareState()" />
     </div>
+
+    @if (openedFromSharedLink)
+    {
+        <div class="alert alert-info" style="margin-bottom: 24px;">
+            <ModuleIcon Type="info" Size="small" Style="default" />
+            <div>
+                <strong>Opened from a shared link.</strong>
+                The inputs below came from the link and were recalculated with the current engine.
+            </div>
+        </div>
+    }
 
     <div id="results-content">
 
@@ -970,6 +984,7 @@ else
     private bool isSavingPdf = false;
     private string selectedMaterial = "SH";
     private string loadType = "Static"; // "Static" or "Dynamic"
+    private bool openedFromSharedLink = false;
 
     // Modal visibility
     private bool showEndConditionInfo = false;
@@ -1247,6 +1262,70 @@ else
         fatigueEnduranceLimit = 0;
         estimatedCycles = 0;
         showResults = false;
+        openedFromSharedLink = false;
+    }
+
+    /// <summary>
+    /// The module's inputs in the neutral form used by shareable links (and, later,
+    /// cloud-saved calculations). Inputs only — results are recomputed on restore.
+    ///
+    /// The material grade is stored by key, and the properties it drives (G, Rm) are
+    /// stored alongside so a manual override survives the round-trip. End type,
+    /// end condition and shot-peening bind straight to the engine. Keys are kept
+    /// short because the whole state rides in a URL.
+    /// </summary>
+    private CalculationState BuildShareState() => new CalculationState("compression-spring")
+        .Set("d", engine.WireDiameter)
+        .Set("Dm", engine.MeanCoilDiameter)
+        .Set("L0", engine.FreeLength)
+        .Set("n", engine.ActiveCoils)
+        .Set("end", engine.EndType)
+        .Set("mat", selectedMaterial)
+        .Set("G", engine.ShearModulus)
+        .Set("Rm", engine.TensileStrength)
+        .Set("peen", engine.ShotPeened)
+        .Set("lt", loadType)
+        .Set("ec", engine.EndCondition)
+        .Set("aL", assembledLength)
+        .Set("cL", compressedLength);
+
+    /// <summary>
+    /// Restores state produced by <see cref="BuildShareState"/>, then recalculates so
+    /// the recipient lands straight on the results.
+    ///
+    /// Every read supplies the current value as its fallback, so a link written by an
+    /// older build that lacked a field leaves that field at its default instead of
+    /// zeroing it.
+    /// </summary>
+    private async Task ApplyShareState(CalculationState state)
+    {
+        engine.WireDiameter = state.GetDouble("d", engine.WireDiameter);
+        engine.MeanCoilDiameter = state.GetDouble("Dm", engine.MeanCoilDiameter);
+        engine.FreeLength = state.GetDouble("L0", engine.FreeLength);
+        engine.ActiveCoils = state.GetDouble("n", engine.ActiveCoils);
+        engine.EndType = state.GetString("end", engine.EndType);
+        engine.EndCondition = state.GetString("ec", engine.EndCondition);
+        engine.ShotPeened = state.GetBool("peen", engine.ShotPeened);
+
+        // Material sets G/Rm from its grade; reapply the stored values afterwards so
+        // a manual override is preserved.
+        var mat = state.GetString("mat", selectedMaterial);
+        selectedMaterial = SpringEngine.Materials.ContainsKey(mat) ? mat : selectedMaterial;
+        OnMaterialChanged();
+        engine.ShearModulus = state.GetDouble("G", engine.ShearModulus);
+        engine.TensileStrength = state.GetDouble("Rm", engine.TensileStrength);
+
+        // Load type first: its handler clears the length fields, so the stored working
+        // lengths must be applied afterwards.
+        loadType = state.GetString("lt", loadType);
+        OnLoadTypeChanged();
+        assembledLength = state.GetDouble("aL", assembledLength);
+        compressedLength = state.GetDouble("cL", compressedLength);
+
+        openedFromSharedLink = true;
+
+        // Calculate() validates, so a damaged link just leaves the user on the form.
+        await Calculate();
     }
 
     private async Task SaveAsPdf()

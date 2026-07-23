@@ -67,6 +67,32 @@ public class AnalyticsService
     }
 
     /// <summary>
+    /// Track generating a shareable link for a calculation
+    /// </summary>
+    /// <param name="moduleName">Calculator module name</param>
+    /// <param name="copiedToClipboard">False when the browser refused clipboard access</param>
+    public async Task TrackCalculationShared(string moduleName, bool copiedToClipboard)
+    {
+        await TrackEvent("calculation_shared", new Dictionary<string, object>
+        {
+            { "module_name", moduleName },
+            { "copied_to_clipboard", copiedToClipboard }
+        });
+    }
+
+    /// <summary>
+    /// Track opening a calculation from a shared link
+    /// </summary>
+    /// <param name="moduleName">Calculator module name</param>
+    public async Task TrackSharedLinkOpened(string moduleName)
+    {
+        await TrackEvent("shared_link_opened", new Dictionary<string, object>
+        {
+            { "module_name", moduleName }
+        });
+    }
+
+    /// <summary>
     /// Track calculation errors and validation failures
     /// </summary>
     /// <param name="moduleName">Calculator module name</param>

@@ -17,6 +17,8 @@
     <p>Press fit and shrink fit calculations according to DIN 7190, with temperature and rotation effects.</p>
 </div>
 
+<SharedCalculationLoader Module="interference-fit" OnRestore="ApplyShareState" />
+
 @if (!showResults)
 {
     <!-- INPUT FORM -->
@@ -230,7 +232,19 @@ else
             }
         </button>
         <Viewer3D Module="interference-fit" Parameters="@Build3dParameters()" />
+        <ShareCalculation Module="interference-fit" State="@BuildShareState()" />
     </div>
+
+    @if (openedFromSharedLink)
+    {
+        <div class="alert alert-info" style="margin-bottom: 24px;">
+            <ModuleIcon Type="info" Size="small" Style="default" />
+            <div>
+                <strong>Opened from a shared link.</strong>
+                The inputs below came from the link and were recalculated with the current engine.
+            </div>
+        </div>
+    }
 
     <div id="results-content">
         <!-- Calculation Summary -->
@@ -360,6 +374,10 @@ else
 
     private int selectedShaftMaterialIndex = 2; // C45
     private int selectedHubMaterialIndex = 2;   // C45
+    private bool openedFromSharedLink = false;
+
+    /// <summary>Load factors offered by the dropdown. A shared link carrying anything else falls back to 1.0.</summary>
+    private static readonly string[] LoadFactorOptions = { "1.0", "1.25", "1.5", "1.75", "2.0" };
 
     protected override async Task OnInitializedAsync()
     {
@@ -572,6 +590,108 @@ else
         selectedLoadFactor = "1.0";
         SetDefaultValues();
         showResults = false;
+        openedFromSharedLink = false;
+    }
+
+    /// <summary>
+    /// The module's inputs in the neutral form used by shareable links (and, later,
+    /// cloud-saved calculations). Inputs only — results are recomputed on restore.
+    ///
+    /// Materials go in by name rather than by their index in MaterialService, so
+    /// adding a material to that list cannot repoint existing links at the wrong
+    /// steel. Keys are kept short because the whole state rides in a URL.
+    /// </summary>
+    private CalculationState BuildShareState() => new CalculationState("interference-fit")
+        .Set("D", engine.NominalDiameter)
+        .Set("L", engine.FitLength)
+        .Set("di", engine.ShaftInnerDiameter)
+        .Set("Da", engine.HubOuterDiameter)
+        .Set("sf", selectedShaftFit)
+        .Set("hf", selectedHubFit)
+        .Set("sup", engine.ShaftUpperDeviation)
+        .Set("slo", engine.ShaftLowerDeviation)
+        .Set("hup", engine.HubUpperDeviation)
+        .Set("hlo", engine.HubLowerDeviation)
+        .Set("n", engine.RotationalSpeed)
+        .Set("ts", engine.ShaftServiceTemperature)
+        .Set("th", engine.HubServiceTemperature)
+        .Set("T", engine.AppliedTorque)
+        .Set("Fa", engine.AppliedAxialForce)
+        .Set("phi", selectedLoadFactor)
+        .Set("rzs", engine.ShaftRoughness)
+        .Set("rzh", engine.HubRoughness)
+        .Set("mut", engine.FrictionCoefficientTorque)
+        .Set("mua", engine.FrictionCoefficientAssembly)
+        .Set("ms", MaterialNameAt(selectedShaftMaterialIndex))
+        .Set("mh", MaterialNameAt(selectedHubMaterialIndex));
+
+    /// <summary>
+    /// Restores state produced by <see cref="BuildShareState"/>, then recalculates so
+    /// the recipient lands straight on the results.
+    ///
+    /// Every read supplies the current value as its fallback, so a link written by an
+    /// older build that lacked a field leaves that field at its default instead of
+    /// zeroing it.
+    /// </summary>
+    private async Task ApplyShareState(CalculationState state)
+    {
+        // Nominal diameter first: UpdateTolerances looks up the ISO 286 deviations
+        // for the fit designation *at that diameter*.
+        engine.NominalDiameter = state.GetDouble("D", engine.NominalDiameter);
+        engine.FitLength = state.GetDouble("L", engine.FitLength);
+        engine.ShaftInnerDiameter = state.GetDouble("di", engine.ShaftInnerDiameter);
+        engine.HubOuterDiameter = state.GetDouble("Da", engine.HubOuterDiameter);
+
+        selectedShaftFit = state.GetString("sf", selectedShaftFit);
+        selectedHubFit = state.GetString("hf", selectedHubFit);
+        UpdateTolerances();
+
+        // UpdateTolerances overwrites the deviations for a standard fit, so the
+        // stored values are only reapplied where the user was in custom mode.
+        if (isCustomShaft)
+        {
+            engine.ShaftUpperDeviation = state.GetDouble("sup", engine.ShaftUpperDeviation);
+            engine.ShaftLowerDeviation = state.GetDouble("slo", engine.ShaftLowerDeviation);
+        }
+        if (isCustomHub)
+        {
+            engine.HubUpperDeviation = state.GetDouble("hup", engine.HubUpperDeviation);
+            engine.HubLowerDeviation = state.GetDouble("hlo", engine.HubLowerDeviation);
+        }
+
+        engine.RotationalSpeed = state.GetDouble("n", engine.RotationalSpeed);
+        engine.ShaftServiceTemperature = state.GetDouble("ts", engine.ShaftServiceTemperature);
+        engine.HubServiceTemperature = state.GetDouble("th", engine.HubServiceTemperature);
+        engine.AppliedTorque = state.GetDouble("T", engine.AppliedTorque);
+        engine.AppliedAxialForce = state.GetDouble("Fa", engine.AppliedAxialForce);
+        engine.ShaftRoughness = state.GetDouble("rzs", engine.ShaftRoughness);
+        engine.HubRoughness = state.GetDouble("rzh", engine.HubRoughness);
+        engine.FrictionCoefficientTorque = state.GetDouble("mut", engine.FrictionCoefficientTorque);
+        engine.FrictionCoefficientAssembly = state.GetDouble("mua", engine.FrictionCoefficientAssembly);
+
+        var phi = state.GetString("phi", selectedLoadFactor);
+        selectedLoadFactor = LoadFactorOptions.Contains(phi) ? phi : "1.0";
+        OnLoadFactorChanged();
+
+        selectedShaftMaterialIndex = MaterialIndexByName(state.GetString("ms"), selectedShaftMaterialIndex);
+        selectedHubMaterialIndex = MaterialIndexByName(state.GetString("mh"), selectedHubMaterialIndex);
+
+        openedFromSharedLink = true;
+
+        // Calculate() validates, so a damaged link just leaves the user on the form.
+        await Calculate();
+    }
+
+    private string MaterialNameAt(int index)
+        => index >= 0 && index < materials.Count ? materials[index].Name : "";
+
+    /// <summary>Resolves a material name to its current index, falling back when it is unknown.</summary>
+    private int MaterialIndexByName(string name, int fallback)
+    {
+        if (string.IsNullOrEmpty(name)) return fallback;
+
+        var index = materials.FindIndex(m => string.Equals(m.Name, name, StringComparison.OrdinalIgnoreCase));
+        return index >= 0 ? index : fallback;
     }
 
     // --- Helper methods for styling and formatting ---

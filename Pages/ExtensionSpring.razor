@@ -16,6 +16,8 @@
     <p>Extension spring design according to EN 13906-2</p>
 </div>
 
+<SharedCalculationLoader Module="extension-spring" OnRestore="ApplyShareState" />
+
 @if (!showResults)
 {
     <!-- INPUT FORM -->
@@ -295,7 +297,19 @@ else
                 <span>Save as PDF</span>
             }
         </button>
+        <ShareCalculation Module="extension-spring" State="@BuildShareState()" />
     </div>
+
+    @if (openedFromSharedLink)
+    {
+        <div class="alert alert-info" style="margin-bottom: 24px;">
+            <ModuleIcon Type="info" Size="small" Style="default" />
+            <div>
+                <strong>Opened from a shared link.</strong>
+                The inputs below came from the link and were recalculated with the current engine.
+            </div>
+        </div>
+    }
 
     <!-- Validation Warnings -->
     @if (validationErrors.Any())
@@ -569,7 +583,7 @@ else
 }
 
 <!-- Related Calculators Component -->
-<RelatedCalculators CurrentModule="extension-spring" />
+<RelatedCalculators CurrentModuleKey="extension-spring" />
 
 @code {
     private ExtensionSpringEngine engine = new();
@@ -579,6 +593,7 @@ else
     private string selectedMaterial = "SH";
     private string selectedHookType = "German";
     private bool showHookInfo = false;
+    private bool openedFromSharedLink = false;
     private List<string> validationErrors = new();
     private ModuleInfo moduleInfo = new();
 
@@ -712,6 +727,69 @@ else
         selectedHookType = "German";
         validationErrors = new();
         showResults = false;
+        openedFromSharedLink = false;
+    }
+
+    /// <summary>
+    /// The module's inputs in the neutral form used by shareable links (and, later,
+    /// cloud-saved calculations). Inputs only — results are recomputed on restore.
+    ///
+    /// The material grade is stored by key, and the properties it drives (G, Rm) are
+    /// stored alongside so a manual override survives the round-trip. Keys are kept
+    /// short because the whole state rides in a URL.
+    /// </summary>
+    private CalculationState BuildShareState() => new CalculationState("extension-spring")
+        .Set("d", engine.WireDiameter)
+        .Set("Dm", engine.MeanCoilDiameter)
+        .Set("n", engine.ActiveCoils)
+        .Set("hook", selectedHookType)
+        .Set("raise", engine.RaiseAmount)
+        .Set("thr", engine.ThreadLength)
+        .Set("mat", selectedMaterial)
+        .Set("G", engine.ShearModulus)
+        .Set("Rm", engine.TensileStrength)
+        .Set("F0", engine.InitialTension)
+        .Set("s1", engine.Deflection1Input)
+        .Set("s2", engine.Deflection2Input);
+
+    /// <summary>
+    /// Restores state produced by <see cref="BuildShareState"/>, then recalculates so
+    /// the recipient lands straight on the results.
+    ///
+    /// Every read supplies the current value as its fallback, so a link written by an
+    /// older build that lacked a field leaves that field at its default instead of
+    /// zeroing it.
+    /// </summary>
+    private async Task ApplyShareState(CalculationState state)
+    {
+        engine.WireDiameter = state.GetDouble("d", engine.WireDiameter);
+        engine.MeanCoilDiameter = state.GetDouble("Dm", engine.MeanCoilDiameter);
+        engine.ActiveCoils = state.GetDouble("n", engine.ActiveCoils);
+
+        // Hook type first: its handler zeroes RaiseAmount/ThreadLength unless the type
+        // matches, so the stored values must be applied afterwards.
+        var hook = state.GetString("hook", selectedHookType);
+        selectedHookType = ExtensionSpringEngine.HookTypes.ContainsKey(hook) ? hook : selectedHookType;
+        OnHookTypeChanged();
+        engine.RaiseAmount = state.GetDouble("raise", engine.RaiseAmount);
+        engine.ThreadLength = state.GetDouble("thr", engine.ThreadLength);
+
+        // Material sets G/E/Rm from its grade; reapply the stored values afterwards so
+        // a manual override of shear modulus or tensile strength is preserved.
+        var mat = state.GetString("mat", selectedMaterial);
+        selectedMaterial = ExtensionSpringEngine.Materials.ContainsKey(mat) ? mat : selectedMaterial;
+        OnMaterialChanged();
+        engine.ShearModulus = state.GetDouble("G", engine.ShearModulus);
+        engine.TensileStrength = state.GetDouble("Rm", engine.TensileStrength);
+
+        engine.InitialTension = state.GetDouble("F0", engine.InitialTension);
+        engine.Deflection1Input = state.GetDouble("s1", engine.Deflection1Input);
+        engine.Deflection2Input = state.GetDouble("s2", engine.Deflection2Input);
+
+        openedFromSharedLink = true;
+
+        // Calculate() validates, so a damaged link just leaves the user on the form.
+        await Calculate();
     }
 
     private async Task SaveAsPdf()

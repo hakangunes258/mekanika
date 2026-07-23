@@ -12,6 +12,8 @@
     <p>Spur and helical gear pair design according to ISO 6336 / DIN 3990</p>
 </div>
 
+<SharedCalculationLoader Module="gear-pair" OnRestore="ApplyShareState" />
+
 @if (!showResults)
 {
     <!-- INPUT FORM -->
@@ -303,7 +305,19 @@ else
                 <span>Save as PDF</span>
             }
         </button>
+        <ShareCalculation Module="gear-pair" State="@BuildShareState()" />
     </div>
+
+    @if (openedFromSharedLink)
+    {
+        <div class="alert alert-info" style="margin-bottom: 24px;">
+            <ModuleIcon Type="info" Size="small" Style="default" />
+            <div>
+                <strong>Opened from a shared link.</strong>
+                The inputs below came from the link and were recalculated with the current engine.
+            </div>
+        </div>
+    }
 
     <!-- Detailed Results Container -->
     <div id="results-content">
@@ -593,6 +607,10 @@ else
     private string selectedApplicationFactor = "1.0";
     private int selectedMaterial1Index = 5; // 18CrNiMo7-6 Case-hardened
     private int selectedMaterial2Index = 5;
+    private bool openedFromSharedLink = false;
+
+    /// <summary>Application factors offered by the dropdown. A link carrying anything else falls back to 1.0.</summary>
+    private static readonly string[] ApplicationFactorOptions = { "1.0", "1.25", "1.35", "1.5", "1.75" };
 
     protected override void OnInitialized()
     {
@@ -705,6 +723,96 @@ else
         };
         selectedApplicationFactor = "1.0";
         showResults = false;
+        openedFromSharedLink = false;
+    }
+
+    /// <summary>
+    /// The module's inputs in the neutral form used by shareable links (and, later,
+    /// cloud-saved calculations). Inputs only — results are recomputed on restore.
+    ///
+    /// Gear materials go in by their displayed label (name + heat treatment) rather
+    /// than by their index in the list, so adding a material cannot repoint existing
+    /// links at the wrong grade. The pinion's profile shift x1 is stored; the wheel's
+    /// x2 is derived on restore. Keys are kept short because the state rides in a URL.
+    /// </summary>
+    private CalculationState BuildShareState() => new CalculationState("gear-pair")
+        .Set("P", engine.Power)
+        .Set("n1", engine.Speed1)
+        .Set("Ka", selectedApplicationFactor)
+        .Set("Lh", engine.RequiredServiceLife)
+        .Set("mn", engine.NormalModule)
+        .Set("alpha", engine.PressureAngle)
+        .Set("beta", engine.HelixAngle)
+        .Set("a", engine.CenterDistance)
+        .Set("z1", engine.NumberOfTeeth1)
+        .Set("z2", engine.NumberOfTeeth2)
+        .Set("b1", engine.FaceWidth1)
+        .Set("b2", engine.FaceWidth2)
+        .Set("x1", engine.ProfileShiftCoeff1)
+        .Set("q1", engine.QualityGrade1)
+        .Set("q2", engine.QualityGrade2)
+        .Set("ha", engine.AddendumCoeff)
+        .Set("hf", engine.DedendumCoeff)
+        .Set("rf", engine.RootRadiusCoeff)
+        .Set("m1", GearMaterialLabelAt(selectedMaterial1Index))
+        .Set("m2", GearMaterialLabelAt(selectedMaterial2Index));
+
+    /// <summary>
+    /// Restores state produced by <see cref="BuildShareState"/>, then recalculates so
+    /// the recipient lands straight on the results.
+    ///
+    /// Every read supplies the current value as its fallback, so a link written by an
+    /// older build that lacked a field leaves that field at its default instead of
+    /// zeroing it.
+    /// </summary>
+    private async Task ApplyShareState(CalculationState state)
+    {
+        engine.Power = state.GetDouble("P", engine.Power);
+        engine.Speed1 = state.GetDouble("n1", engine.Speed1);
+        engine.RequiredServiceLife = state.GetDouble("Lh", engine.RequiredServiceLife);
+        engine.NormalModule = state.GetDouble("mn", engine.NormalModule);
+        engine.PressureAngle = state.GetDouble("alpha", engine.PressureAngle);
+        engine.HelixAngle = state.GetDouble("beta", engine.HelixAngle);
+        engine.CenterDistance = state.GetDouble("a", engine.CenterDistance);
+        engine.NumberOfTeeth1 = state.GetInt("z1", engine.NumberOfTeeth1);
+        engine.NumberOfTeeth2 = state.GetInt("z2", engine.NumberOfTeeth2);
+        engine.FaceWidth1 = state.GetDouble("b1", engine.FaceWidth1);
+        engine.FaceWidth2 = state.GetDouble("b2", engine.FaceWidth2);
+        engine.ProfileShiftCoeff1 = state.GetDouble("x1", engine.ProfileShiftCoeff1);
+        engine.QualityGrade1 = state.GetInt("q1", engine.QualityGrade1);
+        engine.QualityGrade2 = state.GetInt("q2", engine.QualityGrade2);
+        engine.AddendumCoeff = state.GetDouble("ha", engine.AddendumCoeff);
+        engine.DedendumCoeff = state.GetDouble("hf", engine.DedendumCoeff);
+        engine.RootRadiusCoeff = state.GetDouble("rf", engine.RootRadiusCoeff);
+
+        var ka = state.GetString("Ka", selectedApplicationFactor);
+        selectedApplicationFactor = ApplicationFactorOptions.Contains(ka) ? ka : "1.0";
+        OnApplicationFactorChanged();
+
+        selectedMaterial1Index = GearMaterialIndexByLabel(state.GetString("m1"), selectedMaterial1Index);
+        selectedMaterial2Index = GearMaterialIndexByLabel(state.GetString("m2"), selectedMaterial2Index);
+
+        // Derives the wheel's profile shift x2 from the restored geometry.
+        OnGeometryChanged();
+
+        openedFromSharedLink = true;
+
+        // Calculate() validates, so a damaged link just leaves the user on the form.
+        await Calculate();
+    }
+
+    private string GearMaterialLabelAt(int index)
+        => index >= 0 && index < gearMaterials.Count
+            ? $"{gearMaterials[index].Name} - {gearMaterials[index].HeatTreatment}" : "";
+
+    /// <summary>Resolves a gear material by its "name - heat treatment" label, falling back when unknown.</summary>
+    private int GearMaterialIndexByLabel(string label, int fallback)
+    {
+        if (string.IsNullOrEmpty(label)) return fallback;
+
+        var index = gearMaterials.FindIndex(m =>
+            string.Equals($"{m.Name} - {m.HeatTreatment}", label, StringComparison.OrdinalIgnoreCase));
+        return index >= 0 ? index : fallback;
     }
 
     private async Task SaveAsPdf()

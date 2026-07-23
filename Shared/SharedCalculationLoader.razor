@@ -1,0 +1,56 @@
+@inject CalculationShareService Share
+@inject NavigationManager Navigation
+@inject AnalyticsService Analytics
+@implements IDisposable
+
+@*
+    Restores a calculation carried in the URL fragment. Renders nothing — it exists
+    only to own the plumbing that would otherwise be repeated in all twelve modules.
+
+    Usage, at the top level of a module page (not inside an @if, or it would never
+    initialise on a page that starts on the input form):
+
+        <SharedCalculationLoader Module="key-connection" OnRestore="ApplyShareState" />
+
+    OnRestore receives the state; the page applies it and runs its own Calculate().
+    Because it is an EventCallback, Blazor re-renders the page automatically when it
+    completes — which a plain LocationChanged subscription would not do.
+*@
+
+@code {
+    /// <summary>Module key. Only links written for this module are accepted.</summary>
+    [Parameter, EditorRequired] public string Module { get; set; } = "";
+
+    /// <summary>Applies the restored inputs and recalculates.</summary>
+    [Parameter, EditorRequired] public EventCallback<CalculationState> OnRestore { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Runs after the parent's OnInitializedAsync, so module data the page loads
+        // there (materials, bearing tables) is already available to OnRestore.
+        await TryRestoreAsync();
+
+        // A shared link pasted into the address bar while this page is already open
+        // changes only the fragment: the SPA does not reload and OnInitializedAsync
+        // never runs again. Without this the link would appear to do nothing.
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+        => _ = InvokeAsync(TryRestoreAsync);
+
+    private async Task TryRestoreAsync()
+    {
+        var state = Share.TryReadFromUrl(Module);
+        if (state == null) return;
+
+        // Drop the payload from the address bar first, so editing the inputs and
+        // then reloading does not silently snap back to the shared values.
+        await Share.ClearUrlFragmentAsync();
+        await Analytics.TrackSharedLinkOpened(Module);
+
+        await OnRestore.InvokeAsync(state);
+    }
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+}

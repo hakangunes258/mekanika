@@ -16,6 +16,8 @@
     <p>Parallel key connection design according to DIN 6885</p>
 </div>
 
+<SharedCalculationLoader Module="key-connection" OnRestore="ApplyShareState" />
+
 @if (!showResults)
 {
     <!-- INPUT FORM -->
@@ -233,7 +235,19 @@ else
             }
         </button>
         <Viewer3D Module="key-connection" Parameters="@Build3dParameters()" />
+        <ShareCalculation Module="key-connection" State="@BuildShareState()" />
     </div>
+
+    @if (openedFromSharedLink)
+    {
+        <div class="alert alert-info" style="margin-bottom: 24px;">
+            <ModuleIcon Type="info" Size="small" Style="default" />
+            <div>
+                <strong>Opened from a shared link.</strong>
+                The inputs below came from the link and were recalculated with the current engine.
+            </div>
+        </div>
+    }
 
     <!-- Detailed Results Container -->
     <div id="results-content">
@@ -413,6 +427,10 @@ else
     private int selectedShaftMaterialIndex = 2;
     private int selectedHubMaterialIndex = 2;
     private int selectedKeyMaterialIndex = 2;
+    private bool openedFromSharedLink = false;
+
+    /// <summary>Load factors offered by the dropdown. A shared link carrying anything else falls back to 1.0.</summary>
+    private static readonly string[] LoadFactorOptions = { "1.0", "1.25", "1.5", "1.75", "2.0" };
 
     protected override async Task OnInitializedAsync()
     {
@@ -574,6 +592,78 @@ else
         Dhub = engine.ShaftDiameter * 1.9
     };
 
+    /// <summary>
+    /// The module's inputs in the neutral form used by shareable links (and, later,
+    /// cloud-saved calculations). Inputs only — results are recomputed on restore.
+    ///
+    /// Materials are stored by name rather than by their index in MaterialService,
+    /// so adding a material to that list cannot repoint existing links at the wrong
+    /// steel. Keys are kept short because the whole state rides in a URL.
+    /// </summary>
+    private CalculationState BuildShareState() => new CalculationState("key-connection")
+        .Set("d", engine.ShaftDiameter)
+        .Set("b", engine.KeyWidth)
+        .Set("h", engine.KeyHeight)
+        .Set("l", engine.KeyLength)
+        .Set("t1", engine.KeywayDepthShaft)
+        .Set("t2", engine.KeywayDepthHub)
+        .Set("n", engine.NumberOfKeys)
+        .Set("T", engine.AppliedTorque)
+        .Set("phi", selectedLoadFactor)
+        .Set("ms", MaterialNameAt(selectedShaftMaterialIndex))
+        .Set("mh", MaterialNameAt(selectedHubMaterialIndex))
+        .Set("mk", MaterialNameAt(selectedKeyMaterialIndex));
+
+    /// <summary>
+    /// Restores state produced by <see cref="BuildShareState"/>, then recalculates so
+    /// the recipient lands straight on the results — the whole point of the link.
+    ///
+    /// Every read supplies the current value as its fallback, so a link written by an
+    /// older build that lacked a field leaves that field at its default instead of
+    /// zeroing it.
+    /// </summary>
+    private async Task ApplyShareState(CalculationState state)
+    {
+        engine.ShaftDiameter = state.GetDouble("d", engine.ShaftDiameter);
+        engine.KeyWidth = state.GetDouble("b", engine.KeyWidth);
+        engine.KeyHeight = state.GetDouble("h", engine.KeyHeight);
+        engine.KeyLength = state.GetDouble("l", engine.KeyLength);
+        engine.KeywayDepthShaft = state.GetDouble("t1", engine.KeywayDepthShaft);
+        engine.KeywayDepthHub = state.GetDouble("t2", engine.KeywayDepthHub);
+        engine.NumberOfKeys = state.GetInt("n", engine.NumberOfKeys);
+        engine.AppliedTorque = state.GetDouble("T", engine.AppliedTorque);
+
+        // Only accept a load factor the dropdown can actually display, otherwise the
+        // select would render blank and the user could not tell what was applied.
+        var phi = state.GetString("phi", selectedLoadFactor);
+        selectedLoadFactor = LoadFactorOptions.Contains(phi) ? phi : "1.0";
+        OnLoadFactorChanged();
+
+        selectedShaftMaterialIndex = MaterialIndexByName(state.GetString("ms"), selectedShaftMaterialIndex);
+        selectedHubMaterialIndex = MaterialIndexByName(state.GetString("mh"), selectedHubMaterialIndex);
+        selectedKeyMaterialIndex = MaterialIndexByName(state.GetString("mk"), selectedKeyMaterialIndex);
+
+        // Keep the "recommended key" hint consistent with the restored diameter.
+        OnShaftDiameterChanged();
+
+        openedFromSharedLink = true;
+
+        // Calculate() validates, so a damaged link just leaves the user on the form.
+        await Calculate();
+    }
+
+    private string MaterialNameAt(int index)
+        => index >= 0 && index < materials.Count ? materials[index].Name : "";
+
+    /// <summary>Resolves a material name to its current index, falling back when it is unknown.</summary>
+    private int MaterialIndexByName(string name, int fallback)
+    {
+        if (string.IsNullOrEmpty(name)) return fallback;
+
+        var index = materials.FindIndex(m => string.Equals(m.Name, name, StringComparison.OrdinalIgnoreCase));
+        return index >= 0 ? index : fallback;
+    }
+
     private void BackToInput() => showResults = false;
 
     private void ClearForm()
@@ -582,6 +672,7 @@ else
         recommendedKey = null;
         selectedLoadFactor = "1.0";
         showResults = false;
+        openedFromSharedLink = false;
     }
 
     private async Task SaveAsPdf()

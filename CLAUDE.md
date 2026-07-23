@@ -1407,6 +1407,69 @@ cleared whenever the geometry moves or changes (explode toggle, spring state).
   a terminal: check layer bounding boxes against the inputs, and confirm every
   layer of a cutaway leaves the *same* quadrant empty.
 
+### **Shareable Calculation Links**
+
+Every calculation module can produce a link that reopens it with the same inputs.
+Live on **all twelve calculators**. No account and no backend — the inputs ride in
+the URL fragment and the recipient's browser re-runs the engine.
+
+**Files:**
+- `Services/CalculationState.cs` — a module's inputs as a neutral string map, plus
+  the compact wire format (`<version>~<module>~key=value;key=value`). Deliberately
+  not JSON: ~half the size once base64'd, and no serialiser/trimming concerns.
+- `Services/CalculationShareService.cs` — builds the link, reads it back, base64url,
+  clipboard. Payload lives in the **fragment** (`#s=…`), never the query string, so
+  it does not hit server logs / GA, does not disturb the 404.html SPA rewrite, and
+  leaves the canonical URL intact for SEO.
+- `Shared/ShareCalculation.razor` — the "Share Link" button + copy panel.
+- `Shared/SharedCalculationLoader.razor` — headless; owns the restore plumbing so it
+  is not repeated in twelve pages. Restores on first load **and** on a fragment-only
+  navigation (a link pasted while the page is already open — the SPA does not reload).
+- `wwwroot/js/share.js` — clipboard + fragment clearing only.
+
+**This is the same state layer cloud-saved calculations will use** (`inputs` jsonb).
+Build/apply once per module, reuse for links, localStorage, and Supabase.
+
+**To add a module:**
+
+1. Drop the loader in at the top level (not inside an `@if`, or it won't init on the
+   input-form view):
+   ```razor
+   <SharedCalculationLoader Module="taper-fit" OnRestore="ApplyShareState" />
+   ```
+2. Add the button to the results button-group:
+   ```razor
+   <ShareCalculation Module="taper-fit" State="@BuildShareState()" />
+   ```
+3. Add an `openedFromSharedLink` flag (shows the "Opened from a shared link" banner),
+   reset it in `ClearForm`, and write `BuildShareState()` / `ApplyShareState()`.
+   `ApplyShareState` **must be `async Task`** and end by calling the module's own
+   `Calculate()` so the recipient lands on the results. `OnRestore` is an
+   `EventCallback`, so Blazor re-renders automatically — do not add `StateHasChanged`.
+
+**Rules — these are the ones that actually bit:**
+- **Store by name/designation, never by list index.** Materials go in by `Name`,
+  bearings by `Designation`, gears by `"Name - HeatTreatment"`, shapes by enum name.
+  Inserting one row into a lookup would otherwise silently repoint every existing
+  link at the wrong item. Resolve back to an index on restore, falling back to the
+  current value when the name is unknown.
+- **Store inputs only, never results.** The engine re-runs, so a months-old link
+  reflects the current (possibly corrected) engine — important while several are
+  still `IsVerified = false`.
+- **Every getter takes the current value as its fallback**, so a link written by an
+  older build that lacked a key leaves that field at its default, not zero.
+- **Order matters when a handler resets fields.** Call the driving handler *first*,
+  then reapply stored values it would have cleared: hook type before raise/thread
+  (extension spring), load type before working lengths (compression spring), bearing
+  type + contact-angle filter before locating the bearing, `OnShapeChanged` before
+  the section dimensions, `UpdateTolerances` / `OnTaperChanged` before custom
+  deviations / ratio. For values a lookup overwrites (bearing ratings, material G/Rm,
+  gear x2), reapply the stored value afterwards so a manual override survives.
+- **Validate dropdown values against their option set** on restore, or an unknown
+  value leaves the `<select>` rendering blank.
+- **Adding the loader after the page-header `</div>` has twice produced a stray
+  duplicate `</div>`** (TaperFit, TorsionSpring) — check the header still balances.
+
 ### **Related Calculators Feature**
 
 ```razor

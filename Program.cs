@@ -20,4 +20,7 @@ builder.Services.AddSingleton<ModuleMetadataService>();
 // Feedback Service
 builder.Services.AddScoped<FeedbackService>();
 
+// Shareable calculation links (state layer reused by cloud save later)
+builder.Services.AddScoped<CalculationShareService>();
+
 await builder.Build().RunAsync();

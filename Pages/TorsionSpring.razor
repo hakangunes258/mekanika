@@ -12,7 +12,7 @@
     <p>Torsion spring design according to EN 13906-3</p>
 </div>
 
-
+<SharedCalculationLoader Module="torsion-spring" OnRestore="ApplyShareState" />
 
 @if (!showResults)
 {
@@ -221,7 +221,19 @@ else
                 <span>Save as PDF</span>
             }
         </button>
+        <ShareCalculation Module="torsion-spring" State="@BuildShareState()" />
     </div>
+
+    @if (openedFromSharedLink)
+    {
+        <div class="alert alert-info" style="margin-bottom: 24px;">
+            <ModuleIcon Type="info" Size="small" Style="default" />
+            <div>
+                <strong>Opened from a shared link.</strong>
+                The inputs below came from the link and were recalculated with the current engine.
+            </div>
+        </div>
+    }
 
     <!-- Validation Warnings -->
     @if (validationErrors.Any())
@@ -559,6 +571,7 @@ else
     private bool isCalculating = false;
     private bool isSavingPdf = false;
     private string selectedMaterial = "SH";
+    private bool openedFromSharedLink = false;
     private List<string> validationErrors = new();
 
     protected override async Task OnInitializedAsync()
@@ -732,6 +745,65 @@ else
         selectedMaterial = "SH";
         validationErrors = new();
         showResults = false;
+        openedFromSharedLink = false;
+    }
+
+    /// <summary>
+    /// The module's inputs in the neutral form used by shareable links (and, later,
+    /// cloud-saved calculations). Inputs only — results are recomputed on restore.
+    ///
+    /// The material grade is stored by key, and the properties it drives (E, Rm) are
+    /// stored alongside so a manual override survives the round-trip. Winding
+    /// direction and leg type bind straight to the engine, so their strings round-trip
+    /// directly. Keys are kept short because the whole state rides in a URL.
+    /// </summary>
+    private CalculationState BuildShareState() => new CalculationState("torsion-spring")
+        .Set("d", engine.WireDiameter)
+        .Set("Dm", engine.MeanCoilDiameter)
+        .Set("n", engine.ActiveCoils)
+        .Set("wind", engine.WindingDirection)
+        .Set("leg", engine.LegType)
+        .Set("L1", engine.Leg1Length)
+        .Set("L2", engine.Leg2Length)
+        .Set("mat", selectedMaterial)
+        .Set("E", engine.ElasticModulus)
+        .Set("Rm", engine.TensileStrength)
+        .Set("a1", engine.Angle1Input)
+        .Set("a2", engine.Angle2Input);
+
+    /// <summary>
+    /// Restores state produced by <see cref="BuildShareState"/>, then recalculates so
+    /// the recipient lands straight on the results.
+    ///
+    /// Every read supplies the current value as its fallback, so a link written by an
+    /// older build that lacked a field leaves that field at its default instead of
+    /// zeroing it.
+    /// </summary>
+    private async Task ApplyShareState(CalculationState state)
+    {
+        engine.WireDiameter = state.GetDouble("d", engine.WireDiameter);
+        engine.MeanCoilDiameter = state.GetDouble("Dm", engine.MeanCoilDiameter);
+        engine.ActiveCoils = state.GetDouble("n", engine.ActiveCoils);
+        engine.WindingDirection = state.GetString("wind", engine.WindingDirection);
+        engine.LegType = state.GetString("leg", engine.LegType);
+        engine.Leg1Length = state.GetDouble("L1", engine.Leg1Length);
+        engine.Leg2Length = state.GetDouble("L2", engine.Leg2Length);
+
+        // Material sets E/Rm from its grade; reapply the stored values afterwards so
+        // a manual override is preserved.
+        var mat = state.GetString("mat", selectedMaterial);
+        selectedMaterial = TorsionSpringEngine.Materials.ContainsKey(mat) ? mat : selectedMaterial;
+        OnMaterialChanged();
+        engine.ElasticModulus = state.GetDouble("E", engine.ElasticModulus);
+        engine.TensileStrength = state.GetDouble("Rm", engine.TensileStrength);
+
+        engine.Angle1Input = state.GetDouble("a1", engine.Angle1Input);
+        engine.Angle2Input = state.GetDouble("a2", engine.Angle2Input);
+
+        openedFromSharedLink = true;
+
+        // Calculate() validates, so a damaged link just leaves the user on the form.
+        await Calculate();
     }
 
     private async Task SaveAsPdf()

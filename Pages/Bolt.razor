@@ -18,6 +18,8 @@
     <p>A general-purpose calculator for various bolt-related calculations.</p>
 </div>
 
+<SharedCalculationLoader Module="bolt" OnRestore="ApplyShareState" />
+
 <div class="form-grid">
     <div class="card">
         <div class="card-header">
@@ -139,6 +141,7 @@
     <button class="btn btn-secondary" @onclick="ClearForm" disabled="@isCalculating">
         <span>🧹</span> Clear
     </button>
+    <ShareCalculation Module="bolt" State="@BuildShareState()" />
 </div>
 
 @if (showResults)
@@ -158,7 +161,7 @@
     </div>
 }
 
-<RelatedCalculators CurrentModule="bolt" />
+<RelatedCalculators CurrentModuleKey="bolt" />
 
 @code {
     private string boltSize = "M10";
@@ -272,6 +275,41 @@
         showTorqueResult = false;
         tighteningTorque = 50;
         showPreloadResult = false;
+    }
+
+    /// <summary>
+    /// The module's inputs in the neutral form used by shareable links (and, later,
+    /// cloud-saved calculations). Bolt size and strength class go in by their
+    /// designation, which is already their stable identity.
+    /// </summary>
+    private CalculationState BuildShareState() => new CalculationState("bolt")
+        .Set("size", boltSize)
+        .Set("cls", strengthClass)
+        .Set("Fpre", desiredPreload)
+        .Set("mu", frictionCoefficient)
+        .Set("MA", tighteningTorque);
+
+    /// <summary>
+    /// Restores state produced by <see cref="BuildShareState"/> and shows the bolt
+    /// properties. The two sub-calculators (torque, preload) are one click away with
+    /// their inputs already filled in.
+    ///
+    /// The size and class are validated against the current tables, so a stale link
+    /// naming a removed designation falls back to the default rather than breaking.
+    /// </summary>
+    private async Task ApplyShareState(CalculationState state)
+    {
+        var size = state.GetString("size", boltSize);
+        if (BoltService.MetricBolts.Any(b => b.Size == size)) boltSize = size;
+
+        var cls = state.GetString("cls", strengthClass);
+        if (BoltService.StrengthClasses.Any(c => c.Class == cls)) strengthClass = cls;
+
+        desiredPreload = state.GetDouble("Fpre", desiredPreload);
+        frictionCoefficient = state.GetDouble("mu", frictionCoefficient);
+        tighteningTorque = state.GetDouble("MA", tighteningTorque);
+
+        await Calculate();
     }
 
     private async Task SetSeoMetadata()

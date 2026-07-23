@@ -14,6 +14,8 @@
     <p>Calculate section properties for various cross-sectional shapes</p>
 </div>
 
+<SharedCalculationLoader Module="moment-of-inertia" OnRestore="ApplyShareState" />
+
 
 
 @if (!showResults)
@@ -185,7 +187,19 @@ else
                 <span>Save as PDF</span>
             }
         </button>
+        <ShareCalculation Module="moment-of-inertia" State="@BuildShareState()" />
     </div>
+
+    @if (openedFromSharedLink)
+    {
+        <div class="alert alert-info" style="margin-bottom: 24px;">
+            <ModuleIcon Type="info" Size="small" Style="default" />
+            <div>
+                <strong>Opened from a shared link.</strong>
+                The inputs below came from the link and were recalculated with the current engine.
+            </div>
+        </div>
+    }
 
     <!-- Detailed Results Container -->
     <div id="results-content">
@@ -446,6 +460,7 @@ else
     private int selectedShapeIndex = 0;
     private int selectedMaterialIndex = 2;
     private string validationError = "";
+    private bool openedFromSharedLink = false;
     private string svgBase64Image = "";
     private ModuleInfo moduleInfo = new();
 
@@ -597,6 +612,110 @@ else
         validationError = "";
         svgBase64Image = "";
         showResults = false;
+        openedFromSharedLink = false;
+    }
+
+    /// <summary>
+    /// The module's inputs in the neutral form used by shareable links (and, later,
+    /// cloud-saved calculations). Inputs only — results are recomputed on restore.
+    ///
+    /// The shape is stored by its enum name (stable) rather than its dropdown index,
+    /// and the material by name. Every dimension field is stored regardless of the
+    /// active shape: unused ones are zero, and storing them all keeps the restore
+    /// independent of the shape's default-value logic. Keys are kept short because the
+    /// state rides in a URL.
+    /// </summary>
+    private CalculationState BuildShareState() => new CalculationState("moment-of-inertia")
+        .Set("shape", engine.SelectedShape.ToString())
+        .Set("mat", MaterialNameAt(selectedMaterialIndex))
+        .Set("len", engine.Length)
+        .Set("w", engine.Width)
+        .Set("h", engine.Height)
+        .Set("iw", engine.InnerWidth)
+        .Set("ih", engine.InnerHeight)
+        .Set("dia", engine.Diameter)
+        .Set("idia", engine.InnerDiameter)
+        .Set("fw", engine.FlangeWidth)
+        .Set("th", engine.TotalHeight)
+        .Set("ft", engine.FlangeThickness)
+        .Set("wt", engine.WebThickness)
+        .Set("cw", engine.ChannelWidth)
+        .Set("ch", engine.ChannelHeight)
+        .Set("cft", engine.ChannelFlangeThickness)
+        .Set("cwt", engine.ChannelWebThickness)
+        .Set("tfw", engine.TFlangeWidth)
+        .Set("tht", engine.THeight)
+        .Set("tft", engine.TFlangeThickness)
+        .Set("tst", engine.TStemThickness)
+        .Set("lw", engine.LegWidth)
+        .Set("lh", engine.LegHeight)
+        .Set("lt", engine.LegThickness);
+
+    /// <summary>
+    /// Restores state produced by <see cref="BuildShareState"/>, then recalculates so
+    /// the recipient lands straight on the results.
+    ///
+    /// Every read supplies the current value as its fallback, so a link written by an
+    /// older build that lacked a field leaves that field at its default instead of
+    /// zeroing it.
+    /// </summary>
+    private async Task ApplyShareState(CalculationState state)
+    {
+        // Shape first: OnShapeChanged resets every dimension to that shape's defaults,
+        // so all stored dimensions must be applied afterwards.
+        var shapeName = state.GetString("shape", engine.SelectedShape.ToString());
+        if (Enum.TryParse<ShapeType>(shapeName, out var shape))
+        {
+            var idx = Array.IndexOf(ShapeIndexMap, shape);
+            if (idx >= 0)
+            {
+                selectedShapeIndex = idx;
+                OnShapeChanged();
+            }
+        }
+
+        engine.Length = state.GetDouble("len", engine.Length);
+        engine.Width = state.GetDouble("w", engine.Width);
+        engine.Height = state.GetDouble("h", engine.Height);
+        engine.InnerWidth = state.GetDouble("iw", engine.InnerWidth);
+        engine.InnerHeight = state.GetDouble("ih", engine.InnerHeight);
+        engine.Diameter = state.GetDouble("dia", engine.Diameter);
+        engine.InnerDiameter = state.GetDouble("idia", engine.InnerDiameter);
+        engine.FlangeWidth = state.GetDouble("fw", engine.FlangeWidth);
+        engine.TotalHeight = state.GetDouble("th", engine.TotalHeight);
+        engine.FlangeThickness = state.GetDouble("ft", engine.FlangeThickness);
+        engine.WebThickness = state.GetDouble("wt", engine.WebThickness);
+        engine.ChannelWidth = state.GetDouble("cw", engine.ChannelWidth);
+        engine.ChannelHeight = state.GetDouble("ch", engine.ChannelHeight);
+        engine.ChannelFlangeThickness = state.GetDouble("cft", engine.ChannelFlangeThickness);
+        engine.ChannelWebThickness = state.GetDouble("cwt", engine.ChannelWebThickness);
+        engine.TFlangeWidth = state.GetDouble("tfw", engine.TFlangeWidth);
+        engine.THeight = state.GetDouble("tht", engine.THeight);
+        engine.TFlangeThickness = state.GetDouble("tft", engine.TFlangeThickness);
+        engine.TStemThickness = state.GetDouble("tst", engine.TStemThickness);
+        engine.LegWidth = state.GetDouble("lw", engine.LegWidth);
+        engine.LegHeight = state.GetDouble("lh", engine.LegHeight);
+        engine.LegThickness = state.GetDouble("lt", engine.LegThickness);
+
+        selectedMaterialIndex = MaterialIndexByName(state.GetString("mat"), selectedMaterialIndex);
+        OnMaterialChanged();
+
+        openedFromSharedLink = true;
+
+        // Calculate() validates, so a damaged link just leaves the user on the form.
+        await Calculate();
+    }
+
+    private string MaterialNameAt(int index)
+        => index >= 0 && index < materials.Count ? materials[index].Name : "";
+
+    /// <summary>Resolves a material name to its current index, falling back when it is unknown.</summary>
+    private int MaterialIndexByName(string name, int fallback)
+    {
+        if (string.IsNullOrEmpty(name)) return fallback;
+
+        var index = materials.FindIndex(m => string.Equals(m.Name, name, StringComparison.OrdinalIgnoreCase));
+        return index >= 0 ? index : fallback;
     }
 
     private async Task ConvertSvgToBase64()

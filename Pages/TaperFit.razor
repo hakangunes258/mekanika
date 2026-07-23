@@ -13,7 +13,7 @@
     <p>Tapered shaft-hub connection calculations according to DIN 7190</p>
 </div>
 
-
+<SharedCalculationLoader Module="taper-fit" OnRestore="ApplyShareState" />
 
 @if (!showResults)
 {
@@ -250,7 +250,19 @@ else
             }
         </button>
         <Viewer3D Module="taper-fit" Parameters="@Build3dParameters()" />
+        <ShareCalculation Module="taper-fit" State="@BuildShareState()" />
     </div>
+
+    @if (openedFromSharedLink)
+    {
+        <div class="alert alert-info" style="margin-bottom: 24px;">
+            <ModuleIcon Type="info" Size="small" Style="default" />
+            <div>
+                <strong>Opened from a shared link.</strong>
+                The inputs below came from the link and were recalculated with the current engine.
+            </div>
+        </div>
+    }
 
     <!-- Detailed Results Container -->
     <div id="results-content">
@@ -537,6 +549,10 @@ else
 
     private int selectedShaftMaterialIndex = 2;
     private int selectedHubMaterialIndex = 2;
+    private bool openedFromSharedLink = false;
+
+    /// <summary>Load factors offered by the dropdown. A shared link carrying anything else falls back to 1.0.</summary>
+    private static readonly string[] LoadFactorOptions = { "1.0", "1.25", "1.5", "1.75", "2.0" };
 
     protected override async Task OnInitializedAsync()
     {
@@ -630,6 +646,89 @@ else
         }
     }
 
+    /// <summary>
+    /// The module's inputs in the neutral form used by shareable links (and, later,
+    /// cloud-saved calculations). Inputs only — results are recomputed on restore.
+    ///
+    /// Materials go in by name rather than by their index in MaterialService, so
+    /// adding a material to that list cannot repoint existing links at the wrong
+    /// steel. Keys are kept short because the whole state rides in a URL.
+    /// </summary>
+    private CalculationState BuildShareState() => new CalculationState("taper-fit")
+        .Set("dm", engine.MeanDiameter)
+        .Set("L", engine.FitLength)
+        .Set("di", engine.ShaftInnerDiameter)
+        .Set("Da", engine.HubOuterDiameter)
+        .Set("tr", engine.TaperRatio)
+        .Set("tap", selectedTaper)
+        .Set("ax", engine.AxialDisplacement)
+        .Set("rzs", engine.ShaftRoughnessRz)
+        .Set("rzh", engine.HubRoughnessRz)
+        .Set("mus", engine.FrictionCoefficientStatic)
+        .Set("mud", engine.FrictionCoefficientDynamic)
+        .Set("T", engine.AppliedTorque)
+        .Set("Fa", engine.AppliedAxialForce)
+        .Set("phi", selectedLoadFactor)
+        .Set("ms", MaterialNameAt(selectedShaftMaterialIndex))
+        .Set("mh", MaterialNameAt(selectedHubMaterialIndex));
+
+    /// <summary>
+    /// Restores state produced by <see cref="BuildShareState"/>, then recalculates so
+    /// the recipient lands straight on the results.
+    ///
+    /// Every read supplies the current value as its fallback, so a link written by an
+    /// older build that lacked a field leaves that field at its default instead of
+    /// zeroing it.
+    /// </summary>
+    private async Task ApplyShareState(CalculationState state)
+    {
+        engine.MeanDiameter = state.GetDouble("dm", engine.MeanDiameter);
+        engine.FitLength = state.GetDouble("L", engine.FitLength);
+        engine.ShaftInnerDiameter = state.GetDouble("di", engine.ShaftInnerDiameter);
+        engine.HubOuterDiameter = state.GetDouble("Da", engine.HubOuterDiameter);
+        engine.AxialDisplacement = state.GetDouble("ax", engine.AxialDisplacement);
+        engine.ShaftRoughnessRz = state.GetDouble("rzs", engine.ShaftRoughnessRz);
+        engine.HubRoughnessRz = state.GetDouble("rzh", engine.HubRoughnessRz);
+        engine.FrictionCoefficientStatic = state.GetDouble("mus", engine.FrictionCoefficientStatic);
+        engine.FrictionCoefficientDynamic = state.GetDouble("mud", engine.FrictionCoefficientDynamic);
+        engine.AppliedTorque = state.GetDouble("T", engine.AppliedTorque);
+        engine.AppliedAxialForce = state.GetDouble("Fa", engine.AppliedAxialForce);
+
+        // Only accept a taper the dropdown can display, otherwise the select would
+        // render blank. An unknown name falls back to the custom entry so the ratio
+        // carried by the link is still honoured.
+        var taper = state.GetString("tap", selectedTaper);
+        selectedTaper = taper == "custom" || TaperFitEngine.StandardTapers.ContainsKey(taper) ? taper : "custom";
+        OnTaperChanged();
+
+        // Applied after OnTaperChanged, which overwrites the ratio for a standard taper.
+        if (isCustomTaper) engine.TaperRatio = state.GetDouble("tr", engine.TaperRatio);
+
+        var phi = state.GetString("phi", selectedLoadFactor);
+        selectedLoadFactor = LoadFactorOptions.Contains(phi) ? phi : "1.0";
+        OnLoadFactorChanged();
+
+        selectedShaftMaterialIndex = MaterialIndexByName(state.GetString("ms"), selectedShaftMaterialIndex);
+        selectedHubMaterialIndex = MaterialIndexByName(state.GetString("mh"), selectedHubMaterialIndex);
+
+        openedFromSharedLink = true;
+
+        // Calculate() validates, so a damaged link just leaves the user on the form.
+        await Calculate();
+    }
+
+    private string MaterialNameAt(int index)
+        => index >= 0 && index < materials.Count ? materials[index].Name : "";
+
+    /// <summary>Resolves a material name to its current index, falling back when it is unknown.</summary>
+    private int MaterialIndexByName(string name, int fallback)
+    {
+        if (string.IsNullOrEmpty(name)) return fallback;
+
+        var index = materials.FindIndex(m => string.Equals(m.Name, name, StringComparison.OrdinalIgnoreCase));
+        return index >= 0 ? index : fallback;
+    }
+
     private void BackToInput()
     {
         showResults = false;
@@ -649,6 +748,7 @@ else
         isCustomTaper = false;
         selectedLoadFactor = "1.0";
         showResults = false;
+        openedFromSharedLink = false;
     }
 
     // Helper methods for styling

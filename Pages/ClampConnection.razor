@@ -12,6 +12,8 @@
     <p>Shaft clamping hub design for frictional torque and axial load transmission</p>
 </div>
 
+<SharedCalculationLoader Module="clamp-connection" OnRestore="ApplyShareState" />
+
 @if (!showResults)
 {
     <!-- INPUT FORM -->
@@ -250,7 +252,19 @@ else
                 <span>Save as PDF</span>
             }
         </button>
+        <ShareCalculation Module="clamp-connection" State="@BuildShareState()" />
     </div>
+
+    @if (openedFromSharedLink)
+    {
+        <div class="alert alert-info" style="margin-bottom: 24px;">
+            <ModuleIcon Type="info" Size="small" Style="default" />
+            <div>
+                <strong>Opened from a shared link.</strong>
+                The inputs below came from the link and were recalculated with the current engine.
+            </div>
+        </div>
+    }
 
     <!-- Detailed Results Container -->
     <div id="results-content">
@@ -448,6 +462,10 @@ else
 
     private int selectedShaftMaterialIndex = 2;
     private int selectedHubMaterialIndex = 2;
+    private bool openedFromSharedLink = false;
+
+    /// <summary>Load factors offered by the dropdown. A shared link carrying anything else falls back to 1.0.</summary>
+    private static readonly string[] LoadFactorOptions = { "1.0", "1.25", "1.5", "1.75", "2.0" };
 
     protected override async Task OnInitializedAsync()
     {
@@ -656,7 +674,100 @@ else
         selectedBoltSize = "8";
         selectedBoltClass = "8.8";
         showResults = false;
+        openedFromSharedLink = false;
         UpdateRecommendedTorque();
+    }
+
+    // Option sets a shared link is validated against, so a hand-edited or stale link
+    // cannot leave a dropdown rendering blank.
+    private static readonly string[] FrictionOptions = { "0.12", "0.15", "0.18", "0.20" };
+    private static readonly string[] BoltSizeOptions = { "5", "6", "8", "10", "12", "14", "16", "18", "20" };
+    private static readonly string[] BoltClassOptions = { "8.8", "10.9", "12.9" };
+
+    /// <summary>
+    /// The module's inputs in the neutral form used by shareable links (and, later,
+    /// cloud-saved calculations). Inputs only — results are recomputed on restore.
+    ///
+    /// Materials go in by name rather than by their index in MaterialService, so
+    /// adding a material to that list cannot repoint existing links at the wrong
+    /// steel. Keys are kept short because the whole state rides in a URL.
+    /// </summary>
+    private CalculationState BuildShareState() => new CalculationState("clamp-connection")
+        .Set("d", engine.ShaftDiameter)
+        .Set("Da", engine.ClampOuterDiameter)
+        .Set("L", engine.ClampLength)
+        .Set("b", engine.SlitWidth)
+        .Set("bs", selectedBoltSize)
+        .Set("nb", engine.NumberOfBolts)
+        .Set("MA", engine.BoltTighteningTorque)
+        .Set("bc", selectedBoltClass)
+        .Set("T", engine.AppliedTorque)
+        .Set("Fa", engine.AppliedAxialForce)
+        .Set("phi", selectedLoadFactor)
+        .Set("mu", selectedFriction)
+        .Set("ms", MaterialNameAt(selectedShaftMaterialIndex))
+        .Set("mh", MaterialNameAt(selectedHubMaterialIndex));
+
+    /// <summary>
+    /// Restores state produced by <see cref="BuildShareState"/>, then recalculates so
+    /// the recipient lands straight on the results.
+    ///
+    /// Every read supplies the current value as its fallback, so a link written by an
+    /// older build that lacked a field leaves that field at its default instead of
+    /// zeroing it.
+    /// </summary>
+    private async Task ApplyShareState(CalculationState state)
+    {
+        engine.ShaftDiameter = state.GetDouble("d", engine.ShaftDiameter);
+        engine.ClampOuterDiameter = state.GetDouble("Da", engine.ClampOuterDiameter);
+        engine.ClampLength = state.GetDouble("L", engine.ClampLength);
+        engine.SlitWidth = state.GetDouble("b", engine.SlitWidth);
+        engine.NumberOfBolts = state.GetInt("nb", engine.NumberOfBolts);
+        engine.BoltTighteningTorque = state.GetDouble("MA", engine.BoltTighteningTorque);
+        engine.AppliedTorque = state.GetDouble("T", engine.AppliedTorque);
+        engine.AppliedAxialForce = state.GetDouble("Fa", engine.AppliedAxialForce);
+
+        // Driven selects: set the field, then run its handler so the derived engine
+        // value follows. Each is validated against its option set so an unknown value
+        // cannot leave the dropdown blank.
+        var bs = state.GetString("bs", selectedBoltSize);
+        selectedBoltSize = BoltSizeOptions.Contains(bs) ? bs : selectedBoltSize;
+        OnBoltSizeChanged();
+
+        var bc = state.GetString("bc", selectedBoltClass);
+        selectedBoltClass = BoltClassOptions.Contains(bc) ? bc : selectedBoltClass;
+        OnBoltClassChanged();
+
+        var phi = state.GetString("phi", selectedLoadFactor);
+        selectedLoadFactor = LoadFactorOptions.Contains(phi) ? phi : "1.0";
+        OnLoadFactorChanged();
+
+        var mu = state.GetString("mu", selectedFriction);
+        selectedFriction = FrictionOptions.Contains(mu) ? mu : selectedFriction;
+        OnFrictionChanged();
+
+        selectedShaftMaterialIndex = MaterialIndexByName(state.GetString("ms"), selectedShaftMaterialIndex);
+        selectedHubMaterialIndex = MaterialIndexByName(state.GetString("mh"), selectedHubMaterialIndex);
+
+        // Keep the "recommended clamp" hint consistent with the restored diameter.
+        OnShaftDiameterChanged();
+
+        openedFromSharedLink = true;
+
+        // Calculate() validates, so a damaged link just leaves the user on the form.
+        await Calculate();
+    }
+
+    private string MaterialNameAt(int index)
+        => index >= 0 && index < materials.Count ? materials[index].Name : "";
+
+    /// <summary>Resolves a material name to its current index, falling back when it is unknown.</summary>
+    private int MaterialIndexByName(string name, int fallback)
+    {
+        if (string.IsNullOrEmpty(name)) return fallback;
+
+        var index = materials.FindIndex(m => string.Equals(m.Name, name, StringComparison.OrdinalIgnoreCase));
+        return index >= 0 ? index : fallback;
     }
 
     private async Task SaveAsPdf()

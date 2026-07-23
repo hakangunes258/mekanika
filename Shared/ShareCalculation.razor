@@ -1,0 +1,144 @@
+@inject CalculationShareService Share
+@inject AnalyticsService Analytics
+@inject IJSRuntime JSRuntime
+
+@*
+    Produces a link that reopens the current calculation with the same inputs.
+
+    Usage from a module's results section:
+        <ShareCalculation Module="key-connection" State="@BuildShareState()" />
+
+    The link carries inputs only; the recipient's browser re-runs the engine. No
+    account and no backend are involved.
+*@
+
+<button class="btn btn-share" @onclick="GenerateAsync">
+    <span style="font-size:15px;line-height:1;">🔗</span>
+    <span>@Label</span>
+</button>
+
+@if (link != null)
+{
+    <div class="share-panel">
+        <div class="share-panel-header">
+            @if (copied)
+            {
+                <span class="share-copied">✓ Link copied to clipboard</span>
+            }
+            else
+            {
+                <span>Copy this link to share the calculation:</span>
+            }
+        </div>
+        <div class="share-panel-row">
+            <input type="text" class="share-link-input" readonly value="@link" @onclick="SelectAllAsync" @ref="linkInput" />
+            <button class="btn btn-secondary share-copy-btn" @onclick="CopyAsync">Copy</button>
+        </div>
+        <small class="share-note">
+            Anyone opening this link sees the same inputs, recalculated with the current engine.
+        </small>
+    </div>
+}
+
+<style>
+    .btn-share {
+        background: linear-gradient(135deg, #6f42c1 0%, #5a32a3 100%);
+        color: white;
+    }
+
+    .btn-share:hover {
+        background: linear-gradient(135deg, #5a32a3 0%, #4c2a8a 100%);
+    }
+
+    .share-panel {
+        flex-basis: 100%;
+        margin-top: 12px;
+        padding: 14px 16px;
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+    }
+
+    .share-panel-header {
+        font-size: 13px;
+        color: #495057;
+        margin-bottom: 8px;
+    }
+
+    .share-copied {
+        color: #28a745;
+        font-weight: 600;
+    }
+
+    .share-panel-row {
+        display: flex;
+        gap: 8px;
+        align-items: stretch;
+    }
+
+    .share-link-input {
+        flex: 1;
+        min-width: 0;
+        padding: 8px 10px;
+        font-family: 'Consolas', monospace;
+        font-size: 12px;
+        color: #2c3e50;
+        background: white;
+        border: 1px solid #ced4da;
+        border-radius: 6px;
+    }
+
+    .share-copy-btn {
+        white-space: nowrap;
+        padding: 8px 16px;
+    }
+
+    .share-note {
+        display: block;
+        margin-top: 8px;
+        font-size: 11px;
+        color: #6c757d;
+    }
+</style>
+
+@code {
+    /// <summary>Module key. Must match the key the page passes to TryReadFromUrl.</summary>
+    [Parameter, EditorRequired] public string Module { get; set; } = "";
+
+    /// <summary>Current input state. Rebuilt on each render, so it always reflects the live form.</summary>
+    [Parameter, EditorRequired] public CalculationState? State { get; set; }
+
+    [Parameter] public string Label { get; set; } = "Share Link";
+
+    private string? link;
+    private bool copied;
+    private ElementReference linkInput;
+
+    private async Task GenerateAsync()
+    {
+        if (State == null) return;
+
+        link = Share.BuildLink(State);
+
+        // Copying straight away is the common case; the panel is the fallback for
+        // browsers that refuse clipboard access.
+        copied = await Share.CopyToClipboardAsync(link);
+
+        await Analytics.TrackCalculationShared(Module, copied);
+    }
+
+    private async Task CopyAsync()
+    {
+        if (link == null) return;
+
+        copied = await Share.CopyToClipboardAsync(link);
+        if (!copied) await SelectAllAsync();
+    }
+
+    private async Task SelectAllAsync()
+    {
+        // Selecting the text gives the user a working Ctrl+C when the clipboard
+        // API is unavailable. Done in JS because Blazor has no select() binding.
+        try { await JSRuntime.InvokeVoidAsync("mekanikaShare.selectInput", linkInput); } catch { }
+    }
+}

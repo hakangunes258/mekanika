@@ -14,6 +14,8 @@
     <p>ISO 281 bearing life calculation for cylindrical and tapered roller bearings</p>
 </div>
 
+<SharedCalculationLoader Module="roller-bearing" OnRestore="ApplyShareState" />
+
 @if (!showResults)
 {
     <!-- INPUT FORM -->
@@ -187,7 +189,19 @@ else
                 <span>Save as PDF</span>
             }
         </button>
+        <ShareCalculation Module="roller-bearing" State="@BuildShareState()" />
     </div>
+
+    @if (openedFromSharedLink)
+    {
+        <div class="alert alert-info" style="margin-bottom: 24px;">
+            <ModuleIcon Type="info" Size="small" Style="default" />
+            <div>
+                <strong>Opened from a shared link.</strong>
+                The inputs below came from the link and were recalculated with the current engine.
+            </div>
+        </div>
+    }
 
     <div id="results-content">
 
@@ -369,6 +383,7 @@ else
     private double speed = 0;
     private string selectedMachineFactor = "1.0";
     private int selectedReliability = 90;
+    private bool openedFromSharedLink = false;
 
     // Tapered-specific catalog values
     private double eFactor = 0;
@@ -575,6 +590,78 @@ else
         selectedMachineFactor = "1.0";
         selectedReliability = 90;
         showResults = false;
+        openedFromSharedLink = false;
+    }
+
+    /// <summary>
+    /// The module's inputs in the neutral form used by shareable links (and, later,
+    /// cloud-saved calculations). Inputs only — results are recomputed on restore.
+    ///
+    /// The bearing is stored by its designation, not by its index in the catalog, so
+    /// adding a bearing to the database cannot repoint existing links at the wrong
+    /// one. The dynamic/static ratings are stored too, preserving a manual override of
+    /// the catalog value. Keys are kept short because the state rides in a URL.
+    /// </summary>
+    private CalculationState BuildShareState() => new CalculationState("roller-bearing")
+        .Set("type", selectedBearingType)
+        .Set("brg", selectedBearingName)
+        .Set("C", dynamicRating)
+        .Set("C0", staticRating)
+        .Set("Fr", radialLoad)
+        .Set("Fa", axialLoad)
+        .Set("nrpm", speed)
+        .Set("mf", selectedMachineFactor)
+        .Set("rel", selectedReliability);
+
+    /// <summary>
+    /// Restores state produced by <see cref="BuildShareState"/>, then recalculates so
+    /// the recipient lands straight on the results.
+    ///
+    /// Every read supplies the current value as its fallback, so a link written by an
+    /// older build that lacked a field leaves that field at its default instead of
+    /// zeroing it.
+    /// </summary>
+    private async Task ApplyShareState(CalculationState state)
+    {
+        // Bearing type first: its handler clears the selection, then the bearing is
+        // located by designation in that type's catalog.
+        selectedBearingType = state.GetString("type", selectedBearingType);
+        OnBearingTypeChanged();
+
+        var designation = state.GetString("brg");
+        if (!string.IsNullOrEmpty(designation))
+        {
+            var catalog = selectedBearingType == "Cylindrical"
+                ? BearingService.CylindricalRollerBearings.Select(b => b.Designation).ToList()
+                : BearingService.TaperedRollerBearings.Select(b => b.Designation).ToList();
+
+            var idx = catalog.FindIndex(d => string.Equals(d, designation, StringComparison.OrdinalIgnoreCase));
+            if (idx >= 0)
+            {
+                selectedBearingIndex = idx;
+                OnBearingSelected();   // sets ratings, e/Y, and the bearing name
+            }
+        }
+
+        // Reapply after OnBearingSelected, which overwrites them from the catalog, so
+        // a manual override of the ratings survives the round-trip.
+        dynamicRating = state.GetDouble("C", dynamicRating);
+        staticRating = state.GetDouble("C0", staticRating);
+
+        radialLoad = state.GetDouble("Fr", radialLoad);
+        axialLoad = state.GetDouble("Fa", axialLoad);
+        speed = state.GetDouble("nrpm", speed);
+
+        var mf = state.GetString("mf", selectedMachineFactor);
+        if (BearingService.MachineFactors.Any(m => m.Value == mf)) selectedMachineFactor = mf;
+
+        var rel = state.GetInt("rel", selectedReliability);
+        if (BearingService.ReliabilityFactors.ContainsKey(rel)) selectedReliability = rel;
+
+        openedFromSharedLink = true;
+
+        // Calculate() validates, so a damaged link just leaves the user on the form.
+        await Calculate();
     }
 
     private string FormatLife(double hours)
