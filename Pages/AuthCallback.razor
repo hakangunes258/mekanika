@@ -1,6 +1,9 @@
 @page "/auth/callback"
+@using System.Text.Json
 @inject SupabaseAuthService Auth
+@inject CalculationStorageService Storage
 @inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
 
 @*
     Landing page for the redirect back from Google / a magic link. Supabase leaves the
@@ -58,12 +61,52 @@
 
         if (ok)
         {
-            Navigation.NavigateTo("/account", forceLoad: false);
+            // If the user pressed "Save" before signing in, the calculation was
+            // stashed; persist it now so signing in mid-calculation loses nothing.
+            await FlushPendingSaveAsync();
+            Navigation.NavigateTo("/my-calculations", forceLoad: false);
         }
         else
         {
             error = err ?? "The sign-in link may have expired.";
             StateHasChanged();
         }
+    }
+
+    private const string PendingSaveKey = "mekanika.pendingSave";
+
+    private async Task FlushPendingSaveAsync()
+    {
+        string? raw;
+        try { raw = await JSRuntime.InvokeAsync<string?>("mekanikaAuth.get", PendingSaveKey); }
+        catch { return; }
+
+        if (string.IsNullOrEmpty(raw)) return;
+
+        // Consume it unconditionally, so a malformed or un-saveable stash cannot
+        // reappear on every future sign-in.
+        try { await JSRuntime.InvokeVoidAsync("mekanikaAuth.remove", PendingSaveKey); } catch { }
+
+        try
+        {
+            var pending = JsonSerializer.Deserialize<PendingSave>(raw);
+            if (pending == null || string.IsNullOrEmpty(pending.Module)) return;
+
+            var state = CalculationState.Deserialize(pending.Payload);
+            if (state == null) return;
+
+            await Storage.SaveAsync(pending.Module, pending.Title, state);
+        }
+        catch
+        {
+            // Best-effort: a failed migration should never block the sign-in landing.
+        }
+    }
+
+    private class PendingSave
+    {
+        public string Module { get; set; } = "";
+        public string Title { get; set; } = "";
+        public string Payload { get; set; } = "";
     }
 }

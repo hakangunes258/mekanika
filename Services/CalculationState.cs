@@ -49,6 +49,19 @@ public sealed class CalculationState
 
     public IReadOnlyDictionary<string, string> Values => _values;
 
+    /// <summary>
+    /// Rebuilds a state from a plain key/value map — the shape stored in the
+    /// `calculations.inputs` jsonb column. The inverse of <see cref="Values"/>.
+    /// </summary>
+    public static CalculationState FromValues(string module, IDictionary<string, string>? values, int version = CurrentVersion)
+    {
+        var state = new CalculationState(module, version);
+        if (values != null)
+            foreach (var (key, value) in values)
+                state._values[key] = value;
+        return state;
+    }
+
     // ============ WRITING ============
 
     public CalculationState Set(string key, double value)

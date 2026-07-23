@@ -33,6 +33,9 @@ builder.Services.AddScoped<SupabaseAuthService>();
 builder.Services.AddAuthorizationCore();
 builder.Services.AddScoped<AuthenticationStateProvider, SupabaseAuthStateProvider>();
 
+// Cloud-saved calculations (Supabase PostgREST, RLS-scoped to the user)
+builder.Services.AddScoped<CalculationStorageService>();
+
 var host = builder.Build();
 
 // Restore any persisted session before the first render, so the navbar shows the

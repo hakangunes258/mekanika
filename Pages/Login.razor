@@ -145,7 +145,7 @@
         // Someone already signed in has no business on the login page.
         var session = await Auth.InitializeAsync();
         if (session != null && !session.IsExpired)
-            Navigation.NavigateTo("/account");
+            Navigation.NavigateTo("/my-calculations");
     }
 
     private void SignInWithGoogle() => Auth.SignInWithGoogle();

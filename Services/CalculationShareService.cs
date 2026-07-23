@@ -35,6 +35,15 @@ public class CalculationShareService
     }
 
     /// <summary>
+    /// A relative URL that opens <paramref name="moduleKey"/> with the given state
+    /// restored — for navigating from one page (e.g. My Calculations) to a module.
+    /// The module route is the key itself, and the SharedCalculationLoader on that
+    /// page restores from the fragment on arrival.
+    /// </summary>
+    public string BuildModuleUrl(string moduleKey, CalculationState state)
+        => $"{moduleKey}#{FragmentKey}{ToBase64Url(state.Serialize())}";
+
+    /// <summary>
     /// Reads shared state out of the current URL, or null if there is none.
     ///
     /// <paramref name="expectedModule"/> guards against a link for one calculator

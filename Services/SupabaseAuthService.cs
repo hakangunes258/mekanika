@@ -37,6 +37,25 @@ public class SupabaseAuthService
     public UserSession? CurrentSession => _session;
     public bool IsSignedIn => _session != null && !_session.IsExpired;
 
+    /// <summary>
+    /// Returns an access token good for at least the next couple of minutes,
+    /// refreshing first if it is at or near expiry. Null if there is no usable
+    /// session — callers should treat that as "signed out". This is what data
+    /// services (e.g. cloud save) call before every authenticated request.
+    /// </summary>
+    public async Task<string?> GetValidAccessTokenAsync()
+    {
+        if (_session == null) return null;
+
+        if (_session.IsNearExpiry)
+        {
+            var refreshed = await RefreshAsync();
+            if (!refreshed) return null;
+        }
+
+        return _session?.AccessToken;
+    }
+
     // ============ SESSION LOAD / PERSIST ============
 
     /// <summary>

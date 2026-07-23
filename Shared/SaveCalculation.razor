@@ -1,0 +1,182 @@
+@using System.Text.Json
+@inject SupabaseAuthService Auth
+@inject CalculationStorageService Storage
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+@*
+    Saves the current calculation to the signed-in user's account. Same props as
+    ShareCalculation, so it sits beside it in the results button-group:
+
+        <SaveCalculation Module="key-connection" State="@BuildShareState()" />
+
+    Signed out, it stashes the calculation and sends the user to sign in; after
+    sign-in the stashed calculation is saved automatically (see AuthCallback).
+*@
+
+<AuthorizeView>
+    <Authorized>
+        @if (saved)
+        {
+            <button class="btn btn-save btn-saved" disabled>
+                <span style="font-size:15px;line-height:1;">✓</span>
+                <span>Saved</span>
+            </button>
+        }
+        else
+        {
+            <button class="btn btn-save" @onclick="OpenPanel">
+                <span style="font-size:15px;line-height:1;">💾</span>
+                <span>Save</span>
+            </button>
+        }
+    </Authorized>
+    <NotAuthorized>
+        <button class="btn btn-save" @onclick="SaveAsGuest">
+            <span style="font-size:15px;line-height:1;">💾</span>
+            <span>Save to account</span>
+        </button>
+    </NotAuthorized>
+</AuthorizeView>
+
+@if (showPanel)
+{
+    <div class="save-panel">
+        <div class="save-panel-header">Name this calculation:</div>
+        <div class="save-panel-row">
+            <input type="text" class="save-title-input" @bind="title" @bind:event="oninput"
+                   @onkeydown="OnKeyDown" placeholder="e.g. Reducer shaft Ø40" />
+            <button class="btn btn-success save-confirm-btn @(isSaving ? "btn-calculating" : "")"
+                    @onclick="Confirm" disabled="@isSaving">
+                @if (isSaving)
+                {
+                    <span class="spinner"></span>
+                }
+                else
+                {
+                    <span>Save</span>
+                }
+            </button>
+            <button class="btn btn-secondary" @onclick="() => showPanel = false" disabled="@isSaving">Cancel</button>
+        </div>
+        @if (error != null)
+        {
+            <div class="alert alert-danger" style="margin-top: 8px;"><div>@error</div></div>
+        }
+        <small class="save-note">Saved to your account — reopen it any time from “My Calculations”.</small>
+    </div>
+}
+
+<style>
+    .btn-save {
+        background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+        color: white;
+    }
+    .btn-save:hover { background: linear-gradient(135deg, #0f766e 0%, #115e59 100%); }
+    .btn-saved { opacity: 0.75; cursor: default; }
+
+    .save-panel {
+        flex-basis: 100%;
+        margin-top: 12px;
+        padding: 14px 16px;
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+    }
+    .save-panel-header { font-size: 13px; color: #495057; margin-bottom: 8px; }
+    .save-panel-row { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; }
+    .save-title-input {
+        flex: 1;
+        min-width: 180px;
+        padding: 8px 10px;
+        font-size: 14px;
+        border: 1px solid #ced4da;
+        border-radius: 6px;
+    }
+    .save-confirm-btn { white-space: nowrap; padding: 8px 16px; }
+    .save-note { display: block; margin-top: 8px; font-size: 11px; color: #6c757d; }
+</style>
+
+@code {
+    /// <summary>Module key. Matches the key used everywhere else for this calculator.</summary>
+    [Parameter, EditorRequired] public string Module { get; set; } = "";
+
+    /// <summary>Current input state — the same object passed to ShareCalculation.</summary>
+    [Parameter, EditorRequired] public CalculationState? State { get; set; }
+
+    private const string PendingSaveKey = "mekanika.pendingSave";
+
+    private bool showPanel;
+    private bool isSaving;
+    private bool saved;
+    private string title = "";
+    private string? error;
+
+    private void OpenPanel()
+    {
+        error = null;
+        title = DefaultTitle();
+        showPanel = true;
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !isSaving) await Confirm();
+    }
+
+    private async Task Confirm()
+    {
+        if (State == null) return;
+
+        isSaving = true;
+        error = null;
+        StateHasChanged();
+
+        var (ok, err) = await Storage.SaveAsync(Module, title, State);
+
+        isSaving = false;
+        if (ok)
+        {
+            saved = true;
+            showPanel = false;
+        }
+        else
+        {
+            error = err ?? "Could not save. Please try again.";
+        }
+    }
+
+    /// <summary>
+    /// Signed-out path: stash the calculation, then send the user to sign in. After
+    /// sign-in, AuthCallback finds the stash and saves it — so nothing is lost by
+    /// signing in mid-calculation.
+    /// </summary>
+    private async Task SaveAsGuest()
+    {
+        if (State == null) return;
+
+        var pending = JsonSerializer.Serialize(new PendingSave
+        {
+            Module = Module,
+            Title = DefaultTitle(),
+            Payload = State.Serialize()
+        });
+        await JSRuntime.InvokeVoidAsync("mekanikaAuth.set", PendingSaveKey, pending);
+        Navigation.NavigateTo("/login");
+    }
+
+    private string DefaultTitle()
+    {
+        // "key-connection" -> "Key connection — 23 Jul"
+        var words = Module.Replace('-', ' ');
+        var name = words.Length > 0 ? char.ToUpperInvariant(words[0]) + words[1..] : Module;
+        return $"{name} — {DateTime.Now:d MMM}";
+    }
+
+    private class PendingSave
+    {
+        public string Module { get; set; } = "";
+        public string Title { get; set; } = "";
+        public string Payload { get; set; } = "";
+    }
+}

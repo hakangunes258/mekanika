@@ -1,0 +1,134 @@
+@page "/my-calculations"
+@inject SupabaseAuthService Auth
+@inject CalculationStorageService Storage
+@inject CalculationShareService Share
+@inject ModuleMetadataService Metadata
+@inject NavigationManager Navigation
+
+<PageTitle>My Calculations - Mekanika</PageTitle>
+
+<div class="page-header">
+    <h1>My Calculations</h1>
+    <p>Calculations you have saved to your account. Open one to recalculate it with the current engine.</p>
+</div>
+
+@if (!ready)
+{
+    <div class="card"><div style="padding: 12px;">Loading…</div></div>
+}
+else if (!signedIn)
+{
+    <div class="card">
+        <div style="padding: 12px 4px;">
+            <p>Sign in to save calculations and reopen them from any device.</p>
+            <a href="/login" class="btn btn-primary" style="margin-top: 8px;">Sign in</a>
+        </div>
+    </div>
+}
+else if (items.Count == 0)
+{
+    <div class="card">
+        <div style="padding: 16px 4px; text-align: center; color: #6c757d;">
+            <div style="font-size: 40px; margin-bottom: 8px;">📄</div>
+            <p>You haven’t saved any calculations yet.</p>
+            <p style="font-size: 13px;">Run any calculator, then press <strong>Save</strong> on the results.</p>
+        </div>
+    </div>
+}
+else
+{
+    <div class="card">
+        <table class="results-table saved-table">
+            <thead>
+                <tr><th>Name</th><th>Calculator</th><th>Saved</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var item in items)
+                {
+                    <tr>
+                        <td class="saved-title">@item.Title</td>
+                        <td>@ModuleName(item.ModuleKey)</td>
+                        <td>@item.UpdatedAt.LocalDateTime.ToString("d MMM yyyy")</td>
+                        <td class="saved-actions">
+                            <button class="btn btn-primary btn-sm" @onclick="() => Open(item)">Open</button>
+                            @if (confirmDeleteId == item.Id)
+                            {
+                                <button class="btn btn-danger btn-sm" @onclick="() => Delete(item)" disabled="@isBusy">
+                                    Confirm
+                                </button>
+                                <button class="btn btn-secondary btn-sm" @onclick="() => confirmDeleteId = null" disabled="@isBusy">
+                                    Cancel
+                                </button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-secondary btn-sm" @onclick="() => confirmDeleteId = item.Id">Delete</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<style>
+    .results-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .results-table th {
+        background: #f8f9fa; padding: 12px 16px; text-align: left;
+        font-weight: 600; color: #2c3e50; border-bottom: 2px solid #dee2e6;
+    }
+    .results-table td { padding: 10px 16px; border-bottom: 1px solid #eee; }
+    .saved-title { font-weight: 600; color: #2c3e50; }
+    .saved-actions { text-align: right; white-space: nowrap; }
+    .btn-sm { padding: 4px 12px; font-size: 12px; margin-left: 6px; }
+    .btn-danger {
+        background: linear-gradient(135deg, #dc3545 0%, #b02a37 100%);
+        color: white;
+    }
+    .btn-danger:hover { background: linear-gradient(135deg, #b02a37 0%, #922331 100%); }
+
+    @@media (max-width: 640px) {
+        .saved-table th:nth-child(3), .saved-table td:nth-child(3) { display: none; }
+    }
+</style>
+
+@code {
+    private List<SavedCalculation> items = new();
+    private bool ready = false;
+    private bool signedIn = false;
+    private bool isBusy = false;
+    private string? confirmDeleteId = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var session = await Auth.InitializeAsync();
+        signedIn = session != null && !session.IsExpired;
+
+        if (signedIn)
+            items = await Storage.ListAsync();
+
+        ready = true;
+    }
+
+    private string ModuleName(string key)
+    {
+        var info = Metadata.GetModule(key);
+        return string.IsNullOrEmpty(info.Name) ? key : info.Name;
+    }
+
+    private void Open(SavedCalculation item)
+    {
+        var state = CalculationState.FromValues(item.ModuleKey, item.Inputs);
+        Navigation.NavigateTo(Share.BuildModuleUrl(item.ModuleKey, state));
+    }
+
+    private async Task Delete(SavedCalculation item)
+    {
+        isBusy = true;
+        var ok = await Storage.DeleteAsync(item.Id);
+        if (ok) items.RemoveAll(i => i.Id == item.Id);
+        confirmDeleteId = null;
+        isBusy = false;
+    }
+}
