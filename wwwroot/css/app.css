@@ -103,15 +103,12 @@ html, body {
     font-size: 15px;
 }
 
-/* NavMenu icon styling - make icons white for dark sidebar */
-.nav-item .module-icon img {
-    filter: brightness(0) invert(1) !important;
-    opacity: 0.7;
-}
-
-.nav-item:hover .module-icon img,
-.nav-item.active .module-icon img {
-    opacity: 1;
+/* NavMenu icons: inline SVGs inherit the (light) sidebar text colour via
+   currentColor, so they brighten on hover/active exactly like the label. */
+.sidebar .module-icon {
+    color: inherit;
+    background: transparent;
+    border: none;
 }
 
 .nav-item:hover {

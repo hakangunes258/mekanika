@@ -19,21 +19,21 @@
         @if (saved)
         {
             <button class="btn btn-save btn-saved" disabled>
-                <span style="font-size:15px;line-height:1;">✓</span>
+                <ModuleIcon Type="check" Size="button" Style="transparent" />
                 <span>Saved</span>
             </button>
         }
         else
         {
             <button class="btn btn-save" @onclick="OpenPanel">
-                <span style="font-size:15px;line-height:1;">💾</span>
+                <ModuleIcon Type="save" Size="button" Style="transparent" />
                 <span>Save</span>
             </button>
         }
     </Authorized>
     <NotAuthorized>
         <button class="btn btn-save" @onclick="SaveAsGuest">
-            <span style="font-size:15px;line-height:1;">💾</span>
+            <ModuleIcon Type="save" Size="button" Style="transparent" />
             <span>Save to account</span>
         </button>
     </NotAuthorized>

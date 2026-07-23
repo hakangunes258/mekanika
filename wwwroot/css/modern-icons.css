@@ -40,13 +40,64 @@
     flex-shrink: 0;
 }
 
-/* Page Header Icon - force white color to match white text */
-.page-header .module-icon img {
-    filter: brightness(0) invert(1) !important;
+/* Page Header Icon - white to match the white heading (inline SVG uses currentColor) */
+.page-header .module-icon {
+    color: #ffffff !important;
 }
 
-.page-header .module-icon span {
-    color: white !important;
+/* ── Mekanika inline icon set ──────────────────────────────────────────
+   Sizes and style variants for <ModuleIcon>. Icons are inline SVGs using
+   currentColor, so a variant only has to set `color` (no filter hacks). */
+.module-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border-radius: 8px;
+    color: #495057;
+    transition: color 0.2s ease, background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.module-icon svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* Size variants — padding gives the glyph room inside its box */
+.icon-sm  { width: 28px; height: 28px; padding: 4px; }
+.icon-md  { width: 40px; height: 40px; padding: 7px; }
+.icon-lg  { width: 56px; height: 56px; padding: 10px; }
+.icon-xl  { width: 80px; height: 80px; padding: 14px; }
+
+/* Button-optimised: no box, no padding — sits inline with the label */
+.icon-btn { width: 18px; height: 18px; padding: 0; border-radius: 0; }
+
+/* Style variants */
+.icon-default     { color: #495057; background: transparent; }
+.icon-transparent { color: #2c3e50; background: transparent; }
+.icon-solid       { color: #495057; background: #f8f9fa; border: 1px solid #dee2e6; }
+.icon-outline     { color: #0077be; background: transparent; border: 2px solid #0077be; }
+.icon-gradient {
+    color: #ffffff;
+    background: linear-gradient(135deg, #0077be 0%, #005a91 100%);
+    box-shadow: 0 4px 12px rgba(0, 119, 190, 0.3);
+}
+
+.module-icon:hover.icon-gradient {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 119, 190, 0.4);
+}
+.module-icon:hover.icon-outline {
+    background: rgba(0, 119, 190, 0.05);
+}
+
+/* Icons inside buttons follow the button's text colour (white on a coloured
+   button, dark on a light one) and never draw their own box. */
+.btn .module-icon {
+    color: inherit;
+    background: transparent;
+    border: none;
 }
 
 /* Page Header Modernization */

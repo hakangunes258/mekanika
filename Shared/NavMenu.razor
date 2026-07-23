@@ -16,13 +16,15 @@
                     <span class="nav-account-email">@context.User.Identity?.Name</span>
                 </NavLink>
                 <NavLink class="nav-account-link" href="my-calculations">
-                    <span style="font-size:14px;line-height:1;">📄</span> My Calculations
+                    <ModuleIcon Type="my-calculations" Size="button" Style="transparent" /> My Calculations
                 </NavLink>
-                <button class="nav-account-signout" @onclick="SignOut">Sign out</button>
+                <button class="nav-account-signout" @onclick="SignOut">
+                    <ModuleIcon Type="sign-out" Size="button" Style="transparent" /> Sign out
+                </button>
             </Authorized>
             <NotAuthorized>
                 <NavLink class="nav-account-signin" href="login">
-                    <ModuleIcon Type="contact" Size="medium" Style="default" /> Sign In
+                    <ModuleIcon Type="account" Size="button" Style="transparent" /> Sign In
                 </NavLink>
             </NotAuthorized>
         </AuthorizeView>
@@ -182,6 +184,9 @@
     .nav-account-signout {
         margin-top: 6px;
         width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 8px;
         text-align: left;
         background: none;
         border: none;
