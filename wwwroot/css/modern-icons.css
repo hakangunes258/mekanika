@@ -172,41 +172,43 @@
     box-shadow: 0 4px 12px rgba(0, 183, 74, 0.35);
 }
 
-.btn-info {
-    background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
-    color: white;
-    box-shadow: 0 2px 8px rgba(23, 162, 184, 0.25);
-}
-
-.btn-info:hover {
-    box-shadow: 0 4px 12px rgba(23, 162, 184, 0.35);
-}
-
-/* 3D geometry viewer button */
+/* ── Neutral / outline command buttons ─────────────────────────────────
+   Only the one filled primary action (Calculate) carries colour; every other
+   command button — Clear, Back, PDF, Share, Save, 3D — is a quiet outline
+   button, so the primary action stands alone. btn-share / btn-save keep their
+   class but adopt the same look in their component files. */
+.btn-secondary,
+.btn-info,
 .btn-3d {
-    background: linear-gradient(135deg, #4472C4 0%, #2E5496 100%);
-    color: white;
-    box-shadow: 0 2px 8px rgba(68, 114, 196, 0.25);
+    background: #ffffff;
+    color: #334155;
+    border: 1px solid #c4cdd8;
+    box-shadow: none;
 }
 
+.btn-secondary:hover,
+.btn-info:hover,
 .btn-3d:hover {
-    box-shadow: 0 4px 12px rgba(68, 114, 196, 0.35);
+    background: #eef4fb;
+    border-color: #0077be;
+    color: #005a91;
 }
 
+/* Spinner turns dark on the light neutral background */
+.btn-secondary .spinner,
+.btn-info .spinner,
 .btn-3d .spinner {
-    border-color: rgba(255, 255, 255, 0.4);
-    border-top-color: white;
+    border-color: rgba(0, 119, 190, 0.25);
+    border-top-color: #0077be;
 }
 
-.btn-secondary {
-    background: #f8f9fa;
-    color: #495057;
-    border: 1px solid #dee2e6;
-}
-
-.btn-secondary:hover {
-    background: #e9ecef;
-    border-color: #ced4da;
+/* Disabled state for every button variant */
+.btn:disabled,
+.btn[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
 }
 
 .btn-lg {
@@ -215,17 +217,10 @@
     font-weight: 600;
 }
 
-/* PDF saving state */
+/* Saving state (PDF / 3D) — stays neutral, just dimmed */
 .btn-saving {
-    opacity: 0.85;
+    opacity: 0.6;
     cursor: not-allowed;
-    background: linear-gradient(135deg, #138496 0%, #0f6674 100%) !important;
-}
-
-/* Teal spinner inside btn-info (PDF button) */
-.btn-info .spinner {
-    border-color: rgba(255, 255, 255, 0.4);
-    border-top-color: white;
 }
 
 /* Module Cards on Index Page */

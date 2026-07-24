@@ -69,11 +69,24 @@
 
 <style>
     .btn-save {
-        background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
-        color: white;
+        background: #ffffff;
+        color: #334155;
+        border: 1px solid #c4cdd8;
     }
-    .btn-save:hover { background: linear-gradient(135deg, #0f766e 0%, #115e59 100%); }
-    .btn-saved { opacity: 0.75; cursor: default; }
+    .btn-save:hover {
+        background: #eef4fb;
+        border-color: #0077be;
+        color: #005a91;
+    }
+    /* "Saved" confirmation: a quiet green done-state (overrides the disabled dim) */
+    .btn.btn-saved,
+    .btn.btn-saved:hover {
+        background: #e8f5e9;
+        border-color: #a5d6a7;
+        color: #2e7d32;
+        opacity: 1;
+        cursor: default;
+    }
 
     .save-panel {
         flex-basis: 100%;

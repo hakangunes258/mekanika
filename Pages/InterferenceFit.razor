@@ -217,7 +217,7 @@ else
 {
     <!-- ============ RESULTS SECTION ============ -->
     <div class="button-group" style="margin-bottom: 24px;">
-        <button class="btn btn-primary" @onclick="BackToInput"><ModuleIcon Type="back" Size="button" Style="default" /> Back to Input</button>
+        <button class="btn btn-secondary" @onclick="BackToInput"><ModuleIcon Type="back" Size="button" Style="default" /> Back to Input</button>
         <button class="btn btn-secondary" @onclick="ClearForm"><ModuleIcon Type="new" Size="button" Style="default" /> New Calculation</button>
         <button class="btn btn-info @(isSavingPdf ? "btn-saving" : "")" @onclick="SaveAsPdf" disabled="@isSavingPdf">
             @if (isSavingPdf)
