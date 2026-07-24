@@ -3,7 +3,6 @@
 @using MechanicalCalculatorWeb.Models
 @using static MechanicalCalculatorWeb.Services.BoltService
 @inject MaterialService MaterialService
-@inject IJSRuntime JSRuntime
 @inject AnalyticsService Analytics
 @inject SeoService Seo
 @inject ModuleMetadataService Metadata
@@ -23,7 +22,7 @@
 <div class="form-grid">
     <div class="card">
         <div class="card-header">
-            <span>🔩</span>
+            <ModuleIcon Type="bolt" Size="medium" Style="solid" />
             <h2>Bolt Specification</h2>
         </div>
 
@@ -52,7 +51,7 @@
 
     <div class="card">
         <div class="card-header">
-            <span>🔧</span>
+            <ModuleIcon Type="calculate" Size="medium" Style="solid" />
             <h2>Torque Calculator</h2>
         </div>
 
@@ -74,7 +73,7 @@
 
         <div class="button-group">
             <button class="btn btn-success" @onclick="CalculateTorque">
-                <span>▶</span> Calculate Torque
+                <ModuleIcon Type="calculate" Size="button" Style="default" /> Calculate Torque
             </button>
         </div>
 
@@ -89,7 +88,7 @@
 
     <div class="card">
         <div class="card-header">
-            <span>🔩</span>
+            <ModuleIcon Type="loading" Size="medium" Style="solid" />
             <h2>Preload Calculator</h2>
         </div>
 
@@ -111,7 +110,7 @@
 
         <div class="button-group">
             <button class="btn btn-success" @onclick="CalculatePreload">
-                <span>▶</span> Calculate Preload
+                <ModuleIcon Type="calculate" Size="button" Style="default" /> Calculate Preload
             </button>
         </div>
 
@@ -134,12 +133,12 @@
         }
         else
         {
-            <span>▶</span>
+            <ModuleIcon Type="calculate" Size="button" Style="default" />
             <span>Calculate</span>
         }
     </button>
     <button class="btn btn-secondary" @onclick="ClearForm" disabled="@isCalculating">
-        <span>🧹</span> Clear
+        <ModuleIcon Type="clear" Size="button" Style="default" /> Clear
     </button>
     <ShareCalculation Module="bolt" State="@BuildShareState()" />
     <SaveCalculation Module="bolt" State="@BuildShareState()" />
@@ -149,7 +148,7 @@
 {
     <div id="results-content">
         <div class="card">
-            <div class="card-header"><span>🔩</span><h2>Bolt Properties</h2></div>
+            <div class="card-header"><ModuleIcon Type="bolt" Size="medium" Style="solid" /><h2>Bolt Properties</h2></div>
             <table class="results-table">
                 <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
                 <tbody>
@@ -335,7 +334,7 @@
             TwitterImage = $"{baseUrl}/images/og-bolt.png"
         };
 
-        await JSRuntime.InvokeVoidAsync("setMetaTags", seo);
+        await Seo.SetMetaTags(seo);
     }
 
     private async Task SetStructuredData()
@@ -367,6 +366,6 @@
             url = $"https://mekanika.org{moduleInfo.Route}"
         };
 
-        await JSRuntime.InvokeVoidAsync("setStructuredData", structuredData);
+        await Seo.SetStructuredData(structuredData);
     }
 }
