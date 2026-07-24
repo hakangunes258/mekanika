@@ -7,7 +7,7 @@
     --accent: #00b74a;
     --accent-dark: #008c38;
     --warning: #ff6b6b;
-    --dark: #1a1a2e;
+    --dark: #2b3550;
     --gray-100: #f8f9fa;
     --gray-200: #e9ecef;
     --gray-300: #dee2e6;
@@ -45,14 +45,14 @@ html, body {
 
 .main-content {
     flex: 1;
-    margin-left: 290px;
+    margin-left: 300px;
     padding: 24px;
     min-height: 100vh;
 }
 
 /* Sidebar Styles */
 .sidebar {
-    width: 290px;
+    width: 300px;
     background: var(--dark);
     color: var(--white);
     display: flex;
@@ -97,7 +97,7 @@ html, body {
     align-items: center;
     gap: 16px;
     padding: 14px 20px;
-    color: rgba(255, 255, 255, 0.7);
+    color: rgba(255, 255, 255, 0.85);
     text-decoration: none;
     transition: all 0.2s;
     font-size: 15px;
