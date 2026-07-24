@@ -52,7 +52,7 @@
                         <ModuleIcon Type="gear" Size="small" Style="default" />
                     </button>
                 </div>
-                <small class="hint">Click ⚙️ to auto-size based on applied load (VDI 2230)</small>
+                <small class="hint">Click <ModuleIcon Type="gear" Size="button" Style="default" CustomStyle="vertical-align:middle;" /> to auto-size based on applied load (VDI 2230)</small>
             </div>
 
 
@@ -95,7 +95,7 @@
                         <ModuleIcon Type="gear" Size="small" Style="default" />
                     </button>
                 </div>
-                <small class="hint">Click ⚙️ to auto-size based on clamped parts, washers and nuts</small>
+                <small class="hint">Click <ModuleIcon Type="gear" Size="button" Style="default" CustomStyle="vertical-align:middle;" /> to auto-size based on clamped parts, washers and nuts</small>
             </div>
 
             @if (selectedBolt != null)
@@ -169,12 +169,12 @@
                         <small class="hint" style="flex: 1;">
                             @if (isCustomWasher)
                             {
-                                <span style="color: #ff9800; font-weight: 500;">⚙️ Custom:</span>
+                                <span style="color: #ff9800; font-weight: 500;"><ModuleIcon Type="settings" Size="button" Style="default" CustomStyle="color:inherit;vertical-align:middle;" /> Custom:</span>
                             }
                             d₁=@selectedWasher.d1.ToString("F2") mm, d₂=@selectedWasher.d2.ToString("F2") mm, h=@selectedWasher.h.ToString("F1") mm
                         </small>
                         <button type="button" class="btn btn-sm btn-outline" @onclick="OpenWasherCustomize" style="padding: 4px 8px; font-size: 11px;">
-                            ⚙️ Customize
+                            <ModuleIcon Type="settings" Size="button" Style="default" /> Customize
                         </button>
                     </div>
                 }
@@ -255,7 +255,7 @@
 
             <div class="form-group">
                 <label>Surface Roughness (Rz)
-                    <button type="button" class="info-btn" @onclick="ToggleRoughnessInfo" title="Show roughness values table">ℹ️</button>
+                    <button type="button" class="info-btn" @onclick="ToggleRoughnessInfo" title="Show roughness values table"><ModuleIcon Type="info" Size="button" Style="default" /></button>
                 </label>
                 <div class="input-group">
                     <input type="number" step="0.5" min="1" max="40" @bind="roughnessThread" />
@@ -282,7 +282,7 @@
 
             <div class="form-group" style="margin-top: 20px;">
                 <label>Bolt Friction Coefficients
-                    <button type="button" class="info-btn" @onclick="ToggleFrictionInfo" title="Show friction values table">ℹ️</button>
+                    <button type="button" class="info-btn" @onclick="ToggleFrictionInfo" title="Show friction values table"><ModuleIcon Type="info" Size="button" Style="default" /></button>
                 </label>
             </div>
 
@@ -336,7 +336,7 @@
 
             <div class="form-group">
                 <label>Bolting Type (VDI 2230)
-                    <button type="button" class="info-btn" @onclick="ToggleBoltingTypeInfo" title="Show bolting type info">ℹ️</button>
+                    <button type="button" class="info-btn" @onclick="ToggleBoltingTypeInfo" title="Show bolting type info"><ModuleIcon Type="info" Size="button" Style="default" /></button>
                 </label>
                 <select @bind="selectedBoltingType" @bind:after="OnBoltingTypeChanged">
                     @if (input.JointType == JointType.ThroughHole)
@@ -704,7 +704,7 @@
         <div class="modal-overlay" @onclick="CloseWasherCustomize">
             <div class="modal-content" @onclick:stopPropagation="true" style="max-width: 500px;">
                 <div class="modal-header">
-                    <h3>⭕ Customize Washer Dimensions</h3>
+                    <h3><ModuleIcon Type="settings" Size="small" Style="default" CustomStyle="vertical-align:middle;margin-right:6px;" /> Customize Washer Dimensions</h3>
                     <button class="close-btn" @onclick="CloseWasherCustomize">×</button>
                 </div>
                 <div class="modal-body">
@@ -756,7 +756,7 @@
                             ✓ Apply
                         </button>
                         <button class="btn btn-secondary" @onclick="ResetToStandardWasher" style="flex: 1;">
-                            ↺ Reset to Standard
+                            <ModuleIcon Type="new" Size="button" Style="default" /> Reset to Standard
                         </button>
                     </div>
                 </div>
