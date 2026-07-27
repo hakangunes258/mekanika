@@ -51,8 +51,21 @@ public class CustomLibraryService
     /// </summary>
     public async Task RefreshAsync()
     {
-        var items = await ListAsync(LibraryItem.KindMaterial);
-        MaterialService.SetCustomMaterials(items.Select(ToMaterial).Where(m => m != null)!);
+        var materials = await ListAsync(LibraryItem.KindMaterial);
+        MaterialService.SetCustomMaterials(materials.Select(ToMaterial).Where(m => m != null)!);
+
+        var bearings = await ListAsync(LibraryItem.KindBearing);
+        BearingService.SetCustomBearings(
+            bearings.Where(i => TypeOf(i) is BearingService.TypeDeepGroove or BearingService.TypeCylindrical)
+                    .Select(i => To<Bearing>(i, (b, id) => { b.CustomId = id; b.Designation = i.Name; }))
+                    .Where(b => b != null)!,
+            bearings.Where(i => TypeOf(i) == BearingService.TypeTapered)
+                    .Select(i => To<TaperedBearing>(i, (b, id) => { b.CustomId = id; b.Designation = i.Name; }))
+                    .Where(b => b != null)!,
+            bearings.Where(i => TypeOf(i) == BearingService.TypeAngular)
+                    .Select(i => To<AngularContactBearing>(i, (b, id) => { b.CustomId = id; b.Designation = i.Name; }))
+                    .Where(b => b != null)!);
+
         Changed?.Invoke();
     }
 
@@ -91,17 +104,72 @@ public class CustomLibraryService
     }
 
     private static Material? ToMaterial(LibraryItem item)
+        => To<Material>(item, (m, id) => { m.CustomId = id; m.Name = item.Name; });
+
+    // ============ BEARINGS ============
+
+    /// <summary>
+    /// Creates or updates one custom bearing and republishes the merged library.
+    /// A non-null <see cref="CustomBearingDraft.CustomId"/> means update.
+    /// </summary>
+    public async Task<(bool ok, string? error)> SaveBearingAsync(CustomBearingDraft draft)
+    {
+        var designation = draft.Designation.Trim();
+        if (string.IsNullOrEmpty(designation))
+            return (false, "Give the bearing a designation.");
+
+        if (BearingService.IsBuiltInDesignation(designation))
+            return (false, $"“{designation}” is already in the catalogue. Choose another designation.");
+
+        draft.Designation = designation;
+
+        var result = draft.CustomId == null
+            ? await InsertAsync(LibraryItem.KindBearing, designation, draft.ToPayload())
+            : await UpdateAsync(draft.CustomId, designation, draft.ToPayload());
+
+        if (result.ok) await RefreshAsync();
+        return result;
+    }
+
+    /// <summary>Deletes one custom bearing and republishes the merged library.</summary>
+    public async Task<(bool ok, string? error)> DeleteBearingAsync(string id)
+    {
+        var result = await DeleteAsync(id);
+        if (result.ok) await RefreshAsync();
+        return result;
+    }
+
+    /// <summary>
+    /// The stored payload's own `type` field decides which model a bearing row maps
+    /// to. Rows written before a type existed, or with an unknown one, fall back to
+    /// deep groove rather than disappearing silently.
+    /// </summary>
+    private static string TypeOf(LibraryItem item)
+    {
+        if (item.Data.ValueKind == JsonValueKind.Object &&
+            item.Data.TryGetProperty("type", out var t) &&
+            t.ValueKind == JsonValueKind.String)
+        {
+            var value = t.GetString();
+            if (!string.IsNullOrEmpty(value)) return value;
+        }
+        return BearingService.TypeDeepGroove;
+    }
+
+    /// <summary>
+    /// Deserializes a row's `data` and stamps the row identity onto it. The
+    /// <paramref name="stamp"/> callback is where the id and the authoritative `name`
+    /// column are applied — the column, not the copy inside the jsonb, is what the
+    /// unique index and every stored reference agree on.
+    /// </summary>
+    private static T? To<T>(LibraryItem item, Action<T, string> stamp) where T : class
     {
         try
         {
-            var material = item.Data.Deserialize<Material>(LibraryJson);
-            if (material == null) return null;
-
-            // The `name` column is the authority — it is the one the unique index and
-            // every stored reference (share links, saved calculations) agree on.
-            material.Name = item.Name;
-            material.CustomId = item.Id;
-            return material;
+            var value = item.Data.Deserialize<T>(LibraryJson);
+            if (value == null) return null;
+            stamp(value, item.Id);
+            return value;
         }
         catch (JsonException)
         {

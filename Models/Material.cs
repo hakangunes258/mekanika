@@ -25,5 +25,11 @@ public class Material
     [JsonIgnore]
     public bool IsCustom => CustomId != null;
 
-    public override string ToString() => $"{Name} ({Standard})";
+    /// <summary>
+    /// The label every module's material dropdown shows. The standard is dropped when
+    /// absent rather than rendered as an empty "()" — user-added grades often have no
+    /// standard to quote.
+    /// </summary>
+    public override string ToString() =>
+        string.IsNullOrWhiteSpace(Standard) ? Name : $"{Name} ({Standard})";
 }

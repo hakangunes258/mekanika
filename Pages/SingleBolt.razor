@@ -225,7 +225,7 @@
                                 @onchange="@(e => OnMaterialChanged(index, e))">
                             @foreach (var mat in materials)
                             {
-                                <option value="@mat.Name">@mat.Name</option>
+                                <option value="@mat.Name">@mat.ToString()</option>
                             }
                         </select>
                         @if (clampedParts.Count > 1)
@@ -744,7 +744,7 @@
                         <select @bind="input.WasherMaterial" class="form-control" style="width: 100%; padding: 8px; border: 1px solid #dee2e6; border-radius: 4px;">
                             @foreach (var mat in materials)
                             {
-                                <option value="@mat.Name">@mat.Name</option>
+                                <option value="@mat.Name">@mat.ToString()</option>
                             }
                         </select>
                         <small class="hint">Select the washer material from the library.</small>

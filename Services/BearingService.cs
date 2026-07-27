@@ -1,12 +1,28 @@
+using System.Text.Json.Serialization;
+
 namespace MechanicalCalculatorWeb.Services;
 
+/// <summary>
+/// The bearing library: the built-in catalogue data below, plus any bearings the
+/// signed-in user has added (loaded by <see cref="CustomLibraryService"/>).
+///
+/// The four public lists are merged views — built-ins first, customs appended. The
+/// order matters: <c>BallBearing.razor</c> and <c>RollerBearing.razor</c> bind their
+/// selects by *index* into these lists, so a built-in changing position would
+/// silently repoint a selection at a different bearing.
+/// </summary>
 public static class BearingService
 {
+    public const string TypeDeepGroove = "Deep Groove Ball";
+    public const string TypeCylindrical = "Cylindrical Roller";
+    public const string TypeTapered = "Tapered Roller";
+    public const string TypeAngular = "Angular Contact Ball";
+
     // Deep Groove Ball Bearings (NACHI catalog) - Updated from official NACHI catalog
     // Contact angle α = 0° for deep groove ball bearings
     // Data source: Nachi-Deep-Groove Ball Bearings.pdf
     // f0 is calculated from ISO 76 Table 1 based on Dw*cos(α)/Dpw
-    public static readonly List<Bearing> DeepGrooveBallBearings = new()
+    private static readonly List<Bearing> _deepGrooveBuiltIn = new()
     {
         // 6800 series - Extra-extra light series (Bore: 10-25mm)
         new Bearing { Designation = "6800", Bore = 10, Outer = 19, Width = 5, C = 2.12, C0 = 0.985, f0 = 14.2, LimitSpeed = 37000, Type = "Deep Groove Ball" },
@@ -128,7 +144,7 @@ public static class BearingService
     // Contact angle α = 0° for cylindrical roller bearings (pure radial load)
     // Data source: Nachi-Cylindrical Roller Bearings.pdf
     // f0 = 0 for roller bearings (axial load not supported by basic NU design)
-    public static readonly List<Bearing> CylindricalRollerBearings = new()
+    private static readonly List<Bearing> _cylindricalBuiltIn = new()
     {
         // NU2 series - Light series (Bore: 20-110mm)
         new Bearing { Designation = "NU203", Bore = 17, Outer = 40, Width = 12, C = 12.6, C0 = 7.95, f0 = 0, LimitSpeed = 16000, Type = "Cylindrical Roller" },
@@ -330,7 +346,7 @@ public static class BearingService
     // Tapered Roller Bearings (NACHI catalog) - Updated from official NACHI catalog
     // Contact angle α typically 10-30 degrees
     // Data source: Nachi-Tapered Roller Bearings.pdf
-    public static readonly List<TaperedBearing> TaperedRollerBearings = new()
+    private static readonly List<TaperedBearing> _taperedBuiltIn = new()
     {
         // H-E302 series - Light series (Bore: 20-50mm)
         new TaperedBearing { Designation = "H-E30204", Bore = 20, Outer = 47, Width = 15.25, C = 27.0, C0 = 27.2, e = 0.37, Y = 1.60, Y0 = 0.88, LimitSpeed = 12000, Type = "Tapered Roller" },
@@ -564,7 +580,7 @@ public static class BearingService
     // Contact angles: 15° (C suffix), 25° (AC suffix), 30° (A suffix), 40° (B suffix)
     // X and Y factors based on ISO 281:2007
     // Data source: ISO standards and bearing catalogs
-    public static readonly List<AngularContactBearing> AngularContactBallBearings = new()
+    private static readonly List<AngularContactBearing> _angularBuiltIn = new()
     {
         // 7200 series - Light series, 40° contact angle (suffix B)
         // Data source: NACHI Angular Contact Ball Bearings Catalog
@@ -734,6 +750,74 @@ public static class BearingService
         new AngularContactBearing { Designation = "7020AC", Bore = 100, Outer = 150, Width = 24, C = 71.0, C0 = 77.0, ContactAngle = 25, e = 0.52, X = 0.41, Y = 0.87, Y0 = 1.17, LimitSpeed = 5300, LimitSpeedOil = 6300 },
     };
 
+    // ============ USER-ADDED BEARINGS ============
+
+    private static List<Bearing> _customDeepGroove = new();
+    private static List<Bearing> _customCylindrical = new();
+    private static List<TaperedBearing> _customTapered = new();
+    private static List<AngularContactBearing> _customAngular = new();
+
+    private static List<Bearing>? _deepGrooveAll;
+    private static List<Bearing>? _cylindricalAll;
+    private static List<TaperedBearing>? _taperedAll;
+    private static List<AngularContactBearing>? _angularAll;
+
+    /// <summary>Built-ins then the user's own. Index-stable — see the class remarks.</summary>
+    public static IReadOnlyList<Bearing> DeepGrooveBallBearings
+        => _deepGrooveAll ??= _deepGrooveBuiltIn.Concat(_customDeepGroove).ToList();
+
+    public static IReadOnlyList<Bearing> CylindricalRollerBearings
+        => _cylindricalAll ??= _cylindricalBuiltIn.Concat(_customCylindrical).ToList();
+
+    public static IReadOnlyList<TaperedBearing> TaperedRollerBearings
+        => _taperedAll ??= _taperedBuiltIn.Concat(_customTapered).ToList();
+
+    public static IReadOnlyList<AngularContactBearing> AngularContactBallBearings
+        => _angularAll ??= _angularBuiltIn.Concat(_customAngular).ToList();
+
+    /// <summary>The user's own bearings, whatever their type. Empty when signed out.</summary>
+    public static IEnumerable<object> CustomBearings =>
+        _customDeepGroove.Cast<object>()
+            .Concat(_customCylindrical)
+            .Concat(_customTapered)
+            .Concat(_customAngular);
+
+    /// <summary>
+    /// Replaces the user's bearings with the ones just loaded from their account.
+    /// The flat <paramref name="ballAndRoller"/> list is split by <c>Type</c>, since
+    /// deep groove and cylindrical roller share one model class.
+    /// </summary>
+    public static void SetCustomBearings(
+        IEnumerable<Bearing> ballAndRoller,
+        IEnumerable<TaperedBearing> tapered,
+        IEnumerable<AngularContactBearing> angular)
+    {
+        var split = ballAndRoller.ToList();
+        _customDeepGroove = split.Where(b => b.Type == TypeDeepGroove).ToList();
+        _customCylindrical = split.Where(b => b.Type == TypeCylindrical).ToList();
+        _customTapered = tapered.ToList();
+        _customAngular = angular.ToList();
+
+        _deepGrooveAll = _cylindricalAll = null;
+        _taperedAll = null;
+        _angularAll = null;
+    }
+
+    /// <summary>
+    /// True if the catalogue already ships a bearing under this designation. Checked
+    /// across every family, because designation is the key saved calculations and
+    /// share links resolve by — a shadowed built-in would resolve differently for
+    /// different users.
+    /// </summary>
+    public static bool IsBuiltInDesignation(string designation)
+    {
+        var d = designation.Trim();
+        return _deepGrooveBuiltIn.Any(b => string.Equals(b.Designation, d, StringComparison.OrdinalIgnoreCase))
+            || _cylindricalBuiltIn.Any(b => string.Equals(b.Designation, d, StringComparison.OrdinalIgnoreCase))
+            || _taperedBuiltIn.Any(b => string.Equals(b.Designation, d, StringComparison.OrdinalIgnoreCase))
+            || _angularBuiltIn.Any(b => string.Equals(b.Designation, d, StringComparison.OrdinalIgnoreCase));
+    }
+
     public static List<Bearing> GetAllBearings()
     {
         var all = new List<Bearing>();
@@ -772,6 +856,10 @@ public class Bearing
     public double C0 { get; set; }          // Static load rating (kN)
     public double f0 { get; set; }          // Calculation factor from ISO 76
     public int LimitSpeed { get; set; }     // Limiting speed (rpm)
+
+    /// <summary>Supabase library_items.id when the user added this bearing; null for catalogue data.</summary>
+    [JsonIgnore] public string? CustomId { get; set; }
+    [JsonIgnore] public bool IsCustom => CustomId != null;
 }
 
 public class TaperedBearing
@@ -789,7 +877,10 @@ public class TaperedBearing
     public int LimitSpeed { get; set; }     // Limiting speed (rpm)
 
     // For clarity: Y property is actually Y1 from catalog (used in dynamic equivalent load)
-    public double Y1 => Y;
+    [JsonIgnore] public double Y1 => Y;
+
+    [JsonIgnore] public string? CustomId { get; set; }
+    [JsonIgnore] public bool IsCustom => CustomId != null;
 }
 
 /// <summary>
@@ -814,5 +905,8 @@ public class AngularContactBearing
     public int LimitSpeedOil { get; set; }      // Limiting speed (rpm) - oil lubrication
 
     // Calculated properties based on contact angle
-    public double CalculatedE => 1.5 * Math.Tan(ContactAngle * Math.PI / 180);
+    [JsonIgnore] public double CalculatedE => 1.5 * Math.Tan(ContactAngle * Math.PI / 180);
+
+    [JsonIgnore] public string? CustomId { get; set; }
+    [JsonIgnore] public bool IsCustom => CustomId != null;
 }

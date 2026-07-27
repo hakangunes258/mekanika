@@ -36,12 +36,12 @@
 
     @if (draft != null)
     {
-        <div class="material-form">
-            <div class="material-form-title">
+        <div class="entry-form">
+            <div class="entry-form-title">
                 @(editingId == null ? "New material" : $"Editing “{draft.Name}”")
             </div>
 
-            <div class="material-form-grid">
+            <div class="entry-form-grid">
                 <div class="form-group">
                     <label>Name</label>
                     <input type="text" @bind="draft.Name" placeholder="e.g. 34CrNiMo6" />
@@ -89,7 +89,7 @@
                 </div>
             }
 
-            <div class="material-form-actions">
+            <div class="entry-form-actions">
                 <button class="btn btn-success" @onclick="SaveDraft" disabled="@isBusy">
                     @if (isBusy)
                     {
@@ -104,7 +104,7 @@
                 <button class="btn btn-secondary" @onclick="CancelDraft" disabled="@isBusy">Cancel</button>
             </div>
 
-            <small class="material-form-note">
+            <small class="entry-form-note">
                 Saved to your account and available in every calculator's material list.
                 Shared calculation links carry the material by name, so someone opening
                 your link without this material will fall back to their own selection.
@@ -302,104 +302,6 @@
         color: #0d6efd;
     }
 
-    /* ── User-added materials ──────────────────────────────────────────── */
-    .header-actions {
-        margin-left: auto;
-    }
-
-    .btn-sm {
-        padding: 4px 12px;
-        font-size: 12px;
-        margin-left: 6px;
-    }
-
-    .btn-danger {
-        background: linear-gradient(135deg, #dc3545 0%, #b02a37 100%);
-        color: white;
-    }
-
-    .btn-danger:hover {
-        background: linear-gradient(135deg, #b02a37 0%, #922331 100%);
-    }
-
-    .badge-custom {
-        display: inline-block;
-        margin-left: 8px;
-        padding: 2px 8px;
-        border-radius: 10px;
-        background: #e8f5e9;
-        color: #2e7d32;
-        font-size: 11px;
-        font-weight: 600;
-        vertical-align: middle;
-    }
-
-    .row-actions {
-        text-align: right;
-        white-space: nowrap;
-    }
-
-    .material-form {
-        margin-bottom: 20px;
-        padding: 18px;
-        background: #f8f9fa;
-        border: 1px solid #dee2e6;
-        border-radius: 8px;
-    }
-
-    .material-form-title {
-        font-size: 14px;
-        font-weight: 600;
-        color: #2c3e50;
-        margin-bottom: 14px;
-    }
-
-    .material-form-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 14px;
-    }
-
-    .material-form .form-group {
-        margin: 0;
-    }
-
-    .material-form label {
-        display: block;
-        font-size: 12px;
-        font-weight: 500;
-        color: #495057;
-        margin-bottom: 5px;
-    }
-
-    .material-form input {
-        width: 100%;
-        padding: 8px 10px;
-        font-size: 14px;
-        border: 1px solid #ced4da;
-        border-radius: 6px;
-    }
-
-    .material-form small {
-        display: block;
-        margin-top: 4px;
-        font-size: 11px;
-        color: #6c757d;
-    }
-
-    .material-form-actions {
-        display: flex;
-        gap: 10px;
-        margin-top: 16px;
-    }
-
-    .material-form-note {
-        display: block;
-        margin-top: 12px;
-        font-size: 11px;
-        color: #6c757d;
-        line-height: 1.6;
-    }
 </style>
 
 @code {

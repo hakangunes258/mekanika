@@ -1473,7 +1473,7 @@ Build/apply once per module, reuse for links, localStorage, and Supabase.
 ### **Custom Library Entries**
 
 Signed-in users can add their own entries to the reference libraries. Live for
-**materials**; the table and service are already shaped for bearings and bolts.
+**materials** and **bearings**; the table and service are already shaped for bolts.
 
 **Files:**
 - `supabase/library_items.sql` — one table for every library, kind-tagged
@@ -1485,8 +1485,23 @@ Signed-in users can add their own entries to the reference libraries. Live for
   pushes the loaded items into the static providers.
 - `Services/MaterialService.cs` — `SetCustomMaterials()`, `CustomMaterials`,
   `IsBuiltInName()`; `GetMaterials()` now returns built-ins **then** customs.
-- `Models/LibraryItem.cs` (the row), `Models/Material.cs` (`CustomId` / `IsCustom`).
-- `Pages/Materials.razor` — add / edit / delete, "Mine" badge on custom rows.
+- `Services/BearingService.cs` — the four catalogue lists are now merged views over
+  private `_…BuiltIn` fields; `SetCustomBearings()`, `IsBuiltInDesignation()`, and
+  the `Type…` constants.
+- `Models/LibraryItem.cs` (the row), `Models/Material.cs` and the three bearing
+  classes (`CustomId` / `IsCustom`), `Models/CustomBearingDraft.cs`.
+- `Pages/Materials.razor`, `Pages/Bearings.razor` — add / edit / delete, "Mine"
+  badge on custom rows. Shared styles (`.entry-form*`, `.badge-custom`,
+  `.row-actions`) live in `modern-icons.css`, **not** in a page `<style>` block —
+  a Razor `<style>` only reaches the DOM once that page has been visited, so a
+  user landing straight on `/bearings` would get an unstyled form.
+
+**Bearings are three model classes, not one.** `Bearing` (deep groove ball +
+cylindrical roller), `TaperedBearing` (+e, Y, Y0) and `AngularContactBearing`
+(+contact angle, X, oil-lubricated speed). `CustomBearingDraft` is the form's union
+of all three and converts on save; the stored payload's own `type` field is the
+discriminator `RefreshAsync` reads back. The `Bearing` shape covers two families, so
+its `Type` is what splits them.
 
 **Load timing is the whole design.** `Program.cs` awaits `library.RefreshAsync()`
 *before* `RunAsync()`, and re-runs it on `AuthStateChanged`. That is what lets every
@@ -1521,11 +1536,18 @@ a library load.
   Materials page says so under the form. Do not "fix" this by embedding material
   properties in the link.
 
-**To add bearings or bolts:** the table already allows the kind. Add a
-`SetCustom…`/merged accessor to `BearingService` / `BoltService` (today they expose
-`public static readonly List<…>` fields read directly by the pages — those need to
-become merged accessors), extend `RefreshAsync`, and reuse the Materials.razor UI
-shape in `Bearings.razor` / `BoltDatabase.razor`.
+**To add bolts:** the table already allows the kind. `BoltService` still exposes
+`public static List<…>` properties read directly by the pages — those need to become
+merged accessors over private built-in fields first, exactly as `BearingService` now
+does. Then extend `RefreshAsync`, and reuse the `Bearings.razor` UI shape (it is the
+richer of the two: type selector plus conditional fields).
+
+**Dropdown label convention:** every module's material select renders
+`materials[i].ToString()` — `"C45 (EN 10083)"`, or just the name when the grade has
+no standard. Do not go back to `.Name`; the standard is what disambiguates two
+grades sharing a name. Where a select binds by value rather than index
+(`SingleBolt.razor`), the **value stays the bare `Name`** — share links, saved
+calculations and `GetMaterial(name)` all resolve by it.
 
 ### **Related Calculators Feature**
 

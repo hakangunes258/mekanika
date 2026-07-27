@@ -1,4 +1,5 @@
 @page "/bearings"
+@inject CustomLibraryService Library
 @inject AnalyticsService Analytics
 @inject SeoService Seo
 @inject ModuleMetadataService Metadata
@@ -27,6 +28,7 @@
                 <option value="Deep Groove Ball">Deep Groove Ball</option>
                 <option value="Cylindrical Roller">Cylindrical Roller</option>
                 <option value="Tapered Roller">Tapered Roller</option>
+                <option value="Angular Contact Ball">Angular Contact Ball</option>
             </select>
         </div>
         
@@ -50,8 +52,142 @@
     <div class="card-header">
         <ModuleIcon Type="bearing-database" Size="medium" Style="solid" />
         <h2>Bearing Catalog (@FilteredBearingsWithDetails.Count() bearings)</h2>
+        <div class="header-actions">
+            <AuthorizeView>
+                <Authorized>
+                    <button class="btn btn-secondary btn-sm" @onclick="StartNew" disabled="@(draft != null)">
+                        <ModuleIcon Type="add" Size="button" Style="transparent" />
+                        <span>Add my own</span>
+                    </button>
+                </Authorized>
+                <NotAuthorized>
+                    <a href="/login" class="btn btn-secondary btn-sm">Sign in to add your own</a>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
     </div>
-    
+
+    @if (draft != null)
+    {
+        <div class="entry-form">
+            <div class="entry-form-title">
+                @(draft.CustomId == null ? "New bearing" : $"Editing “{draft.Designation}”")
+            </div>
+
+            <div class="entry-form-grid">
+                <div class="form-group">
+                    <label>Designation</label>
+                    <input type="text" @bind="draft.Designation" placeholder="e.g. 6205-2RS-SPECIAL" />
+                </div>
+                <div class="form-group">
+                    <label>Type</label>
+                    <select @bind="draft.Type">
+                        <option value="@BearingService.TypeDeepGroove">Deep Groove Ball</option>
+                        <option value="@BearingService.TypeCylindrical">Cylindrical Roller</option>
+                        <option value="@BearingService.TypeTapered">Tapered Roller</option>
+                        <option value="@BearingService.TypeAngular">Angular Contact Ball</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Bore d (mm)</label>
+                    <input type="number" step="0.1" @bind="draft.Bore" />
+                </div>
+                <div class="form-group">
+                    <label>Outside diameter D (mm)</label>
+                    <input type="number" step="0.1" @bind="draft.Outer" />
+                </div>
+                <div class="form-group">
+                    <label>Width B/T (mm)</label>
+                    <input type="number" step="0.1" @bind="draft.Width" />
+                </div>
+                <div class="form-group">
+                    <label>Dynamic rating C (kN)</label>
+                    <input type="number" step="0.1" @bind="draft.C" />
+                </div>
+                <div class="form-group">
+                    <label>Static rating C₀ (kN)</label>
+                    <input type="number" step="0.1" @bind="draft.C0" />
+                </div>
+                <div class="form-group">
+                    <label>Limiting speed (rpm)</label>
+                    <input type="number" step="100" @bind="draft.LimitSpeed" />
+                </div>
+
+                @if (draft.IsDeepGroove)
+                {
+                    <div class="form-group">
+                        <label>f₀ (ISO 76)</label>
+                        <input type="number" step="0.1" @bind="draft.f0" />
+                        <small>Drives the X/Y factors under combined load</small>
+                    </div>
+                }
+
+                @if (draft.IsTapered || draft.IsAngular)
+                {
+                    <div class="form-group">
+                        <label>e — F<sub>a</sub>/F<sub>r</sub> limit</label>
+                        <input type="number" step="0.01" @bind="draft.e" />
+                    </div>
+                    <div class="form-group">
+                        <label>Y — dynamic axial factor</label>
+                        <input type="number" step="0.01" @bind="draft.Y" />
+                    </div>
+                    <div class="form-group">
+                        <label>Y₀ — static axial factor</label>
+                        <input type="number" step="0.01" @bind="draft.Y0" />
+                    </div>
+                }
+
+                @if (draft.IsAngular)
+                {
+                    <div class="form-group">
+                        <label>Contact angle α (°)</label>
+                        <input type="number" step="1" @bind="draft.ContactAngle" />
+                    </div>
+                    <div class="form-group">
+                        <label>X — radial factor</label>
+                        <input type="number" step="0.01" @bind="draft.X" />
+                    </div>
+                    <div class="form-group">
+                        <label>Limiting speed, oil (rpm)</label>
+                        <input type="number" step="100" @bind="draft.LimitSpeedOil" />
+                        <small>Left at 0, the grease value is used</small>
+                    </div>
+                }
+            </div>
+
+            @if (formError != null)
+            {
+                <div class="alert alert-danger" style="margin: 12px 0 0;">
+                    <ModuleIcon Type="warning" Size="button" Style="transparent" />
+                    <div>@formError</div>
+                </div>
+            }
+
+            <div class="entry-form-actions">
+                <button class="btn btn-success" @onclick="SaveDraft" disabled="@isBusy">
+                    @if (isBusy)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    else
+                    {
+                        <ModuleIcon Type="save" Size="button" Style="transparent" />
+                        <span>Save bearing</span>
+                    }
+                </button>
+                <button class="btn btn-secondary" @onclick="CancelDraft" disabled="@isBusy">Cancel</button>
+            </div>
+
+            <small class="entry-form-note">
+                Saved to your account and available in the ball and roller bearing
+                calculators. Shared calculation links carry the bearing by designation,
+                so someone opening your link without this bearing falls back to their
+                own selection.
+            </small>
+        </div>
+    }
+
     <div style="overflow-x: auto;">
         <table class="data-table">
             <thead>
@@ -66,13 +202,20 @@
                     <th>f₀/e</th>
                     <th>Y</th>
                     <th>Limit (rpm)</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>
                 @foreach (var item in FilteredBearingsWithDetails)
                 {
                     <tr>
-                        <td><strong>@item.Designation</strong></td>
+                        <td>
+                            <strong>@item.Designation</strong>
+                            @if (item.CustomId != null)
+                            {
+                                <span class="badge-custom">Mine</span>
+                            }
+                        </td>
                         <td>@item.Type</td>
                         <td>@item.Bore</td>
                         <td>@item.Outer</td>
@@ -82,6 +225,22 @@
                         <td>@item.F0OrE</td>
                         <td>@item.Y</td>
                         <td>@item.LimitSpeed.ToString("N0")</td>
+                        <td class="row-actions">
+                            @if (item.CustomId != null)
+                            {
+                                var id = item.CustomId;
+                                if (confirmDeleteId == id)
+                                {
+                                    <button class="btn btn-danger btn-sm" @onclick="() => Delete(id)" disabled="@isBusy">Confirm</button>
+                                    <button class="btn btn-secondary btn-sm" @onclick="() => confirmDeleteId = null" disabled="@isBusy">Cancel</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-secondary btn-sm" @onclick="() => StartEdit(id)" disabled="@isBusy">Edit</button>
+                                    <button class="btn btn-secondary btn-sm" @onclick="() => confirmDeleteId = id">Delete</button>
+                                }
+                            }
+                        </td>
                     </tr>
                 }
             </tbody>
@@ -253,6 +412,83 @@
         await Seo.SetStructuredData(structuredData);
     }
 
+    // ============ USER-ADDED BEARINGS ============
+
+    private CustomBearingDraft? draft;
+    private string? confirmDeleteId;
+    private string? formError;
+    private bool isBusy;
+
+    private void StartNew()
+    {
+        confirmDeleteId = null;
+        formError = null;
+        draft = new CustomBearingDraft();
+    }
+
+    /// <summary>
+    /// Rebuilds the form from the stored bearing — as a COPY, so a half-typed or
+    /// failed edit never reaches the calculators reading the live lists.
+    /// </summary>
+    private void StartEdit(string customId)
+    {
+        confirmDeleteId = null;
+        formError = null;
+
+        var ball = BearingService.DeepGrooveBallBearings.Concat(BearingService.CylindricalRollerBearings)
+            .FirstOrDefault(b => b.CustomId == customId);
+        if (ball != null) { draft = CustomBearingDraft.From(ball); return; }
+
+        var tapered = BearingService.TaperedRollerBearings.FirstOrDefault(b => b.CustomId == customId);
+        if (tapered != null) { draft = CustomBearingDraft.From(tapered); return; }
+
+        var angular = BearingService.AngularContactBallBearings.FirstOrDefault(b => b.CustomId == customId);
+        if (angular != null) draft = CustomBearingDraft.From(angular);
+    }
+
+    private void CancelDraft()
+    {
+        draft = null;
+        formError = null;
+    }
+
+    private async Task SaveDraft()
+    {
+        if (draft == null) return;
+
+        formError = draft.Validate();
+        if (formError != null) return;
+
+        isBusy = true;
+        var (ok, error) = await Library.SaveBearingAsync(draft);
+        isBusy = false;
+
+        if (!ok)
+        {
+            formError = error ?? "Could not save. Please try again.";
+            return;
+        }
+
+        draft = null;
+    }
+
+    private async Task Delete(string customId)
+    {
+        isBusy = true;
+        var (ok, error) = await Library.DeleteBearingAsync(customId);
+        isBusy = false;
+        confirmDeleteId = null;
+
+        if (!ok)
+        {
+            formError = error ?? "Could not delete. Please try again.";
+            return;
+        }
+
+        // Deleting the bearing currently open in the form would leave an orphaned draft.
+        if (draft?.CustomId == customId) CancelDraft();
+    }
+
     private class BearingDisplayItem
     {
         public string Designation { get; set; } = "";
@@ -265,6 +501,9 @@
         public string F0OrE { get; set; } = "";
         public string Y { get; set; } = "";
         public int LimitSpeed { get; set; }
+
+        /// <summary>Non-null for a bearing the signed-in user added; drives the badge and row actions.</summary>
+        public string? CustomId { get; set; }
     }
 
     private IEnumerable<BearingDisplayItem> FilteredBearingsWithDetails
@@ -290,7 +529,8 @@
                     C0 = b.C0,
                     F0OrE = b.f0.ToString("F1"),
                     Y = "-",
-                    LimitSpeed = b.LimitSpeed
+                    LimitSpeed = b.LimitSpeed,
+                    CustomId = b.CustomId
                 });
             items.AddRange(ballBearings);
 
@@ -311,7 +551,8 @@
                     C0 = b.C0,
                     F0OrE = "-",
                     Y = "-",
-                    LimitSpeed = b.LimitSpeed
+                    LimitSpeed = b.LimitSpeed,
+                    CustomId = b.CustomId
                 });
             items.AddRange(rollerBearings);
 
@@ -332,9 +573,32 @@
                     C0 = b.C0,
                     F0OrE = b.e.ToString("F2"),
                     Y = b.Y.ToString("F1"),
-                    LimitSpeed = b.LimitSpeed
+                    LimitSpeed = b.LimitSpeed,
+                    CustomId = b.CustomId
                 });
             items.AddRange(taperedBearings);
+
+            // Angular Contact Ball Bearings
+            var angularBearings = BearingService.AngularContactBallBearings
+                .Where(b => selectedType == "All" || selectedType == "Angular Contact Ball")
+                .Where(b => !filterBore.HasValue || b.Bore == filterBore.Value)
+                .Where(b => string.IsNullOrEmpty(searchText) ||
+                            b.Designation.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+                .Select(b => new BearingDisplayItem
+                {
+                    Designation = b.Designation,
+                    Type = b.Type,
+                    Bore = b.Bore,
+                    Outer = b.Outer,
+                    Width = b.Width,
+                    C = b.C,
+                    C0 = b.C0,
+                    F0OrE = b.e.ToString("F2"),
+                    Y = b.Y.ToString("F2"),
+                    LimitSpeed = b.LimitSpeed,
+                    CustomId = b.CustomId
+                });
+            items.AddRange(angularBearings);
 
             return items.OrderBy(b => b.Type).ThenBy(b => b.Bore);
         }

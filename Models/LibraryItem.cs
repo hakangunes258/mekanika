@@ -14,6 +14,7 @@ namespace MechanicalCalculatorWeb.Models;
 public class LibraryItem
 {
     public const string KindMaterial = "material";
+    public const string KindBearing = "bearing";
 
     [JsonPropertyName("id")]
     public string Id { get; set; } = "";

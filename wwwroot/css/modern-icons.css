@@ -223,6 +223,110 @@
     cursor: not-allowed;
 }
 
+/* ── Custom library entries ────────────────────────────────────────────
+   Shared by the reference-library pages (Materials, Bearings) for the
+   "add my own" form, the Mine badge and the per-row actions. Lives here
+   rather than in a page's <style> block because a Razor <style> only
+   reaches the DOM once that page has been visited. */
+.header-actions {
+    margin-left: auto;
+}
+
+.btn-sm {
+    padding: 4px 12px;
+    font-size: 12px;
+    margin-left: 6px;
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, #dc3545 0%, #b02a37 100%);
+    color: white;
+}
+
+.btn-danger:hover {
+    background: linear-gradient(135deg, #b02a37 0%, #922331 100%);
+}
+
+.badge-custom {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: #e8f5e9;
+    color: #2e7d32;
+    font-size: 11px;
+    font-weight: 600;
+    vertical-align: middle;
+}
+
+.row-actions {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.entry-form {
+    margin-bottom: 20px;
+    padding: 18px;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+}
+
+.entry-form-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 14px;
+}
+
+.entry-form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+}
+
+.entry-form .form-group {
+    margin: 0;
+}
+
+.entry-form label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: #495057;
+    margin-bottom: 5px;
+}
+
+.entry-form input,
+.entry-form select {
+    width: 100%;
+    padding: 8px 10px;
+    font-size: 14px;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+}
+
+.entry-form small {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    color: #6c757d;
+}
+
+.entry-form-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.entry-form-note {
+    display: block;
+    margin-top: 12px;
+    font-size: 11px;
+    color: #6c757d;
+    line-height: 1.6;
+}
+
 /* Module Cards on Index Page */
 .module-card {
     background: white;

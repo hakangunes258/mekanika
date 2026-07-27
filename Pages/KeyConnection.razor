@@ -146,7 +146,7 @@
                 <select @bind="selectedShaftMaterialIndex">
                     @for (int i = 0; i < materials.Count; i++)
                     {
-                        <option value="@i">@materials[i].Name</option>
+                        <option value="@i">@materials[i].ToString()</option>
                     }
                 </select>
                 @if (materials.Any())
@@ -162,7 +162,7 @@
                 <select @bind="selectedHubMaterialIndex">
                     @for (int i = 0; i < materials.Count; i++)
                     {
-                        <option value="@i">@materials[i].Name</option>
+                        <option value="@i">@materials[i].ToString()</option>
                     }
                 </select>
                 @if (materials.Any())
@@ -178,7 +178,7 @@
                 <select @bind="selectedKeyMaterialIndex">
                     @for (int i = 0; i < materials.Count; i++)
                     {
-                        <option value="@i">@materials[i].Name</option>
+                        <option value="@i">@materials[i].ToString()</option>
                     }
                 </select>
                 @if (materials.Any())
