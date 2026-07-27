@@ -1,5 +1,6 @@
 @page "/materials"
 @inject MaterialService MaterialService
+@inject CustomLibraryService Library
 @inject AnalyticsService Analytics
 @inject SeoService Seo
 @inject ModuleMetadataService Metadata
@@ -18,8 +19,99 @@
     <div class="card-header">
         <ModuleIcon Type="material" Size="medium" Style="solid" />
         <h2>Engineering Materials</h2>
+        <div class="header-actions">
+            <AuthorizeView>
+                <Authorized>
+                    <button class="btn btn-secondary btn-sm" @onclick="StartNew" disabled="@(draft != null)">
+                        <ModuleIcon Type="new" Size="button" Style="transparent" />
+                        <span>Add my own</span>
+                    </button>
+                </Authorized>
+                <NotAuthorized>
+                    <a href="/login" class="btn btn-secondary btn-sm">Sign in to add your own</a>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
     </div>
-    
+
+    @if (draft != null)
+    {
+        <div class="material-form">
+            <div class="material-form-title">
+                @(editingId == null ? "New material" : $"Editing “{draft.Name}”")
+            </div>
+
+            <div class="material-form-grid">
+                <div class="form-group">
+                    <label>Name</label>
+                    <input type="text" @bind="draft.Name" placeholder="e.g. 34CrNiMo6" />
+                </div>
+                <div class="form-group">
+                    <label>Standard</label>
+                    <input type="text" @bind="draft.Standard" placeholder="e.g. EN 10083" />
+                </div>
+                <div class="form-group">
+                    <label>Yield strength R<sub>e</sub> (MPa)</label>
+                    <input type="number" step="1" @bind="draft.YieldStrength" />
+                </div>
+                <div class="form-group">
+                    <label>Tensile strength R<sub>m</sub> (MPa)</label>
+                    <input type="number" step="1" @bind="draft.TensileStrength" />
+                </div>
+                <div class="form-group">
+                    <label>Perm. surface pressure (MPa)</label>
+                    <input type="number" step="1" @bind="draft.PermissibleSurfacePressure" />
+                    <small>Used by key / clamp connections</small>
+                </div>
+                <div class="form-group">
+                    <label>Elastic modulus E (GPa)</label>
+                    <input type="number" step="1" @bind="draft.ElasticModulus" />
+                </div>
+                <div class="form-group">
+                    <label>Poisson's ratio ν</label>
+                    <input type="number" step="0.01" @bind="draft.PoissonRatio" />
+                </div>
+                <div class="form-group">
+                    <label>Thermal expansion α (10⁻⁶/K)</label>
+                    <input type="number" step="0.1" @bind="draft.ThermalExpansion" />
+                </div>
+                <div class="form-group">
+                    <label>Density ρ (kg/m³)</label>
+                    <input type="number" step="10" @bind="draft.Density" />
+                </div>
+            </div>
+
+            @if (formError != null)
+            {
+                <div class="alert alert-danger" style="margin: 12px 0 0;">
+                    <ModuleIcon Type="warning" Size="button" Style="transparent" />
+                    <div>@formError</div>
+                </div>
+            }
+
+            <div class="material-form-actions">
+                <button class="btn btn-success" @onclick="SaveDraft" disabled="@isBusy">
+                    @if (isBusy)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    else
+                    {
+                        <ModuleIcon Type="save" Size="button" Style="transparent" />
+                        <span>Save material</span>
+                    }
+                </button>
+                <button class="btn btn-secondary" @onclick="CancelDraft" disabled="@isBusy">Cancel</button>
+            </div>
+
+            <small class="material-form-note">
+                Saved to your account and available in every calculator's material list.
+                Shared calculation links carry the material by name, so someone opening
+                your link without this material will fall back to their own selection.
+            </small>
+        </div>
+    }
+
     <div class="table-container">
         <table class="data-table">
             <thead>
@@ -33,13 +125,20 @@
                     <th>ν</th>
                     <th>α (10⁻⁶/K)</th>
                     <th>ρ (kg/m³)</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>
                 @foreach (var mat in materials)
                 {
                     <tr>
-                        <td><strong>@mat.Name</strong></td>
+                        <td>
+                            <strong>@mat.Name</strong>
+                            @if (mat.IsCustom)
+                            {
+                                <span class="badge-custom">Mine</span>
+                            }
+                        </td>
                         <td>@mat.Standard</td>
                         <td>@mat.YieldStrength</td>
                         <td>@mat.TensileStrength</td>
@@ -48,6 +147,21 @@
                         <td>@mat.PoissonRatio</td>
                         <td>@mat.ThermalExpansion</td>
                         <td>@mat.Density</td>
+                        <td class="row-actions">
+                            @if (mat.IsCustom)
+                            {
+                                if (confirmDeleteId == mat.CustomId)
+                                {
+                                    <button class="btn btn-danger btn-sm" @onclick="() => Delete(mat)" disabled="@isBusy">Confirm</button>
+                                    <button class="btn btn-secondary btn-sm" @onclick="() => confirmDeleteId = null" disabled="@isBusy">Cancel</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-secondary btn-sm" @onclick="() => StartEdit(mat)" disabled="@isBusy">Edit</button>
+                                    <button class="btn btn-secondary btn-sm" @onclick="() => confirmDeleteId = mat.CustomId">Delete</button>
+                                }
+                            }
+                        </td>
                     </tr>
                 }
             </tbody>
@@ -187,12 +301,118 @@
     .data-table td:first-child {
         color: #0d6efd;
     }
+
+    /* ── User-added materials ──────────────────────────────────────────── */
+    .header-actions {
+        margin-left: auto;
+    }
+
+    .btn-sm {
+        padding: 4px 12px;
+        font-size: 12px;
+        margin-left: 6px;
+    }
+
+    .btn-danger {
+        background: linear-gradient(135deg, #dc3545 0%, #b02a37 100%);
+        color: white;
+    }
+
+    .btn-danger:hover {
+        background: linear-gradient(135deg, #b02a37 0%, #922331 100%);
+    }
+
+    .badge-custom {
+        display: inline-block;
+        margin-left: 8px;
+        padding: 2px 8px;
+        border-radius: 10px;
+        background: #e8f5e9;
+        color: #2e7d32;
+        font-size: 11px;
+        font-weight: 600;
+        vertical-align: middle;
+    }
+
+    .row-actions {
+        text-align: right;
+        white-space: nowrap;
+    }
+
+    .material-form {
+        margin-bottom: 20px;
+        padding: 18px;
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+    }
+
+    .material-form-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #2c3e50;
+        margin-bottom: 14px;
+    }
+
+    .material-form-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 14px;
+    }
+
+    .material-form .form-group {
+        margin: 0;
+    }
+
+    .material-form label {
+        display: block;
+        font-size: 12px;
+        font-weight: 500;
+        color: #495057;
+        margin-bottom: 5px;
+    }
+
+    .material-form input {
+        width: 100%;
+        padding: 8px 10px;
+        font-size: 14px;
+        border: 1px solid #ced4da;
+        border-radius: 6px;
+    }
+
+    .material-form small {
+        display: block;
+        margin-top: 4px;
+        font-size: 11px;
+        color: #6c757d;
+    }
+
+    .material-form-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 16px;
+    }
+
+    .material-form-note {
+        display: block;
+        margin-top: 12px;
+        font-size: 11px;
+        color: #6c757d;
+        line-height: 1.6;
+    }
 </style>
 
 @code {
     private ModuleInfo moduleInfo = new();
     private List<Material> materials = new();
     private List<SpringMaterial> springMaterials = new();
+
+    // User-added materials: null draft = form closed.
+    private Material? draft;
+    private string? editingId;
+    private string? confirmDeleteId;
+    private string? formError;
+    private bool isBusy;
 
     protected override async Task OnInitializedAsync()
     {
@@ -210,6 +430,119 @@
 
         // Track page view
         await Analytics.TrackPageView("/materials", moduleInfo.Name);
+    }
+
+    // ============ USER-ADDED MATERIALS ============
+
+    /// <summary>
+    /// A blank material carries the values that are the same for almost every steel,
+    /// so the user only fills in what actually distinguishes their grade.
+    /// </summary>
+    private void StartNew()
+    {
+        editingId = null;
+        confirmDeleteId = null;
+        formError = null;
+        draft = new Material
+        {
+            ElasticModulus = 206,
+            PoissonRatio = 0.3,
+            ThermalExpansion = 11.5,
+            Density = 7850
+        };
+    }
+
+    /// <summary>
+    /// Edits a COPY. Binding the form straight to the list's instance would leave the
+    /// dropdowns showing half-typed values, and a failed save would strand them there.
+    /// </summary>
+    private void StartEdit(Material material)
+    {
+        editingId = material.CustomId;
+        confirmDeleteId = null;
+        formError = null;
+        draft = new Material
+        {
+            CustomId = material.CustomId,
+            Name = material.Name,
+            Standard = material.Standard,
+            YieldStrength = material.YieldStrength,
+            TensileStrength = material.TensileStrength,
+            ElasticModulus = material.ElasticModulus,
+            PoissonRatio = material.PoissonRatio,
+            ThermalExpansion = material.ThermalExpansion,
+            Density = material.Density,
+            PermissibleSurfacePressure = material.PermissibleSurfacePressure
+        };
+    }
+
+    private void CancelDraft()
+    {
+        draft = null;
+        editingId = null;
+        formError = null;
+    }
+
+    private async Task SaveDraft()
+    {
+        if (draft == null) return;
+
+        formError = Validate(draft);
+        if (formError != null) return;
+
+        isBusy = true;
+        var (ok, error) = await Library.SaveMaterialAsync(draft);
+        isBusy = false;
+
+        if (!ok)
+        {
+            formError = error ?? "Could not save. Please try again.";
+            return;
+        }
+
+        draft = null;
+        editingId = null;
+        Reload();
+    }
+
+    private async Task Delete(Material material)
+    {
+        if (material.CustomId == null) return;
+
+        isBusy = true;
+        var (ok, error) = await Library.DeleteMaterialAsync(material.CustomId);
+        isBusy = false;
+        confirmDeleteId = null;
+
+        if (!ok)
+        {
+            formError = error ?? "Could not delete. Please try again.";
+            return;
+        }
+
+        // Deleting the material currently open in the form would leave an orphaned draft.
+        if (editingId == material.CustomId) CancelDraft();
+        Reload();
+    }
+
+    private void Reload() => materials = MaterialService.GetMaterials();
+
+    /// <summary>
+    /// The engines divide by these, so a zero here surfaces later as a nonsense safety
+    /// factor rather than an error. Reject it at the source instead.
+    /// </summary>
+    private static string? Validate(Material m)
+    {
+        if (string.IsNullOrWhiteSpace(m.Name)) return "Give the material a name.";
+        if (m.YieldStrength <= 0) return "Yield strength must be greater than zero.";
+        if (m.TensileStrength <= 0) return "Tensile strength must be greater than zero.";
+        if (m.TensileStrength < m.YieldStrength) return "Tensile strength cannot be below the yield strength.";
+        if (m.ElasticModulus <= 0) return "Elastic modulus must be greater than zero.";
+        if (m.PoissonRatio <= 0 || m.PoissonRatio >= 0.5) return "Poisson's ratio must be between 0 and 0.5.";
+        if (m.Density <= 0) return "Density must be greater than zero.";
+        if (m.PermissibleSurfacePressure <= 0)
+            return "Permissible surface pressure must be greater than zero — key and clamp connections divide by it.";
+        return null;
     }
 
     private async Task SetSeoMetadata()

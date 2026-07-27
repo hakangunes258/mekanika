@@ -1470,6 +1470,56 @@ Build/apply once per module, reuse for links, localStorage, and Supabase.
 - **Adding the loader after the page-header `</div>` has twice produced a stray
   duplicate `</div>`** (TaperFit, TorsionSpring) — check the header still balances.
 
+### **Custom Library Entries**
+
+Signed-in users can add their own entries to the reference libraries. Live for
+**materials**; the table and service are already shaped for bearings and bolts.
+
+**Files:**
+- `supabase/library_items.sql` — one table for every library, kind-tagged
+  (`material` | `bearing` | `bolt`), `data` jsonb in the shape of the C# model,
+  `name` duplicated into its own column purely to carry a case-insensitive unique
+  index per (user, kind). 4 RLS policies, same pattern as `calculations`.
+  **Run it once in the SQL editor after `schema.sql`.**
+- `Services/CustomLibraryService.cs` — PostgREST CRUD + `RefreshAsync()`, which
+  pushes the loaded items into the static providers.
+- `Services/MaterialService.cs` — `SetCustomMaterials()`, `CustomMaterials`,
+  `IsBuiltInName()`; `GetMaterials()` now returns built-ins **then** customs.
+- `Models/LibraryItem.cs` (the row), `Models/Material.cs` (`CustomId` / `IsCustom`).
+- `Pages/Materials.razor` — add / edit / delete, "Mine" badge on custom rows.
+
+**Load timing is the whole design.** `Program.cs` awaits `library.RefreshAsync()`
+*before* `RunAsync()`, and re-runs it on `AuthStateChanged`. That is what lets every
+consumer stay synchronous — pages call `MaterialService.GetMaterials()` in
+`OnInitialized` and the list is already complete. Do not make the calculators await
+a library load.
+
+**Rules:**
+- **Custom entries go after the built-ins, never interleaved.** Pages bind material
+  dropdowns by *index*; a built-in changing position would silently repoint an
+  in-progress calculation at a different material.
+- **A custom entry may not take a built-in's name** (`IsBuiltInName`, enforced in
+  `SaveMaterialAsync`). Name is the key everywhere — share links, saved calculations,
+  `MaterialService.GetMaterial(name)` — and a shadowed built-in would resolve
+  differently for different users.
+- **Signed out clears the custom list.** `RefreshAsync` with no token empties it
+  rather than leaving the previous user's entries in a shared browser's dropdowns.
+- **The edit form binds to a copy**, never to the instance in the list — a half-typed
+  or failed edit must not reach the calculators.
+- **Validate at the source.** The engines divide by yield strength, E, ν and
+  permissible surface pressure; a zero there surfaces much later as a nonsense safety
+  factor rather than an error.
+- **Share links carry the material by name only.** A recipient without that custom
+  material falls back to their own selection (see the share-state rules above) — the
+  Materials page says so under the form. Do not "fix" this by embedding material
+  properties in the link.
+
+**To add bearings or bolts:** the table already allows the kind. Add a
+`SetCustom…`/merged accessor to `BearingService` / `BoltService` (today they expose
+`public static readonly List<…>` fields read directly by the pages — those need to
+become merged accessors), extend `RefreshAsync`, and reuse the Materials.razor UI
+shape in `Bearings.razor` / `BoltDatabase.razor`.
+
 ### **Related Calculators Feature**
 
 ```razor

@@ -2,9 +2,19 @@ using MechanicalCalculatorWeb.Models;
 
 namespace MechanicalCalculatorWeb.Services;
 
+/// <summary>
+/// The material library: the built-in grades below, plus any the signed-in user has
+/// added (loaded by <see cref="CustomLibraryService"/>).
+///
+/// Custom materials are always appended AFTER the built-ins, so the position of a
+/// built-in never moves — pages bind a dropdown by index, and a shifting index would
+/// silently repoint an in-progress calculation at a different material. Lookups by
+/// name hit the built-ins first for the same reason; a custom material may not take a
+/// built-in's name (enforced in <see cref="CustomLibraryService.SaveMaterialAsync"/>).
+/// </summary>
 public class MaterialService
 {
-    private static readonly List<Material> _materials = new List<Material>
+    private static readonly List<Material> _builtIn = new List<Material>
     {
         new Material
         {
@@ -152,9 +162,39 @@ public class MaterialService
         }
     };
 
+    // ============ USER-ADDED MATERIALS ============
+
+    private static List<Material> _custom = new();
+    private static List<Material>? _all;
+
+    /// <summary>The grades that ship with the app. Never empty, never user-editable.</summary>
+    public static IReadOnlyList<Material> BuiltInMaterials => _builtIn;
+
+    /// <summary>The signed-in user's own materials. Empty when signed out.</summary>
+    public static IReadOnlyList<Material> CustomMaterials => _custom;
+
+    /// <summary>
+    /// Replaces the user's materials with the ones just loaded from the account.
+    /// Called by <see cref="CustomLibraryService"/> at startup and on every auth
+    /// change — an empty list on sign-out is the point, not a failure case.
+    /// </summary>
+    public static void SetCustomMaterials(IEnumerable<Material> materials)
+    {
+        _custom = materials.ToList();
+        _all = null;
+    }
+
+    /// <summary>True if a built-in grade already uses this name (case-insensitive).</summary>
+    public static bool IsBuiltInName(string name)
+        => _builtIn.Any(m => string.Equals(m.Name, name.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    private static List<Material> All => _all ??= _builtIn.Concat(_custom).ToList();
+
+    // ============ ACCESSORS ============
+
     public List<Material> GetMaterials()
     {
-        return _materials;
+        return All;
     }
 
     /// <summary>
@@ -162,7 +202,7 @@ public class MaterialService
     /// </summary>
     public static List<Material> GetAllMaterials()
     {
-        return _materials;
+        return All;
     }
 
     /// <summary>
@@ -170,7 +210,7 @@ public class MaterialService
     /// </summary>
     public static Material? GetMaterial(string name)
     {
-        return _materials.FirstOrDefault(m => m.Name == name);
+        return All.FirstOrDefault(m => m.Name == name);
     }
 
     /// <summary>
@@ -178,6 +218,6 @@ public class MaterialService
     /// </summary>
     public static Material? GetMaterialByPartialName(string partialName)
     {
-        return _materials.FirstOrDefault(m => m.Name.Contains(partialName, StringComparison.OrdinalIgnoreCase));
+        return All.FirstOrDefault(m => m.Name.Contains(partialName, StringComparison.OrdinalIgnoreCase));
     }
 }

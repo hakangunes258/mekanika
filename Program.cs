@@ -36,10 +36,22 @@ builder.Services.AddScoped<AuthenticationStateProvider, SupabaseAuthStateProvide
 // Cloud-saved calculations (Supabase PostgREST, RLS-scoped to the user)
 builder.Services.AddScoped<CalculationStorageService>();
 
+// The user's own library entries (custom materials), merged into MaterialService
+builder.Services.AddScoped<CustomLibraryService>();
+
 var host = builder.Build();
 
 // Restore any persisted session before the first render, so the navbar shows the
 // signed-in state immediately rather than flashing "Sign In".
-await host.Services.GetRequiredService<SupabaseAuthService>().InitializeAsync();
+var auth = host.Services.GetRequiredService<SupabaseAuthService>();
+await auth.InitializeAsync();
+
+// Load the user's custom library entries before the first render too, so every
+// calculator's material dropdown is already complete and every consumer downstream
+// can stay synchronous. Signing in or out re-runs this; signed out it clears, which
+// is what stops one user's materials outliving their session in a shared browser.
+var library = host.Services.GetRequiredService<CustomLibraryService>();
+await library.RefreshAsync();
+auth.AuthStateChanged += () => _ = library.RefreshAsync();
 
 await host.RunAsync();
