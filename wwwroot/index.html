@@ -56,6 +56,23 @@
     </script>
 
     <base href="/" />
+
+    <!-- SPA deep-link restore. On GitHub Pages an unknown path (a shared calculator
+         link, or the /auth/callback that Google/Supabase returns to with the session
+         in the #fragment) is served 404.html, which stashes the full original URL in
+         sessionStorage and refreshes to "/". Restore it here BEFORE Blazor boots, so
+         the router and the auth callback see the original path and fragment. Without
+         this the tokens in the fragment are lost and sign-in silently fails. -->
+    <script>
+        (function () {
+            var r = sessionStorage.redirect;
+            if (r) {
+                delete sessionStorage.redirect;
+                if (r !== location.href) history.replaceState(null, null, r);
+            }
+        })();
+    </script>
+
     <link rel="icon" type="image/png" href="logo.png" />
     <link rel="apple-touch-icon" href="logo.png" />
     <!-- Bump ?v= when either stylesheet changes, so browsers fetch the new file
