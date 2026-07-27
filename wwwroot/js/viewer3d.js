@@ -265,7 +265,10 @@ window.mekanika3d = (function () {
                     Math.cos(ang) * meanRadius));
             }
             const curve = new THREE.CatmullRomCurve3(pts);
-            const g = new THREE.TubeGeometry(curve, N, wireR, 14, false);
+            // 20 radial facets keep adjacent-face angle (18 deg) below the edge
+            // threshold, so EdgesGeometry does not draw longitudinal seams along
+            // the wire - the tube stays smooth and does not flood the snap list.
+            const g = new THREE.TubeGeometry(curve, N, wireR, 20, false);
             const m = new THREE.Mesh(g, material);
             m.castShadow = true; m.receiveShadow = true;
             return m;
@@ -312,7 +315,9 @@ window.mekanika3d = (function () {
                                                     A0, A1 - A0);
         faceGeom.rotateZ(Math.PI / 2);
         faceGeom.rotateY(Math.PI);
-        gFace.add(new THREE.Mesh(faceGeom, mFace));
+        const faceMesh = new THREE.Mesh(faceGeom, mFace);
+        faceMesh.userData.noEdges = true;   // highlight band, not a real part
+        gFace.add(faceMesh);
 
         const pr = num(p.pressure, 0);
         return {
@@ -382,7 +387,9 @@ window.mekanika3d = (function () {
         const faceGeom = new THREE.CylinderGeometry(rS * 1.004, rL * 1.004, L, 72, 1, true,
                                                     PHI0, PHILEN);
         faceGeom.rotateZ(-Math.PI / 2);
-        gFace.add(new THREE.Mesh(faceGeom, mFace));
+        const faceMesh = new THREE.Mesh(faceGeom, mFace);
+        faceMesh.userData.noEdges = true;   // highlight band, not a real part
+        gFace.add(faceMesh);
 
         const pr = num(p.pressure, 0);
         const halfAngle = num(p.halfAngle, 0);
@@ -549,7 +556,7 @@ window.mekanika3d = (function () {
             '<div class="mek3d-legend"></div>' +
             '<div class="mek3d-measure"></div>' +
             '<div class="mek3d-hint">Drag: rotate · Wheel: zoom · Right-drag: pan · ' +
-            'Measure: click two points · Esc: close</div>' +
+            'Measure: snaps to corners &amp; edges · Esc: close</div>' +
             '<div class="mek3d-title"></div>' +
             '<div class="mek3d-msg"><div class="mek3d-spin"></div><div>Loading 3D view…</div></div>';
         document.body.appendChild(ov);
@@ -609,8 +616,8 @@ window.mekanika3d = (function () {
         host.appendChild(renderer.domElement);
         session.renderer = renderer;
 
-        scene.add(new THREE.AmbientLight(0xffffff, 0.45));
-        scene.add(new THREE.HemisphereLight(0xbcd3ff, 0x2a2f38, 0.6));
+        scene.add(new THREE.AmbientLight(0xffffff, 0.52));
+        scene.add(new THREE.HemisphereLight(0xbcd3ff, 0x2a2f38, 0.72));
         const key = new THREE.DirectionalLight(0xffffff, 0.9);
         key.position.set(240, 400, 280);
         scene.add(key);
@@ -624,6 +631,52 @@ window.mekanika3d = (function () {
 
         const layers = spec.layers || {};
         Object.keys(layers).forEach(k => root.add(layers[k]));
+
+        // ---- edge overlays (legibility + snap targets)
+        //
+        // Metallic faces blend into one another, so without outlines the user
+        // cannot tell where an edge is - let alone click one. EdgesGeometry keeps
+        // only edges whose adjoining faces meet above a threshold angle, so it
+        // emits the REAL geometric edges (rims, keyway walls, cut faces) and skips
+        // the smooth tessellation seams of a cylinder. Those same edges become the
+        // snap targets for the measure tool.
+        const EDGE_ANGLE = 24;
+        const edgeMat = new THREE.LineBasicMaterial({ color: 0x0d1014,
+                                                      transparent: true, opacity: 0.6 });
+        let snapSegments = [];   // { mesh, a:Vector3(local), b:Vector3(local) }
+
+        function buildEdges() {
+            const stale = [];
+            root.traverse(o => { if (o.userData && o.userData.isEdgeOverlay) stale.push(o); });
+            stale.forEach(o => { if (o.parent) o.parent.remove(o); o.geometry.dispose(); });
+            snapSegments = [];
+
+            const meshes = [];
+            root.traverse(o => {
+                if (o.isMesh && !o.userData.isEdgeOverlay && !o.userData.noEdges) meshes.push(o);
+            });
+            meshes.forEach(m => {
+                let eg;
+                try { eg = new THREE.EdgesGeometry(m.geometry, EDGE_ANGLE); }
+                catch (e) { return; }
+                if (!eg.attributes.position || eg.attributes.position.count === 0) { eg.dispose(); return; }
+
+                const seg = new THREE.LineSegments(eg, edgeMat);
+                seg.userData.isEdgeOverlay = true;
+                seg.renderOrder = 2;
+                m.add(seg);   // child of the mesh, so it moves with explode/state changes
+
+                const pos = eg.attributes.position;
+                for (let i = 0; i < pos.count; i += 2) {
+                    snapSegments.push({
+                        mesh: m,
+                        a: new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i)),
+                        b: new THREE.Vector3(pos.getX(i + 1), pos.getY(i + 1), pos.getZ(i + 1))
+                    });
+                }
+            });
+        }
+        buildEdges();
 
         const cam = spec.camera || {};
         const baseRadius = cam.radius || 300;
@@ -682,9 +735,18 @@ window.mekanika3d = (function () {
             upd();
         };
         const onCtx = e => e.preventDefault();
+        // Hover snapping (measure mode only, and not while dragging the view).
+        // Defined here but calls computeSnap/setHover, which are created in the
+        // measurement block below - it only runs on real pointer events, by which
+        // time everything is initialised.
+        const onHover = e => {
+            if (!measuring || drag) { if (measuring) setHover(null); return; }
+            setHover(computeSnap(e.clientX, e.clientY));
+        };
         el.addEventListener('mousedown', onDown);
         window.addEventListener('mouseup', onUp);
         window.addEventListener('mousemove', onMove);
+        el.addEventListener('mousemove', onHover);
         el.addEventListener('wheel', onWheel, { passive: false });
         el.addEventListener('contextmenu', onCtx);
 
@@ -725,6 +787,93 @@ window.mekanika3d = (function () {
         let measuring = false;
         let picks = [];
 
+        // Marker that follows the cursor's snap point so the user sees exactly
+        // which corner/edge will be picked before clicking.
+        const hoverMarker = new THREE.Mesh(
+            new THREE.SphereGeometry(baseRadius * 0.014, 16, 12),
+            new THREE.MeshBasicMaterial({ color: 0x35E0C0, depthTest: false }));
+        hoverMarker.renderOrder = 1000;
+        hoverMarker.visible = false;
+        scene.add(hoverMarker);
+
+        const _proj = new THREE.Vector3();
+        function toScreen(worldPt, rect) {
+            _proj.copy(worldPt).project(camera);
+            return { x: (_proj.x * 0.5 + 0.5) * rect.width,
+                     y: (-_proj.y * 0.5 + 0.5) * rect.height,
+                     behind: _proj.z > 1 };
+        }
+        function segDist2D(px, py, ax, ay, bx, by) {
+            const dx = bx - ax, dy = by - ay;
+            const len2 = dx * dx + dy * dy;
+            let t = len2 > 0 ? ((px - ax) * dx + (py - ay) * dy) / len2 : 0;
+            t = Math.max(0, Math.min(1, t));
+            const cx = ax + t * dx, cy = ay + t * dy;
+            return { dist: Math.hypot(px - cx, py - cy), t };
+        }
+
+        // Snap the cursor to the nearest real corner, then edge, then fall back to
+        // the plain surface point. Corners win with a slightly wider radius so a
+        // deliberate click near a vertex always lands exactly on it.
+        const VERTEX_PX = 12, EDGE_PX = 9;
+        const _wa = new THREE.Vector3(), _wb = new THREE.Vector3();
+        function computeSnap(clientX, clientY) {
+            const rect = el.getBoundingClientRect();
+            const px = clientX - rect.left, py = clientY - rect.top;
+            root.updateMatrixWorld(true);
+
+            let best = null, bestD = Infinity, kind = null;
+
+            // 1. corners (edge endpoints)
+            for (const s of snapSegments) {
+                _wa.copy(s.a).applyMatrix4(s.mesh.matrixWorld);
+                const A = toScreen(_wa, rect);
+                if (!A.behind) {
+                    const d = Math.hypot(A.x - px, A.y - py);
+                    if (d < VERTEX_PX && d < bestD) { bestD = d; best = _wa.clone(); kind = 'vertex'; }
+                }
+                _wb.copy(s.b).applyMatrix4(s.mesh.matrixWorld);
+                const B = toScreen(_wb, rect);
+                if (!B.behind) {
+                    const d = Math.hypot(B.x - px, B.y - py);
+                    if (d < VERTEX_PX && d < bestD) { bestD = d; best = _wb.clone(); kind = 'vertex'; }
+                }
+            }
+            if (best) return { point: best, kind };
+
+            // 2. nearest point along an edge
+            bestD = Infinity;
+            for (const s of snapSegments) {
+                _wa.copy(s.a).applyMatrix4(s.mesh.matrixWorld);
+                _wb.copy(s.b).applyMatrix4(s.mesh.matrixWorld);
+                const A = toScreen(_wa, rect), B = toScreen(_wb, rect);
+                if (A.behind || B.behind) continue;
+                const r = segDist2D(px, py, A.x, A.y, B.x, B.y);
+                if (r.dist < EDGE_PX && r.dist < bestD) {
+                    bestD = r.dist; best = _wa.clone().lerp(_wb, r.t); kind = 'edge';
+                }
+            }
+            if (best) return { point: best, kind };
+
+            // 3. plain surface hit
+            const ndc = new THREE.Vector2((px / rect.width) * 2 - 1, -(py / rect.height) * 2 + 1);
+            raycaster.setFromCamera(ndc, camera);
+            const hits = raycaster.intersectObject(root, true);
+            for (const h of hits) {
+                if (h.object.userData.isEdgeOverlay || h.object.userData.noEdges) continue;
+                return { point: h.point.clone(), kind: 'surface' };
+            }
+            return null;
+        }
+
+        function setHover(snap) {
+            if (!snap) { hoverMarker.visible = false; return; }
+            hoverMarker.position.copy(snap.point);
+            hoverMarker.material.color.setHex(
+                snap.kind === 'vertex' ? 0x35E0C0 : snap.kind === 'edge' ? 0xFFD34D : 0x8b93a1);
+            hoverMarker.visible = true;
+        }
+
         function clearMeasure() {
             measureGroup.children.slice().forEach(c => {
                 measureGroup.remove(c);
@@ -732,6 +881,7 @@ window.mekanika3d = (function () {
                 if (c.material) c.material.dispose();
             });
             picks = [];
+            hoverMarker.visible = false;
             drawPanel();
         }
 
@@ -739,7 +889,8 @@ window.mekanika3d = (function () {
             if (!measuring) { panel.style.display = 'none'; return; }
             panel.style.display = 'block';
             if (picks.length === 0) {
-                panel.innerHTML = '<b>Measure</b><div>Click a point on the model.</div>';
+                panel.innerHTML = '<b>Measure</b><div>Hover a corner or edge — the marker ' +
+                                  'shows the snap point — then click.</div>';
                 return;
             }
             if (picks.length === 1) {
@@ -758,16 +909,11 @@ window.mekanika3d = (function () {
         }
 
         function pickPoint(e) {
-            const rect = el.getBoundingClientRect();
-            const ndc = new THREE.Vector2(
-                ((e.clientX - rect.left) / rect.width) * 2 - 1,
-                -((e.clientY - rect.top) / rect.height) * 2 + 1);
-            raycaster.setFromCamera(ndc, camera);
-            const hits = raycaster.intersectObject(root, true);
-            if (!hits.length) return;
+            const snap = computeSnap(e.clientX, e.clientY);
+            if (!snap) return;
 
             if (picks.length >= 2) clearMeasure();
-            const p = hits[0].point.clone();
+            const p = snap.point;
             picks.push(p);
 
             const dot = new THREE.Mesh(
@@ -845,7 +991,8 @@ window.mekanika3d = (function () {
                 idx = (idx + 1) % spec.extra.states.length;
                 spec.extra.apply(idx);
                 bX.textContent = spec.extra.states[idx];
-                clearMeasure();   // geometry was rebuilt at a different length
+                buildEdges();     // meshes were rebuilt at a different length
+                clearMeasure();
             };
         }
 
@@ -900,6 +1047,7 @@ window.mekanika3d = (function () {
             window.removeEventListener('resize', onResize);
             window.removeEventListener('mouseup', onUp);
             window.removeEventListener('mousemove', onMove);
+            el.removeEventListener('mousemove', onHover);
             el.removeEventListener('mousedown', onDown);
             el.removeEventListener('wheel', onWheel);
             el.removeEventListener('contextmenu', onCtx);

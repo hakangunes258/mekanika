@@ -1392,6 +1392,17 @@ components. Model units are millimetres — builders are fed engine values direc
 so no scaling is applied and hit points are real dimensions. Measurements are
 cleared whenever the geometry moves or changes (explode toggle, spring state).
 
+The cursor **snaps** to real corners first, then to the nearest point along an
+edge, and only falls back to the plain surface point — a hover marker shows what
+will be picked (teal = corner, yellow = edge, grey = surface). The snap targets
+come from the same `EdgesGeometry` overlays that draw the visible outlines, so
+"what you can see" and "what you can snap to" are always the same set. `buildEdges`
+rebuilds both after any geometry change; keep `EDGE_ANGLE` (24°) and mesh facet
+counts consistent — a cross-section with facets coarser than the threshold (e.g.
+a tube with <16 sides) floods the snap list with tessellation seams. Highlight
+bands (the contact-interface meshes) are tagged `userData.noEdges` so they neither
+draw outlines nor act as snap targets.
+
 **Rules:**
 - Never draw something the calculation does not know. Where a dimension is not an
   engine input (e.g. hub OD in key-connection), use a clearly representative value
