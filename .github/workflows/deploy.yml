@@ -1,0 +1,71 @@
+name: Deploy to GitHub Pages
+
+# Builds the Blazor WebAssembly app and publishes it to GitHub Pages on every
+# push to `source`. Replaces the manual "publish → copy into gh-pages worktree →
+# commit → push" routine.
+#
+# ONE-TIME SETUP (required before the first run can go live):
+#   GitHub → repo Settings → Pages → "Build and deployment" →
+#   Source: change from "Deploy from a branch" to "GitHub Actions".
+# The custom domain (mekanika.org) stays configured; nothing else changes.
+# After that, the gh-pages branch is no longer used to serve the site.
+
+on:
+  push:
+    branches: [ source ]
+  workflow_dispatch:        # allows a manual run from the Actions tab
+
+# Least privilege: read the repo, write a Pages deployment, mint the OIDC token
+# that actions/deploy-pages uses to authenticate to the Pages service.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race; a newer push supersedes an in-flight one.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Publish
+        # Target the project, not the .sln (the solution rejects -o with a warning).
+        # A standard WASM publish (no AOT) needs no extra workload.
+        run: dotnet publish MechanicalCalculatorWeb.csproj -c Release -o publish
+
+      - name: Verify critical Pages files are present
+        # Fail loudly if the SPA fallback, custom domain, or Jekyll opt-out is
+        # missing, rather than shipping a broken site.
+        run: |
+          cd publish/wwwroot
+          test -f .nojekyll   || { echo "::error::.nojekyll missing"; exit 1; }
+          test -f CNAME       || { echo "::error::CNAME missing"; exit 1; }
+          test -f 404.html    || { echo "::error::404.html missing"; exit 1; }
+          echo "CNAME = $(cat CNAME)"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: publish/wwwroot
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
