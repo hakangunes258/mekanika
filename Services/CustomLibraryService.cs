@@ -19,6 +19,16 @@ namespace MechanicalCalculatorWeb.Services;
 /// </summary>
 public class CustomLibraryService
 {
+    /// <summary>
+    /// Pinned to BOTH ends of the `data` round-trip, because the two defaults do not
+    /// agree: JsonContent.Create writes with JsonSerializerDefaults.Web (camelCase),
+    /// while JsonElement.Deserialize&lt;T&gt;() with no options matches property names
+    /// case-SENSITIVELY against PascalCase. Nothing errors — every property just
+    /// silently reads back as its default. That shipped once: standards came back
+    /// blank and every number came back 0. Do not let the two ends drift again.
+    /// </summary>
+    private static readonly JsonSerializerOptions LibraryJson = new(JsonSerializerDefaults.Web);
+
     private readonly HttpClient _http;
     private readonly SupabaseConfig _config;
     private readonly SupabaseAuthService _auth;
@@ -84,7 +94,7 @@ public class CustomLibraryService
     {
         try
         {
-            var material = item.Data.Deserialize<Material>();
+            var material = item.Data.Deserialize<Material>(LibraryJson);
             if (material == null) return null;
 
             // The `name` column is the authority — it is the one the unique index and
@@ -119,7 +129,7 @@ public class CustomLibraryService
             var response = await _http.SendAsync(request);
             if (!response.IsSuccessStatusCode) return new();
 
-            return await response.Content.ReadFromJsonAsync<List<LibraryItem>>() ?? new();
+            return await response.Content.ReadFromJsonAsync<List<LibraryItem>>(LibraryJson) ?? new();
         }
         catch
         {
@@ -147,7 +157,7 @@ public class CustomLibraryService
             kind,
             name,
             data
-        });
+        }, options: LibraryJson);
 
         return await SendAsync(request, "Could not save");
     }
@@ -161,7 +171,7 @@ public class CustomLibraryService
             $"{_config.RestUrl}/library_items?id=eq.{Uri.EscapeDataString(id)}");
         AddAuth(request, token);
         request.Headers.Add("Prefer", "return=minimal");
-        request.Content = JsonContent.Create(new { name, data });
+        request.Content = JsonContent.Create(new { name, data }, options: LibraryJson);
 
         return await SendAsync(request, "Could not save");
     }
