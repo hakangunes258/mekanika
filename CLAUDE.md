@@ -1495,6 +1495,13 @@ consumer stay synchronous — pages call `MaterialService.GetMaterials()` in
 a library load.
 
 **Rules:**
+- **Pin one `JsonSerializerOptions` to both ends of the `data` round-trip.** The two
+  defaults disagree: `JsonContent.Create` writes with `JsonSerializerDefaults.Web`
+  (camelCase), while `JsonElement.Deserialize<T>()` with no options matches property
+  names case-*sensitively* against PascalCase. Nothing throws — every property just
+  reads back as its default. This shipped once: saved materials came back with a
+  blank standard and 0 for every number. `CustomLibraryService.LibraryJson` exists
+  for this; use it for every read and write of `data`.
 - **Custom entries go after the built-ins, never interleaved.** Pages bind material
   dropdowns by *index*; a built-in changing position would silently repoint an
   in-progress calculation at a different material.
