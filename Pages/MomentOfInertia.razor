@@ -270,7 +270,7 @@ else
             @if (!engine.AxesArePrincipal)
             {
                 <div class="alert alert-warning" style="margin-top: 16px;">
-                    <span>⚠️</span>
+                    <ModuleIcon Type="warning" Size="small" Style="default" />
                     <div>
                         <strong>X and Y are not principal axes for this section</strong> (I<sub>xy</sub> ≠ 0).
                         Bending applied about X alone will also deflect the section sideways.
@@ -329,8 +329,6 @@ else
         </div>
     </div>
 
-    <!-- Related Calculators -->
-    <RelatedCalculators CurrentModuleKey="moment-of-inertia" />
 }
 
 @code {

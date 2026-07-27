@@ -62,7 +62,7 @@
             @if (toleranceWarning != null)
             {
                 <div class="alert alert-warning" style="margin-bottom: 12px;">
-                    <span>⚠️</span>
+                    <ModuleIcon Type="warning" Size="small" Style="default" />
                     <div>@toleranceWarning</div>
                 </div>
             }
@@ -250,7 +250,7 @@ else
     <div id="results-content">
         <!-- Calculation Summary -->
         <div class="card">
-            <div class="card-header"><span>📝</span><h2>Calculation Summary</h2></div>
+            <div class="card-header"><ModuleIcon Type="info" Size="medium" Style="solid" /><h2>Calculation Summary</h2></div>
             <table class="results-table">
                 <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
                 <tbody>
@@ -323,7 +323,7 @@ else
 
         <!-- Assembly -->
         <div class="card">
-            <div class="card-header"><span>🛠️</span><h2>Assembly Parameters</h2></div>
+            <div class="card-header"><ModuleIcon Type="settings" Size="medium" Style="solid" /><h2>Assembly Parameters</h2></div>
             <table class="results-table">
                 <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
                 <tbody>
@@ -355,8 +355,6 @@ else
     <FeedbackWidget ModuleKey="interference-fit" />
 }
 
-<!-- Related Calculators -->
-<RelatedCalculators CurrentModuleKey="interference-fit" />
 
 @code {
     private InterferenceFitEngine engine = new();

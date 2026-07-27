@@ -144,7 +144,7 @@
             <div class="form-group">
                 <label>
                     Spring End Support
-                    <button type="button" class="info-btn" @onclick="ToggleEndConditionInfo" title="Show support types diagram">ℹ️</button>
+                    <button type="button" class="info-btn" @onclick="ToggleEndConditionInfo" title="Show support types diagram"><ModuleIcon Type="info" Size="button" Style="default" /></button>
                 </label>
                 <select @bind="engine.EndCondition">
                     <option value="BothFlat">Both ends on flat surfaces (v = 1.0)</option>
@@ -342,7 +342,7 @@ else
     <!-- Stress Analysis -->
     <div class="card">
         <div class="card-header">
-            <span>📈</span>
+            <ModuleIcon Type="stress" Size="medium" Style="solid" />
             <h2>Stress Analysis</h2>
         </div>
 
@@ -595,7 +595,6 @@ else
     </div>
 }
 
-<RelatedCalculators CurrentModuleKey="compression-spring" />
 
 <!-- End Condition Info Modal -->
 @if (showEndConditionInfo)

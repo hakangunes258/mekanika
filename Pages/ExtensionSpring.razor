@@ -62,7 +62,7 @@
             <div class="form-group">
                 <label>
                     Hook Type
-                    <button type="button" class="info-btn" @onclick="ToggleHookInfo" title="Show hook type details">ℹ️</button>
+                    <button type="button" class="info-btn" @onclick="ToggleHookInfo" title="Show hook type details"><ModuleIcon Type="info" Size="button" Style="default" /></button>
                 </label>
                 <select @bind="selectedHookType" @bind:after="OnHookTypeChanged">
                     @foreach (var hook in ExtensionSpringEngine.HookTypes)
@@ -316,7 +316,7 @@ else
     @if (validationErrors.Any())
     {
         <div class="alert alert-warning" style="margin-bottom: 24px;">
-            <span>⚠️</span>
+            <ModuleIcon Type="warning" Size="small" Style="default" />
             <div>
                 <strong>Design Warnings:</strong>
                 <ul style="margin: 8px 0 0 0; padding-left: 20px;">
@@ -441,7 +441,7 @@ else
     <!-- Stress Analysis & Safety Factors -->
     <div class="card">
         <div class="card-header">
-            <span>📈</span>
+            <ModuleIcon Type="stress" Size="medium" Style="solid" />
             <h2>Stress Analysis</h2>
         </div>
 
@@ -549,7 +549,7 @@ else
             @if (engine.FatigueSafetyFactor < 1.5)
             {
                 <div class="alert alert-warning" style="margin-top: 16px;">
-                    <span>⚠️</span>
+                    <ModuleIcon Type="warning" Size="small" Style="default" />
                     <div>
                         <strong>Low Fatigue Safety:</strong> Consider shot peening, reducing stroke, or using higher grade material (DH or VDSiCr).
                     </div>
@@ -583,8 +583,6 @@ else
     </div> <!-- End results-content -->
 }
 
-<!-- Related Calculators Component -->
-<RelatedCalculators CurrentModuleKey="extension-spring" />
 
 @code {
     private ExtensionSpringEngine engine = new();

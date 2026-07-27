@@ -42,7 +42,7 @@
                 <div class="form-group">
                     <label>
                         Contact Angle Filter
-                        <button type="button" class="info-btn" @onclick="ToggleInfoModal" @onclick:stopPropagation="true">ℹ️</button>
+                        <button type="button" class="info-btn" @onclick="ToggleInfoModal" @onclick:stopPropagation="true"><ModuleIcon Type="info" Size="button" Style="default" /></button>
                     </label>
                     <select @bind="selectedContactAngle" @bind:after="FilterBearings">
                         <option value="0">All Contact Angles</option>
@@ -385,7 +385,6 @@ else
     <!-- Feedback Widget -->
     <FeedbackWidget ModuleKey="ball-bearing" />
 
-    <RelatedCalculators CurrentModuleKey="ball-bearing" />
 }
 
 <style>
