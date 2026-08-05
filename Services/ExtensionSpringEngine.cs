@@ -78,7 +78,10 @@ public class ExtensionSpringEngine
 
     // Calculated Values - Safety (based on Position 2 or Max if no position defined)
     public double SafetyFactorBody { get; set; }      // νs body
-    public double SafetyFactorHook { get; set; }      // νs hook
+    public double SafetyFactorHook { get; set; }      // νs hook - the lower of the two below
+    public double SafetyFactorHookBending { get; set; } // σB against 0.70·Rm
+    public double SafetyFactorHookShear { get; set; }   // τH against τzul
+    public string HookCriticalMode { get; set; } = ""; // "Bending" or "Shear" - which governs the hook
     public string CriticalLocation { get; set; } = "Body"; // "Body" or "Hook"
     public double CriticalSafetyFactor { get; set; } // The lower of body/hook
 
@@ -481,19 +484,36 @@ public class ExtensionSpringEngine
             SafetyFactorBody = 999;
         }
 
-        // Hook safety factor
+        // Hook safety factor.
+        //
+        // EN 13906-2 checks the hook in TWO places: bending at the transition from
+        // the body into the hook, and torsion/shear in the hook bend itself. The
+        // shear stress was being computed and displayed but compared against
+        // nothing, so a hook that was critical in shear reported the (higher)
+        // bending safety factor and the summary named the wrong critical location -
+        // optimistic, on the unsafe side.
         if (HookType == "Threaded")
         {
+            // A threaded insert has no hook bend to check.
+            SafetyFactorHookBending = 999;
+            SafetyFactorHookShear = 999;
             SafetyFactorHook = 999;
-        }
-        else if (HookBendingStress > 0)
-        {
-            double allowableBendingStress = 0.70 * TensileStrength;
-            SafetyFactorHook = allowableBendingStress / HookBendingStress;
+            HookCriticalMode = "";
         }
         else
         {
-            SafetyFactorHook = 999;
+            double allowableBendingStress = 0.70 * TensileStrength;
+
+            SafetyFactorHookBending = HookBendingStress > 0
+                ? allowableBendingStress / HookBendingStress
+                : 999;
+
+            SafetyFactorHookShear = HookShearStress > 0
+                ? AllowableShearStress / HookShearStress
+                : 999;
+
+            SafetyFactorHook = Math.Min(SafetyFactorHookBending, SafetyFactorHookShear);
+            HookCriticalMode = SafetyFactorHookShear < SafetyFactorHookBending ? "Shear" : "Bending";
         }
 
         // Determine critical location and safety factor

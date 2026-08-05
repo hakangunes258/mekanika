@@ -169,6 +169,8 @@
         </div>
     </div>
 
+    <ValidationAlert Messages="validationMessages" />
+
     <div class="button-group">
         <button class="btn btn-success btn-lg @(isCalculating ? "btn-calculating" : "")" @onclick="Calculate" disabled="@isCalculating">
             @if (isCalculating)
@@ -276,8 +278,12 @@ else
                         <tr><td>Static Axial Factor</td><td>Y₀</td><td>@(selectedAngularBearing.Y0.ToString("F2"))</td><td>-</td></tr>
                         <tr><td>Limiting Speed (Oil)</td><td>n<sub>oil</sub></td><td>@(selectedAngularBearing.LimitSpeedOil)</td><td>rpm</td></tr>
                     }
+                    @* With hand-entered ratings there is no catalogue row, so n_lim is 0
+                       and the speed check below is skipped entirely. Say that instead of
+                       printing a bare "0" that reads like a real limit of zero. *@
                     <tr class="@(bearingLimitSpeed > 0 && speed > bearingLimitSpeed ? "warning" : "")">
-                        <td>Limiting Speed (Grease)</td><td>n<sub>lim</sub></td><td>@bearingLimitSpeed</td><td>rpm</td>
+                        <td>Limiting Speed (Grease)</td><td>n<sub>lim</sub></td>
+                        <td>@(bearingLimitSpeed > 0 ? bearingLimitSpeed.ToString() : "not known")</td><td>rpm</td>
                     </tr>
                     <tr><td>Operating Speed</td><td>n</td><td>@speed</td><td>rpm</td></tr>
                     <tr><td>Life Exponent (Ball Bearing)</td><td>p</td><td>3</td><td>-</td></tr>
@@ -298,6 +304,18 @@ else
                         ⚠️ <strong>Speed Warning:</strong> Operating speed (@speed rpm) exceeds limiting speed (@bearingLimitSpeed rpm).
                     </div>
                 }
+            }
+            else if (bearingLimitSpeed <= 0)
+            {
+                <div class="alert alert-info" style="margin-top: 16px;">
+                    <ModuleIcon Type="info" Size="small" Style="default" />
+                    <div>
+                        <strong>No speed check performed.</strong> The ratings were entered by hand, so
+                        the limiting speed is unknown and the operating speed (@speed rpm) was
+                        <strong>not</strong> checked against it. Select the bearing from the database to
+                        get the check, or verify n<sub>lim</sub> against the manufacturer's catalogue.
+                    </div>
+                </div>
             }
         </div>
 
@@ -335,9 +353,23 @@ else
                     <tr><td>Basic Rating Life (Revolutions)</td><td>L<sub>10</sub></td><td>@basicLifeRevolutions.ToString("F2")</td><td>×10⁶ rev</td></tr>
                     <tr class="@(basicLifeHours < 3000 ? "warning" : "highlight")"><td>Basic Rating Life (Hours)</td><td>L<sub>10h</sub></td><td>@FormatLife(basicLifeHours)</td><td>hours</td></tr>
                     <tr><td>Reliability Factor (@selectedReliability%)</td><td>a<sub>1</sub></td><td>@reliabilityFactor.ToString("F2")</td><td>-</td></tr>
-                    <tr class="highlight"><td>Modified Rating Life</td><td>L<sub>nah</sub></td><td>@FormatLife(modifiedLifeHours)</td><td>hours</td></tr>
+                    @* Symbol corrected from L_nah to L_na: "L_nah" implies a1 AND aISO,
+                       but only a1 (and fw on the load side) is applied here. *@
+                    <tr class="highlight"><td>Adjusted Rating Life (a₁ only)</td><td>L<sub>na</sub></td><td>@FormatLife(modifiedLifeHours)</td><td>hours</td></tr>
                 </tbody>
             </table>
+
+            <div class="alert alert-info" style="margin-top: 16px;">
+                <ModuleIcon Type="info" Size="small" Style="default" />
+                <div>
+                    <strong>Method note:</strong> the adjusted life applies the reliability factor
+                    a₁ only — L<sub>na</sub> = a₁ · L₁₀. The full ISO 281:2007 life modification
+                    factor a<sub>ISO</sub>, which accounts for lubrication (viscosity ratio κ),
+                    contamination (e<sub>C</sub>) and the fatigue load limit C<sub>u</sub>, is
+                    <strong>not</strong> included. Operating conditions can move a<sub>ISO</sub> well
+                    above or below 1, so treat this as a catalogue-style estimate.
+                </div>
+            </div>
 
             @if (basicLifeHours < 3000)
             {
@@ -465,6 +497,8 @@ else
     private double dynamicRating = 0;
     private double staticRating = 0;
     private double f0Factor = 0;          // Deep groove only
+    /// <summary>Why Calculate refused, shown by <see cref="ValidationAlert"/>.</summary>
+    private List<string> validationMessages = new();
     private double radialLoad = 0;
     private double axialLoad = 0;
     private double speed = 0;
@@ -582,9 +616,16 @@ else
         await Task.Delay(350);
         try
         {
-            if (dynamicRating <= 0 || staticRating <= 0 || radialLoad <= 0 || speed <= 0)
+            // Name what is missing rather than returning in silence.
+            validationMessages.Clear();
+            if (dynamicRating <= 0) validationMessages.Add("Dynamic load rating C must be greater than 0 — select a bearing or enter it.");
+            if (staticRating <= 0) validationMessages.Add("Static load rating C₀ must be greater than 0.");
+            if (radialLoad <= 0) validationMessages.Add("Radial load Fr must be greater than 0.");
+            if (speed <= 0) validationMessages.Add("Rotational speed n must be greater than 0.");
+
+            if (validationMessages.Count > 0)
             {
-                await Analytics.TrackCalculationError("ball-bearing", "validation_failed", "Invalid input parameters");
+                await Analytics.TrackCalculationError("ball-bearing", "validation_failed", string.Join("; ", validationMessages));
                 return;
             }
 
@@ -601,6 +642,7 @@ else
                 // Deep Groove: ISO 281 XY table interpolation using f0
                 if (f0Factor <= 0)
                 {
+                    validationMessages.Add("Calculation factor f₀ is required for a deep groove bearing (from the catalogue).");
                     await Analytics.TrackCalculationError("ball-bearing", "validation_failed", "f0 factor required for deep groove bearing");
                     return;
                 }
@@ -615,6 +657,7 @@ else
                 // Angular Contact: use catalog e, X, Y directly
                 if (selectedAngularBearing == null)
                 {
+                    validationMessages.Add("Select an angular contact bearing — its e, X and Y factors come from the catalogue and cannot be entered by hand.");
                     await Analytics.TrackCalculationError("ball-bearing", "validation_failed", "Angular contact bearing not selected");
                     return;
                 }
@@ -688,6 +731,7 @@ else
 
     private void ClearForm()
     {
+        validationMessages.Clear();
         selectedBearingType = "DeepGroove";
         selectedContactAngle = 0;
         selectedBearingIndex = -1;

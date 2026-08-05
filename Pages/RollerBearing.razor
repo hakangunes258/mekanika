@@ -74,6 +74,39 @@
                     <span class="unit">kN</span>
                 </div>
             </div>
+
+            @* C and C₀ have always been editable, which invites entering a bearing by
+               hand — but for a tapered bearing e and Y arrived ONLY from the catalogue,
+               so Calculate hit its guard and returned in silence. These make manual
+               entry actually possible. *@
+            @if (selectedBearingType == "Tapered")
+            {
+                <div class="form-group">
+                    <label>Axial Load Factor (e)</label>
+                    <div class="input-group">
+                        <input type="number" step="0.01" @bind="eFactor" placeholder="e.g. 0.37" />
+                        <span class="unit">-</span>
+                    </div>
+                    <small style="color: #6c757d; font-size: 12px;">From the bearing catalogue. Fa/Fr &gt; e switches to X = 0.4.</small>
+                </div>
+
+                <div class="form-group">
+                    <label>Axial Load Factor (Y)</label>
+                    <div class="input-group">
+                        <input type="number" step="0.01" @bind="yFactor" placeholder="e.g. 1.60" />
+                        <span class="unit">-</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Static Axial Factor (Y₀)</label>
+                    <div class="input-group">
+                        <input type="number" step="0.01" @bind="y0Factor" placeholder="e.g. 0.88" />
+                        <span class="unit">-</span>
+                    </div>
+                    <small style="color: #6c757d; font-size: 12px;">Used for P₀ = 0.5·F<sub>r</sub> + Y₀·F<sub>a</sub> (ISO 76).</small>
+                </div>
+            }
         </div>
 
         <!-- Loading -->
@@ -148,6 +181,8 @@
             </div>
         </div>
     </div>
+
+    <ValidationAlert Messages="validationMessages" />
 
     <div class="button-group">
         <button class="btn btn-success btn-lg @(isCalculating ? "btn-calculating" : "")" @onclick="Calculate" disabled="@isCalculating">
@@ -228,8 +263,12 @@ else
                         <tr><td>Dynamic Axial Factor (from catalog)</td><td>Y₁</td><td>@(selectedTaperedBearing.Y.ToString("F2"))</td><td>-</td></tr>
                         <tr><td>Static Axial Factor (from catalog)</td><td>Y₀</td><td>@(selectedTaperedBearing.Y0.ToString("F2"))</td><td>-</td></tr>
                     }
+                    @* With hand-entered ratings there is no catalogue row, so n_limit is 0
+                       and the speed check below is skipped entirely. Say that instead of
+                       printing a bare "0" that reads like a real limit of zero. *@
                     <tr class="@(speed > bearingLimitSpeed && bearingLimitSpeed > 0 ? "warning" : "")">
-                        <td>Limiting Speed</td><td>n<sub>limit</sub></td><td>@bearingLimitSpeed</td><td>rpm</td>
+                        <td>Limiting Speed</td><td>n<sub>limit</sub></td>
+                        <td>@(bearingLimitSpeed > 0 ? bearingLimitSpeed.ToString() : "not known")</td><td>rpm</td>
                     </tr>
                     <tr><td>Life Exponent (Roller Bearing)</td><td>p</td><td>3.33</td><td>10/3</td></tr>
                 </tbody>
@@ -239,6 +278,18 @@ else
             {
                 <div class="alert alert-warning" style="margin-top: 16px;">
                     ⚠️ <strong>Speed Warning:</strong> Operating speed (@speed rpm) exceeds limiting speed (@bearingLimitSpeed rpm).
+                </div>
+            }
+            else if (bearingLimitSpeed <= 0)
+            {
+                <div class="alert alert-info" style="margin-top: 16px;">
+                    <ModuleIcon Type="info" Size="small" Style="default" />
+                    <div>
+                        <strong>No speed check performed.</strong> The ratings were entered by hand, so
+                        the limiting speed is unknown and the operating speed (@speed rpm) was
+                        <strong>not</strong> checked against it. Select the bearing from the database to
+                        get the check, or verify n<sub>limit</sub> against the manufacturer's catalogue.
+                    </div>
                 </div>
             }
         </div>
@@ -291,9 +342,23 @@ else
                         <td>Basic Rating Life (Hours)</td><td>L<sub>10h</sub></td><td>@FormatLife(basicLifeHours)</td><td>hours</td>
                     </tr>
                     <tr><td>Reliability Factor (@selectedReliability%)</td><td>a<sub>1</sub></td><td>@(reliabilityFactor.ToString("F2"))</td><td>-</td></tr>
-                    <tr class="highlight"><td>Modified Rating Life</td><td>L<sub>nah</sub></td><td>@FormatLife(modifiedLifeHours)</td><td>hours</td></tr>
+                    @* Symbol corrected from L_nah to L_na: "L_nah" implies a1 AND aISO,
+                       but only a1 (and fw on the load side) is applied here. *@
+                    <tr class="highlight"><td>Adjusted Rating Life (a₁ only)</td><td>L<sub>na</sub></td><td>@FormatLife(modifiedLifeHours)</td><td>hours</td></tr>
                 </tbody>
             </table>
+
+            <div class="alert alert-info" style="margin-top: 16px;">
+                <ModuleIcon Type="info" Size="small" Style="default" />
+                <div>
+                    <strong>Method note:</strong> the adjusted life applies the reliability factor
+                    a₁ only — L<sub>na</sub> = a₁ · L₁₀. The full ISO 281:2007 life modification
+                    factor a<sub>ISO</sub>, which accounts for lubrication (viscosity ratio κ),
+                    contamination (e<sub>C</sub>) and the fatigue load limit C<sub>u</sub>, is
+                    <strong>not</strong> included. Operating conditions can move a<sub>ISO</sub> well
+                    above or below 1, so treat this as a catalogue-style estimate.
+                </div>
+            </div>
 
             @if (basicLifeHours < 3000)
             {
@@ -388,6 +453,10 @@ else
     // Tapered-specific catalog values
     private double eFactor = 0;
     private double yFactor = 0;
+    private double y0Factor = 0;   // Y₀ for the ISO 76 static equivalent load
+
+    /// <summary>Why Calculate refused, shown by <see cref="ValidationAlert"/>.</summary>
+    private List<string> validationMessages = new();
 
     // Calculated
     private double faFrRatio = 0;
@@ -444,7 +513,9 @@ else
         staticRating = 0;
         eFactor = 0;
         yFactor = 0;
+        y0Factor = 0;
         axialLoad = 0;
+        validationMessages.Clear();
     }
 
     private void OnBearingSelected()
@@ -469,6 +540,7 @@ else
             staticRating = selectedTaperedBearing.C0;
             eFactor = selectedTaperedBearing.e;
             yFactor = selectedTaperedBearing.Y;
+            y0Factor = selectedTaperedBearing.Y0;
             selectedBearingName = selectedTaperedBearing.Designation;
         }
     }
@@ -480,16 +552,24 @@ else
         await Task.Delay(350);
         try
         {
-            if (dynamicRating <= 0 || staticRating <= 0 || radialLoad <= 0 || speed <= 0)
+            // Say what is missing instead of returning in silence. Previously this
+            // guard only wrote to analytics, so pressing Calculate with hand-entered
+            // C/C₀ on a tapered bearing looked like a dead button.
+            validationMessages.Clear();
+            if (dynamicRating <= 0) validationMessages.Add("Dynamic load rating C must be greater than 0 — select a bearing or enter it.");
+            if (staticRating <= 0) validationMessages.Add("Static load rating C₀ must be greater than 0.");
+            if (radialLoad <= 0) validationMessages.Add("Radial load Fr must be greater than 0.");
+            if (speed <= 0) validationMessages.Add("Rotational speed n must be greater than 0.");
+
+            if (selectedBearingType == "Tapered")
             {
-                await Analytics.TrackCalculationError("roller-bearing", "validation_failed", "Invalid input parameters");
-                return;
+                if (eFactor <= 0) validationMessages.Add("Axial load factor e is required for a tapered bearing (from the catalogue).");
+                if (yFactor <= 0) validationMessages.Add("Axial load factor Y is required for a tapered bearing (from the catalogue).");
             }
 
-            // Tapered requires e and Y factors
-            if (selectedBearingType == "Tapered" && (eFactor <= 0 || yFactor <= 0))
+            if (validationMessages.Count > 0)
             {
-                await Analytics.TrackCalculationError("roller-bearing", "validation_failed", "Tapered bearing factors missing");
+                await Analytics.TrackCalculationError("roller-bearing", "validation_failed", string.Join("; ", validationMessages));
                 return;
             }
 
@@ -525,9 +605,9 @@ else
                 if (equivalentLoad < fw * radialLoad)
                     equivalentLoad = fw * radialLoad;
 
-                // Static: P0 = 0.5*Fr + Y0*Fa
-                double y0 = selectedTaperedBearing?.Y0 ?? 0;
-                staticEquivalentLoad = 0.5 * radialLoad + y0 * axialLoad;
+                // Static: P0 = 0.5*Fr + Y0*Fa. Read the field, not the catalogue entry,
+                // so a hand-entered bearing contributes its Y0 too.
+                staticEquivalentLoad = 0.5 * radialLoad + y0Factor * axialLoad;
                 if (staticEquivalentLoad < radialLoad)
                     staticEquivalentLoad = radialLoad;
             }
@@ -584,6 +664,8 @@ else
         staticRating = 0;
         eFactor = 0;
         yFactor = 0;
+        y0Factor = 0;
+        validationMessages.Clear();
         radialLoad = 0;
         axialLoad = 0;
         speed = 0;

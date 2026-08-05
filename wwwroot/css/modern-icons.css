@@ -679,3 +679,171 @@ select:focus {
         page-break-inside: avoid;
     }
 }
+
+/* ============================================================
+   Dimension schematics — Shared/SchematicHelp.razor
+   The small "show diagram" button next to an input label and the
+   modal it opens. Global rather than page-scoped so the styles are
+   present on first paint when a user deep-links into a calculator.
+   ============================================================ */
+
+.schematic-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    margin-left: 6px;
+    padding: 0;
+    vertical-align: middle;
+    opacity: 0.75;
+    transition: opacity 0.15s;
+    color: #3498db;
+}
+
+.schematic-btn:hover {
+    opacity: 1;
+}
+
+.card-header .schematic-btn {
+    margin-left: auto;
+}
+
+.schematic-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 16px;
+}
+
+.schematic-dialog {
+    background: white;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 760px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.schematic-head {
+    padding: 18px 24px;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    background: white;
+    border-radius: 12px 12px 0 0;
+}
+
+.schematic-head h3 {
+    margin: 0;
+    font-size: 18px;
+    color: #2c3e50;
+}
+
+.schematic-close {
+    background: none;
+    border: none;
+    font-size: 26px;
+    cursor: pointer;
+    color: #666;
+    line-height: 1;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background 0.15s;
+}
+
+.schematic-close:hover {
+    background: #f0f0f0;
+    color: #333;
+}
+
+.schematic-body {
+    padding: 20px 24px 24px;
+}
+
+/* The drawings carry fine dimension text. Rather than let them shrink to
+   illegibility on a phone, keep a floor width and pan horizontally. */
+.schematic-figure {
+    overflow-x: auto;
+    margin-bottom: 18px;
+}
+
+.schematic-figure img {
+    display: block;
+    max-width: 100%;
+    min-width: 460px;
+    height: auto;
+    margin: 0 auto;
+}
+
+.schematic-legend {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 6px 18px;
+    font-size: 13px;
+    color: #495057;
+    line-height: 1.5;
+}
+
+/* Hanging indent rather than flex: a flex row turns every inline <sub> into its
+   own anonymous flex item, so the row `gap` gets inserted around it and "L<sub>1</sub>"
+   renders as "L 1". text-indent gives the same two-column look and keeps the prose inline. */
+.schematic-legend > div {
+    display: block;
+    padding-left: 42px;
+    text-indent: -42px;
+}
+
+/* Rows that span the grid and carry prose instead of a symbol + description. */
+.schematic-legend > div.full {
+    grid-column: 1 / -1;
+    padding-left: 0;
+    text-indent: 0;
+}
+
+.schematic-legend b {
+    display: inline-block;
+    font-family: 'Times New Roman', Times, serif;
+    font-style: italic;
+    font-size: 16px;
+    font-weight: 500;
+    color: #16181c;
+    min-width: 34px;
+    margin-right: 8px;
+    text-indent: 0;
+}
+
+.schematic-legend b sub {
+    font-style: normal;
+    font-size: 11px;
+}
+
+.schematic-note {
+    margin: 18px 0 0;
+    padding-top: 14px;
+    border-top: 1px solid #eee;
+    font-size: 12px;
+    color: #6c757d;
+    line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+    .schematic-body {
+        padding: 16px;
+    }
+
+    .schematic-head {
+        padding: 14px 16px;
+    }
+}

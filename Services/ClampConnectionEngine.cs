@@ -3,8 +3,12 @@ using MechanicalCalculatorWeb.Models;
 namespace MechanicalCalculatorWeb.Services;
 
 /// <summary>
-/// Clamp (Clamping) connection calculation engine for shaft-hub connections
-/// Based on DIN 703 / ISO standards for clamping elements
+/// Clamp (Clamping) connection calculation engine for shaft-hub connections.
+///
+/// No single standard covers this: the bolt preload follows VDI 2230, the hub
+/// stresses are Lamé thick-cylinder, and the friction/torque capacity is general
+/// machine design (Roloff/Matek). It previously cited DIN 703, which is the
+/// standard for SHAFT COLLARS (Stellringe) and unrelated to a clamped hub.
 /// </summary>
 public class ClampConnectionEngine
 {

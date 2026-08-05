@@ -3,7 +3,10 @@
 <PageTitle>Mekanika - Online Engineering Calculations</PageTitle>
 
 <div class="hero">
-    <img src="logo.png" alt="Mekanika" style="width: 450px; height: auto; margin-top: -70px; margin-bottom: -50px; filter: brightness(0) invert(1);" />
+    @* max-width keeps the logo from forcing the page wider than the viewport - at
+       450px fixed it pushed .main-content to 538px on a 390px phone, which is what
+       made the whole home page scroll sideways. *@
+    <img src="logo.png" alt="Mekanika" class="hero-logo" />
     <p>Professional engineering calculations based on DIN, ISO, EN and VDI standards. Free, accurate, and easy to use.</p>
 </div>
 
@@ -38,7 +41,10 @@
             <ModuleIcon Type="clamp-connection" Size="xlarge" Style="gradient" />
             <h3>Clamp Connection</h3>
             <p>Shaft clamping hub design for frictional torque and axial load transmission. Bolt preload and contact pressure analysis.</p>
-            <span class="badge">DIN 703</span>
+            @* Was "DIN 703" - that is the standard for shaft collars (Stellringe) and has
+               nothing to do with a clamped hub calculation. The bolt side follows VDI 2230;
+               the friction model is general machine design (Roloff/Matek). *@
+            <span class="badge">VDI 2230</span>
         </a>
     </div>
 </div>

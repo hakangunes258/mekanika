@@ -257,6 +257,10 @@
         </div>
     </div>
 
+    @* Distinct from validationErrors below: those are DESIGN warnings on a completed
+       calculation, these are the inputs that stopped it from running at all. *@
+    <ValidationAlert Messages="validationMessages" />
+
     <div class="button-group">
         <button class="btn btn-success btn-lg @(isCalculating ? "btn-calculating" : "")" @onclick="Calculate" disabled="@isCalculating">
             @if (isCalculating)
@@ -485,9 +489,13 @@ else
                 <tbody>
                     <tr><td>Hook Bend Radius</td><td>R<sub>1</sub></td><td>@(engine.HookRadius.ToString("F1"))</td><td>mm</td></tr>
                     <tr><td>Hook Stress Factor</td><td>K<sub>h</sub></td><td>@(engine.HookStressFactor.ToString("F2"))</td><td>-</td></tr>
-                    <tr class="highlight"><td>Hook Bending Stress</td><td>σ<sub>B</sub></td><td>@(engine.HookBendingStress.ToString("F0"))</td><td>MPa</td></tr>
-                    <tr><td>Hook Shear Stress</td><td>τ<sub>H</sub></td><td>@(engine.HookShearStress.ToString("F0"))</td><td>MPa</td></tr>
+                    <tr class="@(engine.HookBendingStress > 0.7 * engine.TensileStrength ? "danger" : "highlight")"><td>Hook Bending Stress</td><td>σ<sub>B</sub></td><td>@(engine.HookBendingStress.ToString("F0"))</td><td>MPa</td></tr>
+                    @* τH used to be printed here and compared against nothing. EN 13906-2
+                       checks the hook in bending AND in torsion/shear; both now feed the
+                       hook safety factor. *@
+                    <tr class="@(engine.HookShearStress > engine.AllowableShearStress ? "danger" : "")"><td>Hook Shear Stress</td><td>τ<sub>H</sub></td><td>@(engine.HookShearStress.ToString("F0"))</td><td>MPa</td></tr>
                     <tr><td>Allowable Bending</td><td>0.7×R<sub>m</sub></td><td>@((0.7 * engine.TensileStrength).ToString("F0"))</td><td>MPa</td></tr>
+                    <tr><td>Allowable Shear</td><td>τ<sub>zul</sub></td><td>@(engine.AllowableShearStress.ToString("F0"))</td><td>MPa</td></tr>
                 </tbody>
             </table>
         }
@@ -497,7 +505,8 @@ else
             <div class="alert alert-info" style="margin-top: 16px;">
                 <ModuleIcon Type="info" Size="small" Style="default" />
                 <div>
-                    <strong>Tip:</strong> Hook is the weak point (lower safety factor). Consider using <strong>Raised Hook</strong> (25% lower stress)
+                    <strong>Tip:</strong> Hook is the weak point (lower safety factor), governed by
+                    <strong>@engine.HookCriticalMode.ToLower()</strong>. Consider using <strong>Raised Hook</strong> (25% lower stress)
                     or <strong>Threaded Insert</strong> (no hook stress) for higher safety.
                 </div>
             </div>
@@ -518,7 +527,11 @@ else
                 <tr class="@(GetSafetyRowClass(engine.SafetyFactorBody))"><td>Body Safety Factor</td><td>SF<sub>body</sub></td><td>@(engine.SafetyFactorBody.ToString("F2"))</td><td>@(GetSafetyStatus(engine.SafetyFactorBody))</td></tr>
                 @if (engine.HookType != "Threaded")
                 {
-                    <tr class="@(GetSafetyRowClass(engine.SafetyFactorHook))"><td>Hook Safety Factor</td><td>SF<sub>hook</sub></td><td>@(engine.SafetyFactorHook.ToString("F2"))</td><td>@(GetSafetyStatus(engine.SafetyFactorHook))</td></tr>
+                    @* Broken out so it is visible WHICH hook check governs - the two can
+                       differ substantially, and the shear one was previously invisible. *@
+                    <tr class="@(GetSafetyRowClass(engine.SafetyFactorHookBending))"><td>Hook — Bending (σ<sub>B</sub> vs 0.7×R<sub>m</sub>)</td><td>SF<sub>hook,b</sub></td><td>@(engine.SafetyFactorHookBending.ToString("F2"))</td><td>@(GetSafetyStatus(engine.SafetyFactorHookBending))</td></tr>
+                    <tr class="@(GetSafetyRowClass(engine.SafetyFactorHookShear))"><td>Hook — Shear (τ<sub>H</sub> vs τ<sub>zul</sub>)</td><td>SF<sub>hook,τ</sub></td><td>@(engine.SafetyFactorHookShear.ToString("F2"))</td><td>@(GetSafetyStatus(engine.SafetyFactorHookShear))</td></tr>
+                    <tr class="@(GetSafetyRowClass(engine.SafetyFactorHook))"><td>Hook Safety Factor (governing: @engine.HookCriticalMode)</td><td>SF<sub>hook</sub></td><td>@(engine.SafetyFactorHook.ToString("F2"))</td><td>@(GetSafetyStatus(engine.SafetyFactorHook))</td></tr>
                 }
             </tbody>
         </table>
@@ -594,6 +607,8 @@ else
     private bool showHookInfo = false;
     private bool openedFromSharedLink = false;
     private List<string> validationErrors = new();
+    /// <summary>Missing inputs that stopped Calculate, shown by <see cref="ValidationAlert"/>.</summary>
+    private List<string> validationMessages = new();
     private ModuleInfo moduleInfo = new();
 
     protected override async Task OnInitializedAsync()
@@ -656,8 +671,15 @@ else
         isCalculating = true;
         StateHasChanged();
         await Task.Delay(350);
-        if (engine.WireDiameter <= 0 || engine.MeanCoilDiameter <= 0 || engine.ActiveCoils <= 0)
+        // Name what is missing rather than returning in silence.
+        validationMessages.Clear();
+        if (engine.WireDiameter <= 0) validationMessages.Add("Select a wire diameter (d).");
+        if (engine.MeanCoilDiameter <= 0) validationMessages.Add("Mean coil diameter (Dm) must be greater than 0.");
+        if (engine.ActiveCoils <= 0) validationMessages.Add("Active coils (n) must be greater than 0.");
+
+        if (validationMessages.Count > 0)
         {
+            await Analytics.TrackCalculationError("extension-spring", "validation_failed", string.Join("; ", validationMessages));
             isCalculating = false;
             return;
         }
@@ -725,6 +747,7 @@ else
         selectedMaterial = "SH";
         selectedHookType = "German";
         validationErrors = new();
+        validationMessages.Clear();
         showResults = false;
         openedFromSharedLink = false;
     }

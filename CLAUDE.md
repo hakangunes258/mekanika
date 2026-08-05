@@ -1386,6 +1386,20 @@ by the user's own inputs. Live on: **interference-fit**, **taper-fit**,
    the builder reads. Feed it real engine values — the viewer is meant to show
    *this* calculation, not a generic picture.
 
+   **Parameter names are read case-insensitively, on purpose.** `IJSRuntime`
+   serialises with `JsonSerializerDefaults.Web`, so every key is camelCased on the
+   way out: `L`→`l`, `Da`→`da`, `Dm`→`dm`, `L0`→`l0`, `Dhub`→`dhub`. Builders read
+   `p.L`, `p.Da`… so an uppercase key arrived as `undefined` and `num()` silently
+   substituted a hardcoded default — the viewer drew a plausible model that was
+   **not** the user's calculation. It shipped that way on all four viewers, worst on
+   compression-spring where almost every key is uppercase. `caseInsensitiveParams`
+   in `viewer3d.js` now bridges both spellings, so neither side has to remember.
+   Two keys differing only in case are indistinguishable after serialisation — the
+   viewer logs a console warning if a builder is ever given such a pair.
+
+   (Third time this serialiser-defaults trap has bitten; see also the `jsonb`
+   round-trip rule in the custom-library section.)
+
 **Measurement tool:** the "Measure" button lets the user click two points on the
 model and reads out the straight distance plus its **axial (ΔX)** and **radial**
 components. Model units are millimetres — builders are fed engine values directly,
@@ -1437,6 +1451,33 @@ the URL fragment and the recipient's browser re-runs the engine.
   is not repeated in twelve pages. Restores on first load **and** on a fragment-only
   navigation (a link pasted while the page is already open — the SPA does not reload).
 - `wwwroot/js/share.js` — clipboard + fragment clearing only.
+- `wwwroot/404.html` + the restore script in `wwwroot/index.html` — the deep-link
+  handshake every shared link depends on. **See the rule below before touching either.**
+
+**The GitHub Pages deep-link handshake.** GitHub Pages has no SPA rewrite: it serves
+`404.html` with an HTTP 404 for `/key-connection`, `/key-connection#s=…` and
+`/auth/callback#access_token=…` alike. `404.html` stashes `location.href` in
+`sessionStorage.redirect` and sends the browser to `/`; `index.html` restores it with
+`history.replaceState` **before Blazor boots**, so the router and the auth callback see
+the original path and fragment.
+
+- **The redirect must be script-driven (`location.replace`).** It shipped once relying
+  on `<meta http-equiv="refresh">` alone. Browsers may delay or ignore that hint: deep
+  links intermittently stalled on "Redirecting…" without ever requesting `/`, which
+  silently broke *every* Share Link and *every* Google sign-in for weeks. `<noscript>`
+  meta refresh is the fallback, not the mechanism. The deploy workflow greps for both
+  halves of the handshake.
+- **Both `sessionStorage` accesses stay in `try/catch`.** Storage throws outright when
+  it is blocked; in `index.html` that exception would run before Blazor boots and take
+  the whole site down for that visitor.
+- **`404.html` must not redirect when `location.pathname` is already `/`** — otherwise a
+  misconfigured root would spin forever.
+- **The dev server hides all of this.** `dotnet run` rewrites unknown paths to
+  `index.html`, so `404.html` never executes locally and deep links appear to work no
+  matter how broken the handshake is. Test against a server that actually 404s.
+- Still open: bots get a real HTTP 404 for module URLs, so the routes are not
+  indexable. Fixing that needs a static file per route at publish time, which changes
+  the served URL to a trailing-slash form — check Blazor's route matching first.
 
 **This is the same state layer cloud-saved calculations will use** (`inputs` jsonb).
 Build/apply once per module, reuse for links, localStorage, and Supabase.

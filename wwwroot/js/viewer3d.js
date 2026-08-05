@@ -591,11 +591,42 @@ window.mekanika3d = (function () {
             .catch(err => showMessage(ov, '<div>' + (err.message || 'Failed to load the 3D view.') + '</div>'));
     }
 
+    /**
+     * Case-insensitive view of the parameters a builder receives.
+     *
+     * IJSRuntime serialises with JsonSerializerDefaults.Web, which camelCases every
+     * property name. So a Build3dParameters() key that starts with a capital never
+     * arrives under the name the builder reads: `L` lands as `l`, `Da` as `da`,
+     * `Dm`/`L0`/`Lc`/`L1`/`L2` as `dm`/`l0`/`lc`/`l1`/`l2`, `Dhub` as `dhub`. The
+     * builder then read `undefined` and silently fell back to a hardcoded default,
+     * so the viewer drew a plausible-looking model that was NOT the user's
+     * calculation - worst in compression-spring, where nearly every dimension is
+     * an uppercase key.
+     *
+     * Reading case-insensitively removes the trap for good, instead of relying on
+     * everyone remembering to keep both sides lowercase. (Same serializer-defaults
+     * trap as the jsonb one in the library rules - it has now bitten three times.)
+     */
+    function caseInsensitiveParams(params) {
+        const map = {};
+        Object.keys(params || {}).forEach(k => {
+            const lk = k.toLowerCase();
+            // Two keys differing only in case would be indistinguishable after
+            // serialisation anyway - flag it rather than silently picking one.
+            if (lk in map) console.warn('[mekanika3d] parameter case collision:', k);
+            map[lk] = params[k];
+        });
+        return new Proxy(map, {
+            get: (t, prop) => typeof prop === 'string' ? t[prop.toLowerCase()] : t[prop],
+            has: (t, prop) => typeof prop === 'string' ? prop.toLowerCase() in t : prop in t
+        });
+    }
+
     function start(THREE, ov, moduleKey, params) {
         const H = makeHelpers(THREE);
         let spec;
         try {
-            spec = BUILDERS[moduleKey](THREE, params, H);
+            spec = BUILDERS[moduleKey](THREE, caseInsensitiveParams(params), H);
         } catch (e) {
             console.error('[mekanika3d] builder failed', e);
             showMessage(ov, '<div>The geometry could not be generated from these inputs.</div>');

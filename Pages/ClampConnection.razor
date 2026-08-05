@@ -38,7 +38,9 @@
                 <div class="alert alert-success" style="margin: 12px 0;">
                     <ModuleIcon Type="info" Size="small" Style="default" />
                     <div>
-                        <strong>Recommended:</strong> Da=@recommendedClamp.OuterDia mm, L=@recommendedClamp.Length mm, M@recommendedClamp.BoltSize
+                        @* Parenthesised: Razor treats "M@..." as an email address and
+                           prints it literally, so this rendered as the raw expression. *@
+                        <strong>Recommended:</strong> Da=@recommendedClamp.OuterDia mm, L=@recommendedClamp.Length mm, M@(recommendedClamp.BoltSize)
                         <button class="btn btn-primary" style="margin-left: 12px; padding: 4px 12px; font-size: 12px;" @onclick="ApplyRecommendedClamp">Apply</button>
                     </div>
                 </div>
@@ -211,6 +213,8 @@
             </div>
         </div>
     </div>
+
+    <ValidationAlert Messages="validationMessages" />
 
     <div class="button-group">
         <button class="btn btn-success btn-lg @(isCalculating ? "btn-calculating" : "")" @onclick="Calculate" disabled="@isCalculating">
@@ -448,6 +452,8 @@ else
 
 @code {
     private ClampConnectionEngine engine = new();
+    /// <summary>Why Calculate refused, shown by <see cref="ValidationAlert"/>.</summary>
+    private List<string> validationMessages = new();
     private List<Material> materials = new();
     private ModuleInfo moduleInfo = new();
     private bool showResults = false;
@@ -624,10 +630,16 @@ else
         await Task.Delay(350);
         try
         {
-            // Input validation
-            if (engine.ShaftDiameter <= 0 || engine.ClampOuterDiameter <= 0 || engine.ClampLength <= 0 || engine.BoltTighteningTorque <= 0)
+            // Input validation - name what is missing rather than returning in silence.
+            validationMessages.Clear();
+            if (engine.ShaftDiameter <= 0) validationMessages.Add("Shaft diameter (d) must be greater than 0.");
+            if (engine.ClampOuterDiameter <= 0) validationMessages.Add("Hub outer diameter (Da) must be greater than 0.");
+            if (engine.ClampLength <= 0) validationMessages.Add("Hub length (L) must be greater than 0.");
+            if (engine.BoltTighteningTorque <= 0) validationMessages.Add("Bolt tightening torque (MA) must be greater than 0.");
+
+            if (validationMessages.Count > 0)
             {
-                await Analytics.TrackCalculationError("clamp-connection", "validation_error", "Invalid input values");
+                await Analytics.TrackCalculationError("clamp-connection", "validation_error", string.Join("; ", validationMessages));
                 return;
             }
 
@@ -661,6 +673,7 @@ else
 
     private void ClearForm()
     {
+        validationMessages.Clear();
         engine = new ClampConnectionEngine
         {
             LoadFactor = 1.0,

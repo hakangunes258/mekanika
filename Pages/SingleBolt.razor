@@ -425,17 +425,28 @@
                 </div>
                 
                 <div class="form-group">
+                    <label>Required Residual Clamp Force (F<sub>Kerf</sub>)</label>
+                    <div class="input-group">
+                        <input type="number" step="100" min="0" @bind="input.RequiredResidualClampForce" />
+                        <span class="unit">N</span>
+                    </div>
+                    <small class="hint">Clamp force that must remain in service for sealing or to keep the interface closed. Leave 0 if only slip resistance matters.</small>
+                </div>
+
+                <div class="form-group">
                     <label>Number of Load Cycles (N)</label>
                     <div class="input-group">
                         <input type="number" step="1000000" min="1000" @bind="input.DesignLoadCycles" />
                         <span class="unit">cycles</span>
                     </div>
-                    <small class="hint">Design life in load cycles (typical: 10⁶ - 10⁷)</small>
+                    <small class="hint">Design life in load cycles (typical: 10⁶ - 10⁷). Only used when FA,min and FA,max differ.</small>
                 </div>
             </div>
 
         </div>
     </div>
+
+    <ValidationAlert Messages="validationMessages" />
 
     <div class="button-group">
         <button class="btn btn-success btn-lg @(isCalculating ? "btn-calculating" : "")" @onclick="Calculate" disabled="@isCalculating">
@@ -836,8 +847,12 @@ else
                 <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
                 <tbody>
                     <tr><td>Bolting Type</td><td>-</td><td>@GetBoltingTypeName()</td><td>-</td></tr>
-                    <tr><td>Load Factor</td><td>n</td><td>@input.LoadIntroductionFactor.ToString("F2")</td><td>-</td></tr>
-                    <tr><td>Force Application Height</td><td>h<sub>n</sub></td><td>@((input.LoadIntroductionFactor * result.ClampLength).ToString("F2"))</td><td>mm</td></tr>
+                    @* Read n from the RESULT, not from the input. With "Auto (Table 5.2/1)"
+                       on - the default - input.LoadIntroductionFactor is just an unused
+                       manual override sitting at 0, so this table used to contradict the
+                       Compliance table a few cards down. *@
+                    <tr><td>Load Factor</td><td>n</td><td>@result.LoadIntroductionFactor.ToString("F2")</td><td>-</td></tr>
+                    <tr><td>Force Application Height</td><td>h<sub>n</sub></td><td>@((result.LoadIntroductionFactor * result.ClampLength).ToString("F2"))</td><td>mm</td></tr>
                     <tr><td>Tightening Technique</td><td>-</td><td>@input.TighteningMethod</td><td>-</td></tr>
                     <tr><td>Tightening Factor</td><td>α<sub>A</sub></td><td>@result.AlphaA.ToString("F2")</td><td>-</td></tr>
                 </tbody>
@@ -930,7 +945,27 @@ else
                     <tr><td>Effective Load Factor</td><td>Φ<sub>n</sub></td><td>@result.PhiN.ToString("F4")</td><td>-</td></tr>
                     <tr><td>Embedding (Total)</td><td>f<sub>Z</sub></td><td>@result.FZ_total_um.ToString("F1")</td><td>μm</td></tr>
                     <tr><td>Preload Loss (Settling)</td><td>F<sub>Z</sub></td><td>@result.FZ.ToString("F0")</td><td>N</td></tr>
-                    <tr><td>Required Minimum Preload (Service)</td><td>F<sub>KR</sub></td><td>@((result.FKR_min / 1000).ToString("F2"))</td><td>kN</td></tr>
+                    @* FKR is the clamp force the joint must still carry in SERVICE - the
+                       larger of the slip requirement and the residual clamp force the user
+                       asked for. It is genuinely 0 for a purely axial, concentric joint
+                       with neither, which is why this can legitimately read 0.00. The
+                       preload needed to assemble it is FM,min, further down. *@
+                    <tr>
+                        <td>Required Clamp Force in Service</td>
+                        <td>F<sub>KR</sub></td>
+                        <td>@((result.FKR_min / 1000).ToString("F2"))</td>
+                        <td>kN</td>
+                    </tr>
+                    @if (result.FKR_min <= 0)
+                    {
+                        <tr>
+                            <td colspan="4" style="font-size: 12px; color: #666; font-style: italic;">
+                                No shear load and no residual clamp force requested, so nothing has to
+                                remain clamped in service. The assembly preload is still sized by
+                                embedding and the external load — see F<sub>M,min</sub> below.
+                            </td>
+                        </tr>
+                    }
                     <tr><td>Additional Bolt Force</td><td>F<sub>SA</sub></td><td>@((result.FSA / 1000).ToString("F2"))</td><td>kN</td></tr>
                     <tr><td>Clamp Force Reduction</td><td>F<sub>PA</sub></td><td>@((result.FPA / 1000).ToString("F2"))</td><td>kN</td></tr>
                  </tbody>
@@ -1063,11 +1098,14 @@ else
                         <td>@result.SF_yield.ToString("F2")</td>
                         <td>@GetStatus(result.SF_yield, 1.1)</td>
                     </tr>
-                    <tr class="@(GetSafetyRowClass(result.SF_clamp, 1.2))">
+                    @* With no residual clamp force required and no shear load, FKR_min is
+                       legitimately 0 - there is no requirement to fall short of. Say that,
+                       rather than printing an infinity that reads as a divide-by-zero. *@
+                    <tr class="@(result.FKR_min > 0 ? GetSafetyRowClass(result.SF_clamp, 1.2) : "")">
                         <td>Loss of Clamp</td>
                         <td>SF<sub>clamp</sub></td>
-                        <td>@(result.SF_clamp > 990 ? "∞" : result.SF_clamp.ToString("F2"))</td>
-                        <td>@GetStatus(result.SF_clamp, 1.2)</td>
+                        <td>@(result.FKR_min > 0 ? result.SF_clamp.ToString("F2") : "n/a")</td>
+                        <td>@(result.FKR_min > 0 ? GetStatus(result.SF_clamp, 1.2) : "no clamp force required")</td>
                     </tr>
                     @if (input.ShearForce > 0)
                     {
@@ -1084,7 +1122,9 @@ else
                         <td>@result.SF_pressure.ToString("F2")</td>
                         <td>@GetStatus(result.SF_pressure, 1.0)</td>
                     </tr>
-                    @if (input.DesignLoadCycles > 1)
+                    @* Gate on the engine's own verdict, not on the cycle count: a cycle
+                       count means nothing if the load does not actually swing. *@
+                    @if (result.FatigueRelevant)
                     {
                          <tr class="@(GetSafetyRowClass(result.SF_fatigue, 1.2))">
                             <td>Fatigue Failure</td>
@@ -1093,17 +1133,27 @@ else
                             <td>@GetStatus(result.SF_fatigue, 1.2)</td>
                         </tr>
                     }
+                    else
+                    {
+                        <tr>
+                            <td>Fatigue Failure</td>
+                            <td>SF<sub>fatigue</sub></td>
+                            <td>n/a</td>
+                            <td>static load, no amplitude</td>
+                        </tr>
+                    }
                  </tbody>
             </table>
         </div>
 
-        @if (input.DesignLoadCycles > 1)
+        @if (result.FatigueRelevant)
         {
             <div class="card">
                 <div class="card-header"><ModuleIcon Type="loading" Size="medium" Style="solid" /><h2>Fatigue Analysis</h2></div>
                  <table class="results-table">
                      <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
                      <tbody>
+                        <tr><td>Load Type (from FA range)</td><td>-</td><td colspan="2">@DescribeLoadType(result.LoadTypeUsed)</td></tr>
                         <tr class="highlight"><td>Fatigue Load (Amplitude)</td><td>F<sub>a</sub></td><td>@((result.FatigueLoad / 1000).ToString("F2"))</td><td>kN</td></tr>
                         <tr><td>Stress Amplitude</td><td>σ<sub>a</sub></td><td>@result.SigmaA.ToString("F1")</td><td>MPa</td></tr>
                         <tr><td>Mean Stress</td><td>σ<sub>m</sub></td><td>@result.SigmaM.ToString("F1")</td><td>MPa</td></tr>
@@ -1114,6 +1164,22 @@ else
                         <tr class="@(GetSafetyRowClass(result.SF_fatigue, 1.2))"><td>Fatigue Safety Factor</td><td>SF<sub>fatigue</sub></td><td>@result.SF_fatigue.ToString("F2")</td><td>-</td></tr>
                      </tbody>
                 </table>
+            </div>
+        }
+        else
+        {
+            <div class="card">
+                <div class="card-header"><ModuleIcon Type="loading" Size="medium" Style="solid" /><h2>Fatigue Analysis</h2></div>
+                <div class="alert alert-info" style="margin: 16px;">
+                    <ModuleIcon Type="info" Size="small" Style="default" />
+                    <div>
+                        <strong>Not applicable — the axial load does not cycle.</strong>
+                        F<sub>A,min</sub> and F<sub>A,max</sub> are both @input.AxialForceMax.ToString("F0") N, so the
+                        stress amplitude is zero and fatigue cannot govern. Enter a different
+                        minimum axial force (0 N for a load that is fully released) to run the
+                        VDI 2230 R12 check.
+                    </div>
+                </div>
             </div>
         }
     </div>
@@ -2286,10 +2352,16 @@ else
 
         try
         {
-            // Validation
-            if (string.IsNullOrEmpty(input.BoltSize) || input.AxialForceMax <= 0)
+            // Validation - name what is missing rather than returning in silence.
+            validationMessages.Clear();
+            if (string.IsNullOrEmpty(input.BoltSize)) validationMessages.Add("Select a bolt size.");
+            if (input.AxialForceMax <= 0) validationMessages.Add("Max axial force (FA,max) must be greater than 0.");
+            if (clampedParts.Count == 0) validationMessages.Add("Add at least one clamped part.");
+            else if (clampedParts.Any(p => p.Thickness <= 0)) validationMessages.Add("Every clamped part needs a thickness greater than 0.");
+
+            if (validationMessages.Count > 0)
             {
-                await Analytics.TrackCalculationError("single-bolt", "validation_failed", "Invalid input parameters");
+                await Analytics.TrackCalculationError("single-bolt", "validation_failed", string.Join("; ", validationMessages));
                 return;
             }
 
@@ -2397,7 +2469,12 @@ else
 
             input.LoadApplicationFactorValue = 1.0;
 
-
+            // The engine's R12 fatigue branch keys off LoadType. Nothing on this page
+            // ever set it, so it stayed Static and the whole fatigue card rendered as
+            // zeros - a false FAIL on perfectly sound dynamically loaded joints.
+            // Derive it from the load range rather than adding a separate selector,
+            // which could contradict FA,min / FA,max.
+            input.LoadType = DetermineLoadType();
 
             result = new BoltCalculationEngine().Calculate(input);
 
@@ -2492,6 +2569,8 @@ else
     {
 
         input = new SingleBoltInput();
+
+        validationMessages.Clear();
 
         clampedParts.Clear();
 
@@ -2702,6 +2781,33 @@ else
     }
 
 
+
+    /// <summary>
+    /// VDI 2230 load type, derived from the axial load range:
+    ///   Static      - the load never changes, so there is no stress amplitude.
+    ///   Alternating - the load reverses sign (FA,min &lt; 0 &lt; FA,max).
+    ///   Pulsating   - the load swings but keeps its sign (the usual case, e.g.
+    ///                 1 kN to 5 kN, or a load applied and fully released).
+    /// </summary>
+    /// <summary>Why Calculate refused, shown by <see cref="ValidationAlert"/>.</summary>
+    private List<string> validationMessages = new();
+
+    private LoadType DetermineLoadType()
+    {
+        if (Math.Abs(input.AxialForceMax - input.AxialForceMin) < 1e-6)
+            return LoadType.Static;
+
+        return (input.AxialForceMin < 0 && input.AxialForceMax > 0)
+            ? LoadType.Alternating
+            : LoadType.Pulsating;
+    }
+
+    private string DescribeLoadType(LoadType t) => t switch
+    {
+        LoadType.Alternating => "Alternating (load reverses)",
+        LoadType.Pulsating => "Pulsating (load swings, keeps sign)",
+        _ => "Static (no load swing)"
+    };
 
     private string GetSafetyRowClass(double sf, double min) => sf < min ? "danger" : sf < min * 1.2 ? "warning" : "success";
 

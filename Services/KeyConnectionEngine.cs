@@ -108,13 +108,29 @@ public class KeyConnectionEngine
         EffectiveLength = KeyLength - KeyWidth;
         if (EffectiveLength < 0) EffectiveLength = KeyLength * 0.9;
 
-        // Load-bearing flank heights (DIN 6885).
+        // Load-bearing flank heights (DIN 6892).
         // These are the SINGLE source of truth for both the surface pressure
         // (CalculateStresses) and the required length (CalculateRequiredLength) -
         // previously the two used different heights on the shaft side, so the
         // required length contradicted the safety factor shown next to it.
         BearingHeightShaft = KeywayDepthShaft;  // t1
-        BearingHeightHub = KeywayDepthHub;      // t2
+
+        // Hub side: the key can only bear on the part of itself that sticks OUT of
+        // the shaft, which is h - t1. It is NOT t2. The hub keyway is cut slightly
+        // deeper than the protrusion on purpose, to leave top clearance so the key
+        // seats on its flanks rather than its top face - so t2 > h - t1 by design.
+        //
+        // Using t2 therefore overstated the hub contact area on every standard key
+        // (DIN 6885 d=40, key 12x8: t2 = 3.3 vs h - t1 = 3.0) and reported a hub
+        // pressure ~9% LOW - i.e. optimistic on the unsafe side, on the hub side,
+        // which is normally the governing one.
+        //
+        // min() covers inconsistent input: if someone enters t2 shallower than the
+        // protrusion the key bottoms out in the hub slot, and t2 is what bears.
+        double keyProtrusion = KeyHeight - KeywayDepthShaft;
+        BearingHeightHub = keyProtrusion > 0
+            ? Math.Min(keyProtrusion, KeywayDepthHub)
+            : KeywayDepthHub;
 
         // Contact areas
         ContactAreaShaft = EffectiveLength * BearingHeightShaft;

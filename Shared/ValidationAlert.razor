@@ -1,0 +1,43 @@
+@*
+    Explains why Calculate did nothing.
+
+    Every module used to guard its Calculate() with a bare `return` that only wrote
+    to analytics — so pressing the button on an incomplete form produced no result,
+    no message and no field highlight. Ten of the twelve calculators behaved that
+    way; the user could not tell the app from a broken page.
+
+    Usage: keep a List<string> on the page, fill it in Calculate() when a required
+    input is missing, and place this just above the button group.
+*@
+
+@if (Messages is { Count: > 0 })
+{
+    <div class="alert alert-danger" role="alert" style="margin-bottom: 16px;">
+        <ModuleIcon Type="error" Size="small" Style="default" />
+        <div>
+            <strong>@Title</strong>
+            @if (Messages.Count == 1)
+            {
+                @* Non-breaking space: Razor trims a plain leading space here, which ran
+                   the title straight into the message. *@
+                <span>&nbsp;@Messages[0]</span>
+            }
+            else
+            {
+                <ul style="margin: 6px 0 0 18px; padding: 0;">
+                    @foreach (var m in Messages)
+                    {
+                        <li>@m</li>
+                    }
+                </ul>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>What is missing or invalid. Empty or null renders nothing.</summary>
+    [Parameter] public List<string>? Messages { get; set; }
+
+    [Parameter] public string Title { get; set; } = "Cannot calculate yet:";
+}

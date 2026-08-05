@@ -13,10 +13,12 @@ public class SpringEngine
     public double TotalCoils { get; set; }            // nt (number)
     public string EndType { get; set; } = "ClosedGround"; // Open, Closed, ClosedGround
 
-    // Input Parameters - End Conditions (for buckling)
-    // "BothFlat"   = both ends flat/guided on plate  → v = 1.0 (most common)
-    // "OneFixed"   = one end fixed, one end flat      → v = 0.7
-    // "BothFixed"  = both ends in guide sleeves       → v = 0.5
+    // Input Parameters - End Conditions (for buckling). These strings are what the
+    // page's <select> binds, so they must match CalculateBuckling's switch exactly.
+    // "BothFlat"        = both ends seated on flat surfaces  → ν = 1.0 (most common)
+    // "OneFixedOneFlat" = one end fixed, one end flat        → ν = 0.7
+    // "BothFixed"       = both ends in guide sleeves         → ν = 0.5
+    // "OneFixedOneFree" = one end clamped, other free        → ν = 2.0
     public string EndCondition { get; set; } = "BothFlat";
 
     // Input Parameters - Material
@@ -46,23 +48,26 @@ public class SpringEngine
     // Calculated Values - Mechanical
     public double SpringRate { get; set; }            // R (N/mm)
     public double SpringRateCalculated { get; set; }  // R from formula
-    public double MaxDeflection { get; set; }         // smax (mm)
-    public double MaxForce { get; set; }              // Fn (N)
+    // EN 13906-1 reserves the "n" subscript for the smallest permissible working
+    // position (Ln), which this engine does not model. The values below are at the
+    // solid length, so they carry the "c" subscript in the UI.
+    public double MaxDeflection { get; set; }         // sc = L0 - Lc (mm)
+    public double MaxForce { get; set; }              // Fc (N)
     public double StrokeLength { get; set; }          // sh = s2 - s1 (mm)
 
     // Calculated Values - Stress
     public double WahlFactor { get; set; }            // k (stress correction)
     public double ShearStress1 { get; set; }          // τ1 at F1 (MPa)
     public double ShearStress2 { get; set; }          // τ2 at F2 (MPa)
-    public double ShearStressMax { get; set; }        // τn at Fn (MPa)
+    public double ShearStressMax { get; set; }        // τc at Fc (MPa)
     public double StressRange { get; set; }           // τkh = τ2 - τ1 (MPa)
 
     // Calculated Values - Safety & Buckling
     public double SafetyFactorStatic { get; set; }    // νs at the operating point F2
     public double SafetyFactorSolid { get; set; }     // νs if compressed to solid length
     public double SlendernessRatio { get; set; }      // λ = L0/Dm
-    public double EndConditionFactor { get; set; }    // v (buckling length factor)
-    public double EffectiveSlenderness { get; set; }  // λ/v (effective slenderness for buckling check)
+    public double EndConditionFactor { get; set; }    // ν (seating / buckling length factor)
+    public double EffectiveSlenderness { get; set; }  // λ/ν (effective slenderness for buckling check)
     public double BucklingLimit { get; set; }         // Critical deflection ratio
     public bool BucklingRisk { get; set; }
 
@@ -128,17 +133,21 @@ public class SpringEngine
         OuterDiameter = MeanCoilDiameter + WireDiameter;
         InnerDiameter = MeanCoilDiameter - WireDiameter;
 
-        // Total coils based on end type
-        if (TotalCoils <= 0)
+        // Total coils, always re-derived from the CURRENT active coils and end type.
+        //
+        // This used to derive only when TotalCoils was still 0, which made it sticky:
+        // the page reuses one engine instance, so after "Back to Input" a changed n or
+        // end type kept the first calculation's nt - and with it a stale solid length,
+        // max deflection, max force, wire length and mass, which then went into the
+        // results and the PDF. There is no manual nt input, so nothing is overwritten
+        // by deriving it unconditionally.
+        TotalCoils = EndType switch
         {
-            TotalCoils = EndType switch
-            {
-                "Open" => ActiveCoils,
-                "Closed" => ActiveCoils + 2,
-                "ClosedGround" => ActiveCoils + 2,
-                _ => ActiveCoils + 2
-            };
-        }
+            "Open" => ActiveCoils,
+            "Closed" => ActiveCoils + 2,
+            "ClosedGround" => ActiveCoils + 2,
+            _ => ActiveCoils + 2
+        };
 
         // Solid length
         SolidLength = EndType switch

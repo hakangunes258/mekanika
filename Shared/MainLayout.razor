@@ -1,8 +1,61 @@
 @inherits LayoutComponentBase
+@implements IDisposable
+@inject NavigationManager Navigation
+
+@*
+    The sidebar is fixed and always visible on desktop. Below 768px app.css slides
+    it off-screen and only `.sidebar.open` brings it back - so the toggle below is
+    the only way to reach the navigation on a phone.
+*@
 
 <div class="page">
-    <NavMenu />
+    <button class="nav-toggle" @onclick="ToggleNav"
+            aria-label="@(navOpen ? "Close menu" : "Open menu")"
+            aria-expanded="@(navOpen ? "true" : "false")"
+            aria-controls="main-nav">
+        @if (navOpen)
+        {
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <line x1="6" y1="6" x2="18" y2="18" /><line x1="18" y1="6" x2="6" y2="18" />
+            </svg>
+        }
+        else
+        {
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <line x1="4" y1="7" x2="20" y2="7" /><line x1="4" y1="12" x2="20" y2="12" /><line x1="4" y1="17" x2="20" y2="17" />
+            </svg>
+        }
+    </button>
+
+    <div class="nav-backdrop @(navOpen ? "show" : "")" @onclick="CloseNav"></div>
+
+    <NavMenu Open="navOpen" />
+
     <main class="main-content">
         @Body
     </main>
 </div>
+
+@code {
+    private bool navOpen;
+
+    protected override void OnInitialized()
+        => Navigation.LocationChanged += OnLocationChanged;
+
+    private void ToggleNav() => navOpen = !navOpen;
+
+    private void CloseNav() => navOpen = false;
+
+    /// <summary>
+    /// Tapping a link must dismiss the drawer - otherwise the new page opens behind
+    /// a menu that is still covering it, which reads as a broken tap.
+    /// </summary>
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        if (!navOpen) return;
+        navOpen = false;
+        StateHasChanged();
+    }
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+}

@@ -29,6 +29,30 @@
     padding: 0;
 }
 
+/* No image may push the page wider than the viewport. */
+img {
+    max-width: 100%;
+}
+
+/* Wide reference tables scroll inside their own card instead of dragging the whole
+   page sideways. Three wrapper names were in use and NONE of the class-based ones
+   was styled - Materials (.table-container) and Bolt Database (.table-responsive)
+   both overflowed on a phone, while Bearings only worked because it carries an
+   inline overflow-x. Cover all three so the convention no longer matters. */
+.table-container,
+.table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.hero-logo {
+    width: 450px;
+    height: auto;
+    margin-top: -70px;
+    margin-bottom: -50px;
+    filter: brightness(0) invert(1);
+}
+
 html, body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-size: 15px;
@@ -45,6 +69,10 @@ html, body {
 
 .main-content {
     flex: 1;
+    /* A flex item defaults to min-width:auto, i.e. it refuses to shrink below its
+       content. One oversized child then widens the whole page instead of being
+       clipped or wrapped. min-width:0 makes the column obey the viewport. */
+    min-width: 0;
     margin-left: 300px;
     padding: 24px;
     min-height: 100vh;
@@ -142,6 +170,46 @@ html, body {
     }
 }
 
+/* ========== Mobile navigation ==========
+   The sidebar slides off-screen below 768px and `.sidebar.open` brings it back.
+   Nothing ever added that class - there was no toggle anywhere in the app - so on
+   a phone the navigation was simply unreachable: every module page rendered fine
+   but you could not get from one to another. The button below is what makes the
+   rule above reachable. */
+.nav-toggle {
+    display: none;              /* desktop: the sidebar is always visible */
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 200;               /* above the sidebar (100) so it can also close it */
+    width: 44px;                /* 44px: comfortable touch target */
+    height: 44px;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 10px;
+    background: var(--dark);
+    color: var(--white);
+    box-shadow: var(--shadow);
+    cursor: pointer;
+}
+
+.nav-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 99;                /* under the sidebar, over the content */
+    background: rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+}
+
+.nav-backdrop.show {
+    opacity: 1;
+    pointer-events: auto;
+}
+
 @media (max-width: 768px) {
     .sidebar {
         transform: translateX(-100%);
@@ -154,6 +222,16 @@ html, body {
 
     .main-content {
         margin-left: 0;
+        /* clear the fixed toggle button */
+        padding-top: 68px;
+    }
+
+    .nav-toggle {
+        display: flex;
+    }
+
+    .nav-backdrop {
+        display: block;
     }
 
     .modules-grid {

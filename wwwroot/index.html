@@ -65,11 +65,16 @@
          this the tokens in the fragment are lost and sign-in silently fails. -->
     <script>
         (function () {
-            var r = sessionStorage.redirect;
-            if (r) {
-                delete sessionStorage.redirect;
-                if (r !== location.href) history.replaceState(null, null, r);
-            }
+            // Wrapped: sessionStorage throws outright when storage is blocked, and
+            // an exception here would run before Blazor boots and take the whole
+            // app down. A lost deep link must never cost the visitor the site.
+            try {
+                var r = sessionStorage.redirect;
+                if (r) {
+                    delete sessionStorage.redirect;
+                    if (r !== location.href) history.replaceState(null, null, r);
+                }
+            } catch (e) { }
         })();
     </script>
 
@@ -78,7 +83,7 @@
     <!-- Bump ?v= when either stylesheet changes, so browsers fetch the new file
          instead of a cached copy (they cache linked CSS aggressively). -->
     <link href="css/modern-icons.css?v=5" rel="stylesheet" />
-    <link href="css/app.css?v=5" rel="stylesheet" />
+    <link href="css/app.css?v=7" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
     <!-- Google tag (gtag.js) -->
@@ -126,8 +131,11 @@
     <script src="js/share.js"></script>
 
     <!-- 3D geometry viewer. This file is small; it lazy-loads three.js (~600 KB)
-         only when the user actually opens a 3D view. -->
-    <script src="js/viewer3d.js" defer></script>
+         only when the user actually opens a 3D view.
+         Bump ?v= when it changes - same reason as the stylesheets above. Without it
+         a returning visitor keeps running the cached copy; that matters here because
+         a stale viewer draws a WRONG model rather than failing visibly. -->
+    <script src="js/viewer3d.js?v=2" defer></script>
 
     <!-- PDF Generator - Load Last (only needed for export feature) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>

@@ -1,7 +1,7 @@
 @inject SupabaseAuthService Auth
 @inject NavigationManager Navigation
 
-<nav class="sidebar">
+<nav class="sidebar @(Open ? "open" : "")" id="main-nav">
     <div class="sidebar-header">
         <a href="/">
             <img src="logo.png" alt="Mekanika" class="sidebar-logo" />
@@ -201,6 +201,9 @@
 </style>
 
 @code {
+    /// <summary>Drives `.sidebar.open` - the mobile drawer state, owned by MainLayout.</summary>
+    [Parameter] public bool Open { get; set; }
+
     private async Task SignOut()
     {
         await Auth.SignOutAsync();

@@ -68,11 +68,13 @@ public class ModuleMetadataService
                 Route = "/key-connection",
                 Category = "Shaft-Hub Connections",
                 Icon = "🔑",
-                Description = "Design and verify parallel key connections according to DIN 6885 standard. Calculate contact pressure, shear stress, safety factors, and required key dimensions for reliable torque transmission.",
-                Keywords = "key connection, keyway, DIN 6885, parallel key, shaft key, power transmission, torque transmission, key design",
+                Description = "Design and verify parallel key connections to DIN 6885 (dimensions) and DIN 6892 (strength). Calculate contact pressure, shear stress, safety factors, and required key dimensions for reliable torque transmission.",
+                Keywords = "key connection, keyway, DIN 6885, DIN 6892, parallel key, shaft key, power transmission, torque transmission, key design",
                 RelatedModules = new[] { "interference-fit", "taper-fit", "clamp-connection" },
                 IsVerified = true,
-                VerificationStandards = new[] { "DIN 6885", "ISO 773" },
+                // DIN 6885 is the DIMENSION standard; the strength check follows
+                // DIN 6892. Citing only 6885 misdescribed what the module does.
+                VerificationStandards = new[] { "DIN 6885", "DIN 6892", "ISO 773" },
                 HasVideo = false
             },
 
@@ -121,7 +123,10 @@ public class ModuleMetadataService
                 // at the slot root, which is not modelled - results are optimistic
                 // for that case.
                 IsVerified = false,
-                VerificationStandards = new[] { "DIN 703", "VDI 2230", "Roloff/Matek" },
+                // DIN 703 removed: it is the shaft-collar (Stellringe) standard and has
+                // nothing to do with a clamped hub. The bolt follows VDI 2230; the
+                // friction/contact model is general machine design.
+                VerificationStandards = new[] { "VDI 2230", "Roloff/Matek" },
                 HasVideo = false
             },
 

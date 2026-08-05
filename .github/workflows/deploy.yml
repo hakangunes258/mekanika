@@ -54,6 +54,17 @@ jobs:
           test -f 404.html    || { echo "::error::404.html missing"; exit 1; }
           echo "CNAME = $(cat CNAME)"
 
+          # The deep-link fallback is the whole of Share Link and Google sign-in,
+          # and it fails SILENTLY - the visitor just sits on "Redirecting...".
+          # It once shipped relying on <meta http-equiv="refresh"> alone, which
+          # browsers may delay or ignore. Both halves of the handshake must exist.
+          grep -q "location.replace" 404.html \
+            || { echo "::error::404.html has no script-driven redirect - deep links, Share Links and sign-in will break"; exit 1; }
+          grep -q "sessionStorage.redirect" 404.html \
+            || { echo "::error::404.html no longer stashes the original URL"; exit 1; }
+          grep -q "sessionStorage.redirect" index.html \
+            || { echo "::error::index.html no longer restores the deep link before Blazor boots"; exit 1; }
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:

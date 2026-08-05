@@ -191,6 +191,8 @@
         </div>
     </div>
 
+    <ValidationAlert Messages="validationMessages" />
+
     <div class="button-group">
         <button class="btn btn-success btn-lg @(isCalculating ? "btn-calculating" : "")" @onclick="Calculate" disabled="@isCalculating">
             @if (isCalculating)
@@ -268,6 +270,19 @@ else
                     <tr class="highlight"><td>Effective Key Length</td><td>l<sub>eff</sub></td><td>@engine.EffectiveLength.ToString("F1")</td><td>mm</td></tr>
                     <tr><td>Keyway Depth (Shaft)</td><td>t₁</td><td>@engine.KeywayDepthShaft.ToString("F2")</td><td>mm</td></tr>
                     <tr><td>Keyway Depth (Hub)</td><td>t₂</td><td>@engine.KeywayDepthHub.ToString("F2")</td><td>mm</td></tr>
+                    @* The heights the pressures are actually computed on. Shown because
+                       the hub side is h - t1 (the key's protrusion), not t2 - the hub
+                       keyway is deliberately cut deeper to leave top clearance. *@
+                    <tr><td>Bearing Height (Shaft) = t₁</td><td>h'<sub>shaft</sub></td><td>@engine.BearingHeightShaft.ToString("F2")</td><td>mm</td></tr>
+                    <tr>
+                        @* Normally h - t1 (the key's protrusion above the shaft). Falls back
+                           to t2 only when someone enters a hub keyway shallower than that,
+                           where the key would bottom out - so name whichever governs. *@
+                        <td>Bearing Height (Hub) = @(engine.BearingHeightHub < engine.KeyHeight - engine.KeywayDepthShaft ? "t₂ (hub keyway limits it)" : "h − t₁")</td>
+                        <td>h'<sub>hub</sub></td>
+                        <td>@engine.BearingHeightHub.ToString("F2")</td>
+                        <td>mm</td>
+                    </tr>
                     <tr><td>Contact Area (Shaft)</td><td>A<sub>shaft</sub></td><td>@engine.ContactAreaShaft.ToString("F1")</td><td>mm²</td></tr>
                     <tr><td>Contact Area (Hub)</td><td>A<sub>hub</sub></td><td>@engine.ContactAreaHub.ToString("F1")</td><td>mm²</td></tr>
                     <tr><td>Number of Keys</td><td>n</td><td>@engine.NumberOfKeys</td><td>-</td></tr>
@@ -416,6 +431,8 @@ else
 
 @code {
     private KeyConnectionEngine engine = new();
+    /// <summary>Why Calculate refused, shown by <see cref="ValidationAlert"/>.</summary>
+    private List<string> validationMessages = new();
     private List<Material> materials = new();
     private ModuleInfo moduleInfo = new();
     private bool showResults = false;
@@ -537,10 +554,17 @@ else
         await Task.Delay(350);
         try
         {
-            // Validation
-            if (engine.ShaftDiameter <= 0 || engine.KeyWidth <= 0 || engine.KeyHeight <= 0 || engine.KeyLength <= 0 || engine.AppliedTorque <= 0)
+            // Validation - name what is missing rather than returning in silence.
+            validationMessages.Clear();
+            if (engine.ShaftDiameter <= 0) validationMessages.Add("Shaft diameter (d) must be greater than 0.");
+            if (engine.KeyWidth <= 0) validationMessages.Add("Key width (b) must be greater than 0.");
+            if (engine.KeyHeight <= 0) validationMessages.Add("Key height (h) must be greater than 0.");
+            if (engine.KeyLength <= 0) validationMessages.Add("Key length (l) must be greater than 0.");
+            if (engine.AppliedTorque <= 0) validationMessages.Add("Applied torque (T) must be greater than 0.");
+
+            if (validationMessages.Count > 0)
             {
-                await Analytics.TrackCalculationError("key-connection", "validation_failed", "Invalid input parameters");
+                await Analytics.TrackCalculationError("key-connection", "validation_failed", string.Join("; ", validationMessages));
                 return;
             }
 
@@ -668,6 +692,7 @@ else
     private void ClearForm()
     {
         engine = new KeyConnectionEngine { LoadFactor = 1.0, NumberOfKeys = 1 };
+        validationMessages.Clear();
         recommendedKey = null;
         selectedLoadFactor = "1.0";
         showResults = false;

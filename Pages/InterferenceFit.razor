@@ -197,6 +197,8 @@
         </div>
     </div>
 
+    <ValidationAlert Messages="validationMessages" />
+
     <div class="button-group">
         <button class="btn btn-success btn-lg @(isCalculating ? "btn-calculating" : "")" @onclick="Calculate" disabled="@isCalculating">
             @if (isCalculating)
@@ -358,6 +360,8 @@ else
 
 @code {
     private InterferenceFitEngine engine = new();
+    /// <summary>Why Calculate refused, shown by <see cref="ValidationAlert"/>.</summary>
+    private List<string> validationMessages = new();
     private List<Material> materials = new();
     private ModuleInfo moduleInfo = new();
     private bool showResults = false;
@@ -545,10 +549,16 @@ else
         await Task.Delay(350);
         try
         {
-            // Validation
-            if (engine.NominalDiameter <= 0 || engine.FitLength <= 0 || engine.HubOuterDiameter <= engine.NominalDiameter)
+            // Validation - name what is missing rather than returning in silence.
+            validationMessages.Clear();
+            if (engine.NominalDiameter <= 0) validationMessages.Add("Nominal diameter (d) must be greater than 0.");
+            if (engine.FitLength <= 0) validationMessages.Add("Fit length (L) must be greater than 0.");
+            if (engine.HubOuterDiameter <= engine.NominalDiameter)
+                validationMessages.Add($"Hub outer diameter (Da) must be larger than the nominal diameter ({engine.NominalDiameter:F1} mm).");
+
+            if (validationMessages.Count > 0)
             {
-                await Analytics.TrackCalculationError("interference-fit", "validation_failed", "Invalid input parameters");
+                await Analytics.TrackCalculationError("interference-fit", "validation_failed", string.Join("; ", validationMessages));
                 return;
             }
 
@@ -584,6 +594,7 @@ else
     private void ClearForm()
     {
         engine = new();
+        validationMessages.Clear();
         selectedShaftFit = "p6";
         selectedHubFit = "H7";
         selectedLoadFactor = "1.0";

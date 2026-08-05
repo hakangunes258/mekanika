@@ -209,6 +209,8 @@
         </div>
     </div>
 
+    <ValidationAlert Messages="validationMessages" />
+
     <div class="button-group">
         <button class="btn btn-success btn-lg @(isCalculating ? "btn-calculating" : "")" @onclick="Calculate" disabled="@isCalculating">
             @if (isCalculating)
@@ -537,6 +539,8 @@ else
 
 @code {
     private TaperFitEngine engine = new();
+    /// <summary>Why Calculate refused, shown by <see cref="ValidationAlert"/>.</summary>
+    private List<string> validationMessages = new();
     private List<Material> materials = new();
     private bool showResults = false;
     private bool isCalculating = false;
@@ -615,10 +619,17 @@ else
         await Task.Delay(350);
         try
         {
-            if (engine.MeanDiameter <= 0 || engine.FitLength <= 0 ||
-                engine.HubOuterDiameter <= engine.MeanDiameter || engine.TaperRatio <= 0)
+            // Validation - name what is missing rather than returning in silence.
+            validationMessages.Clear();
+            if (engine.MeanDiameter <= 0) validationMessages.Add("Mean diameter (dm) must be greater than 0.");
+            if (engine.FitLength <= 0) validationMessages.Add("Fit length (L) must be greater than 0.");
+            if (engine.TaperRatio <= 0) validationMessages.Add("Taper ratio must be greater than 0.");
+            if (engine.HubOuterDiameter <= engine.MeanDiameter)
+                validationMessages.Add($"Hub outer diameter (Da) must be larger than the mean diameter ({engine.MeanDiameter:F1} mm).");
+
+            if (validationMessages.Count > 0)
             {
-                await Analytics.TrackCalculationError("taper-fit", "validation_failed", "Invalid input parameters");
+                await Analytics.TrackCalculationError("taper-fit", "validation_failed", string.Join("; ", validationMessages));
                 return;
             }
 
@@ -736,6 +747,7 @@ else
 
     private void ClearForm()
     {
+        validationMessages.Clear();
         engine = new TaperFitEngine
         {
             ShaftRoughnessRz = 6.3,

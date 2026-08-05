@@ -35,6 +35,7 @@ public class TorsionSpringEngine
     public double InnerDiameter { get; set; }         // Di (mm)
     public double BodyLength { get; set; }            // Lk (mm) - coil body length
     public double TotalCoils { get; set; }            // nt (total coils including inactive)
+    public double EquivalentCoils { get; set; }       // ne = n + (L1+L2)/(3·pi·Dm), EN 13906-3
     public double CoilPitch { get; set; }             // p (mm)
     public double WireLength { get; set; }            // Ld (mm)
     public double SpringMass { get; set; }            // m (g)
@@ -85,10 +86,6 @@ public class TorsionSpringEngine
     public double FatigueSafetyFactor { get; set; }
     public double FatigueEstimatedCycles { get; set; }
 
-    // ============ CALCULATED VALUES - NATURAL FREQUENCY ============
-
-    public double NaturalFrequency { get; set; }      // fe (Hz)
-
     // ============ STANDARD DATA ============
 
     // Standard wire diameters (mm) - EN 10270-1
@@ -134,7 +131,6 @@ public class TorsionSpringEngine
         CalculateWorkingConditions();
         CalculateStresses();
         CalculateSafety();
-        CalculateNaturalFrequency();
 
         // Perform fatigue analysis if there is a stress cycle
         if (Angle1Input > 0 && Angle2Input > 0 && Math.Abs(Angle1Input - Angle2Input) > 0.1)
@@ -193,14 +189,24 @@ public class TorsionSpringEngine
     private void CalculateSpringRate()
     {
         // Torsion spring rate formula (EN 13906-3):
-        // R = (E × d⁴) / (3667 × Dm × n) [Nmm/degree]
-        // or R = (E × d⁴) / (64 × Dm × n) [Nmm/rad]
+        // R = (E × d⁴) / (3667 × Dm × ne) [Nmm/degree]
+        // or R = (E × d⁴) / (64 × Dm × ne) [Nmm/rad]
+        //
+        // ne, not n: the legs bend too, so EN 13906-3 adds their contribution as an
+        // EQUIVALENT number of coils,
+        //     ne = n + (L1 + L2) / (3 · pi · Dm)
+        // The engine already used the legs for the moment arm and the wire length but
+        // not here, which made the spring read ~6% stiffer than it is. That is
+        // conservative for stress at a given angle, but UNsafe for the reverse
+        // question a designer usually asks - "what angle do I need for this torque" -
+        // because it under-predicts the angle.
+        EquivalentCoils = ActiveCoils + (Leg1Length + Leg2Length) / (3.0 * Math.PI * MeanCoilDiameter);
 
         SpringRate = (ElasticModulus * Math.Pow(WireDiameter, 4)) /
-                     (3667 * MeanCoilDiameter * ActiveCoils);
+                     (3667 * MeanCoilDiameter * EquivalentCoils);
 
         SpringRatePerRadian = (ElasticModulus * Math.Pow(WireDiameter, 4)) /
-                              (64 * MeanCoilDiameter * ActiveCoils);
+                              (64 * MeanCoilDiameter * EquivalentCoils);
 
         // Allowable bending stress (0.70 × Rm for static, lower for fatigue)
         if (AllowableBendingStress <= 0)
@@ -366,17 +372,17 @@ public class TorsionSpringEngine
         }
     }
 
-    private void CalculateNaturalFrequency()
-    {
-        // Natural frequency for torsional vibration
-        // fn ≈ (d / (2π × n × Dm²)) × √(E × g / ρ)
-        double rho = 7850; // kg/m³ for steel
-        double g = 9810;   // mm/s²
-
-        NaturalFrequency = (WireDiameter / 1000) /
-                          (2 * Math.PI * ActiveCoils * Math.Pow(MeanCoilDiameter / 1000, 2)) *
-                          Math.Sqrt(ElasticModulus * 1e6 * g / (1000 * rho));
-    }
+    // Natural frequency intentionally NOT calculated.
+    //
+    // EN 13906-3 standardises no surge frequency for torsion springs (unlike -1 for
+    // compression springs, where fe is defined). What used to be here was the
+    // compression-spring formula with E substituted for G and a stray g term, which
+    // returned ~4.5 kHz for an ordinary spring - a figure that could be neither
+    // verified against the standard nor sanity-checked by the user. It was removed
+    // rather than left sitting among values that are all traceable to EN 13906-3.
+    //
+    // If a surge check is ever needed here, take it from a cited source and label it
+    // as outside the standard.
 
     // ============ VALIDATION ============
 

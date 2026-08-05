@@ -136,6 +136,12 @@ namespace MechanicalCalculatorWeb.Services
         public double InterfaceFriction { get; set; } = 0.12;  // μT for slip resistance
         public int NumberOfInterfaces { get; set; } = 1;        // For shear load transfer
 
+        // Residual clamp force the joint must still carry in service for reasons
+        // other than slip: sealing pressure, no gapping at the interface, friction
+        // against a working moment. VDI 2230 leaves this to the designer, and it is
+        // genuinely 0 for a purely axial, concentric joint with no sealing duty.
+        public double RequiredResidualClampForce { get; set; } = 0; // FKerf (N)
+
         // Surface roughness and geometric details
         public double ThreadRoughness { get; set; } = 16.0;  // Thread surface roughness Rz (μm)
         public double HeadRoughness { get; set; } = 16.0;     // Head surface roughness Rz (μm)
@@ -331,10 +337,12 @@ namespace MechanicalCalculatorWeb.Services
         public double AdditionalPlateForce { get; set; }       // FPA - Additional plate force (N)
 
         // Fatigue Analysis Results
+        public bool FatigueRelevant { get; set; }              // True when the external load actually cycles
         public double FatigueLoad { get; set; }                // Fatigue load amplitude (N)
         public double FatigueLife { get; set; }                // Estimated fatigue life (cycles)
         public double NumberOfLoadCycles { get; set; }         // Design number of load cycles
         public double FatigueDamage { get; set; }              // Cumulative fatigue damage (0-1)
+        public LoadType LoadTypeUsed { get; set; }             // Load type the fatigue branch ran with
 
         // Per-scenario embedding (settling) values
         public double FZ_at_F09max { get; set; }               // Embedding loss at F09_max (N)
@@ -407,11 +415,9 @@ namespace MechanicalCalculatorWeb.Services
                 // Step R11: Calculate tightening torque
                 CalculateTighteningTorque();
 
-                // Step R12: Fatigue check (if applicable)
-                if (_input.LoadType != LoadType.Static)
-                {
-                    CalculateFatigue();
-                }
+                // Step R12: Fatigue check. Always runs - it decides for itself whether
+                // the load actually cycles and reports "not applicable" if it does not.
+                CalculateFatigue();
 
                 // Calculate geometry for visualization
                 CalculateGeometry();
@@ -598,10 +604,11 @@ namespace MechanicalCalculatorWeb.Services
                 _result.FKR_slip = 0;
             }
 
-            // Required clamp force to prevent joint separation.
-            // For this calculation, we assume the only requirement is that the joint does not open.
-            // A specific positive value could be used here if a minimum contact pressure is needed.
-            _result.FKR_separation = 0;
+            // Residual clamp force required for anything other than slip resistance
+            // (sealing, no gapping, friction against a working moment). This is a
+            // design input, not something the geometry implies - when the user has no
+            // such requirement it stays 0 and FKR_min is governed by slip alone.
+            _result.FKR_separation = Math.Max(0, _input.RequiredResidualClampForce);
 
             // The overall minimum required clamp force in service is the maximum of all requirements.
             _result.FKR_min = Math.Max(_result.FKR_slip, _result.FKR_separation);
@@ -1190,12 +1197,13 @@ namespace MechanicalCalculatorWeb.Services
                 if (A_nut > 0) _result.PressureNut_at_F09max = _result.F09_max / A_nut;
             }
 
-            // Per-scenario embedding: scale base embedding proportional to sqrt(F/F_ref)
-            // VDI 2230: embedding increases with surface pressure, ~sqrt relationship
-            double fZ_base = _result.FZ_total_um;
-            double F_ref = _result.FM_max > 0 ? _result.FM_max : 1.0;
-            _result.FZ_um_at_F09max = fZ_base * Math.Sqrt(_result.F09_max / F_ref);
-            _result.FZ_at_F09max = (_result.FZ_um_at_F09max / 1000.0) / (_result.DeltaS + _result.DeltaPTotal);
+            // Embedding is the SAME in all three scenarios. VDI 2230 Table 5.4/1 gives
+            // fZ from the surface roughness and the load type alone - it is not a
+            // function of the preload. Scaling it per scenario (this used to apply a
+            // sqrt(F/FM_max) factor) invented three different answers to a question
+            // the standard answers once, and the three tables then disagreed.
+            _result.FZ_um_at_F09max = _result.FZ_total_um;
+            _result.FZ_at_F09max = _result.FZ;
 
             // === SCENARIO 2: Minimum Required Assembly Preload (FM_min) ===
             _result.FS_at_FMmin = _result.FM_min + _result.FSA;
@@ -1224,9 +1232,9 @@ namespace MechanicalCalculatorWeb.Services
                 if (A_nut > 0) _result.PressureNut_at_FMmin = _result.FM_min / A_nut;
             }
 
-            // Embedding for FM_min
-            _result.FZ_um_at_FMmin = fZ_base * Math.Sqrt(_result.FM_min / F_ref);
-            _result.FZ_at_FMmin = (_result.FZ_um_at_FMmin / 1000.0) / (_result.DeltaS + _result.DeltaPTotal);
+            // Embedding for FM_min (same fZ - see above)
+            _result.FZ_um_at_FMmin = _result.FZ_total_um;
+            _result.FZ_at_FMmin = _result.FZ;
 
             // === SCENARIO 3: Maximum Required Assembly Preload (FM_max) ===
             // Surface pressures for FM_max (stresses already calculated in CalculateStresses)
@@ -1244,91 +1252,12 @@ namespace MechanicalCalculatorWeb.Services
             _result.MG_at_FMmax = MG3 / 1000.0;
             _result.MK_at_FMmax = MK3 / 1000.0;
 
-            // Embedding for FM_max (base case, fZ_base was computed at FM_max level)
-            _result.FZ_um_at_FMmax = fZ_base;
+            // Embedding for FM_max (same fZ - see above)
+            _result.FZ_um_at_FMmax = _result.FZ_total_um;
             _result.FZ_at_FMmax = _result.FZ;
 
             // Additional Plate Force (already calculated as FPA)
             _result.AdditionalPlateForce = _result.FPA;
-
-            // === FATIGUE ANALYSIS ===
-            CalculateFatigueAnalysis(As, Wp, phi, rho_prime);
-            // Results are stored in:
-            // _result.FM_max, _result.FS_max, _result.FK_min
-            // _result.SigmaZ_assembly, _result.Tau_assembly, _result.SigmaRed_assembly
-            // _result.Utilization, _result.MA
-        }
-
-        private void CalculateFatigueAnalysis(double As, double Wp, double phi, double rho_prime)
-        {
-            // === FATIGUE ANALYSIS ===
-            // Calculate fatigue load, life and number of cycles
-
-            // Fatigue load amplitude = swing of the additional bolt force
-            // FSA = Φn × FA, so the cyclic range is Φn × (FA_max − FA_min)
-            _result.FatigueLoad = Math.Abs(_result.FSA - _result.FSA_min);
-
-            // Stress amplitude from cyclic loading only — the assembly preload
-            // scatter (αA) is static and must not enter the amplitude.
-            double stressAmplitude = CalculateStressAmplitude();
-
-            // Allowable stress amplitude (VDI 2230 Table 5.6/1)
-            double sigmaASV = CalculateAllowableStressAmplitude();
-
-            // Calculate fatigue life using S-N curve approach
-            // N = N_ref × (σASV / σa)^m where m ≈ 5 for bolts
-            double N_ref = 2e6; // Reference cycles at σASV
-            double m = 5.0; // Fatigue exponent for bolted connections
-
-            if (stressAmplitude > 0 && stressAmplitude < sigmaASV)
-            {
-                // Finite life region
-                _result.FatigueLife = N_ref * Math.Pow(sigmaASV / stressAmplitude, m);
-                // Cap at 1e10 for practical purposes (infinite life)
-                if (_result.FatigueLife > 1e10) _result.FatigueLife = 1e10;
-            }
-            else if (stressAmplitude >= sigmaASV)
-            {
-                // Low cycle fatigue region - simplified calculation
-                _result.FatigueLife = N_ref * Math.Pow(sigmaASV / stressAmplitude, m);
-                // Minimum life of 1000 cycles
-                if (_result.FatigueLife < 1000) _result.FatigueLife = 1000;
-            }
-            else
-            {
-                // No cyclic loading (static) - infinite life
-                _result.FatigueLife = 1e10;
-            }
-
-            // Design number of load cycles - use user input or default
-            if (_input.LoadType == LoadType.Static)
-            {
-                _result.NumberOfLoadCycles = 1;
-            }
-            else if (_input.DesignLoadCycles > 0)
-            {
-                // Use user-specified number of cycles
-                _result.NumberOfLoadCycles = _input.DesignLoadCycles;
-            }
-            else if (_input.LoadType == LoadType.Pulsating)
-            {
-                _result.NumberOfLoadCycles = 1e7; // Typical for machines (10 million cycles)
-            }
-            else // Alternating
-            {
-                _result.NumberOfLoadCycles = 1e6; // More conservative for alternating loads
-            }
-
-            // Fatigue damage accumulation (Miner's rule simplified)
-            // D = n / N (damage = applied cycles / allowable cycles)
-            if (_result.FatigueLife > 0)
-            {
-                _result.FatigueDamage = _result.NumberOfLoadCycles / _result.FatigueLife;
-            }
-            else
-            {
-                _result.FatigueDamage = 1.0; // Full damage if no life
-            }
         }
 
                 private void CalculateStresses()
@@ -1438,17 +1367,18 @@ namespace MechanicalCalculatorWeb.Services
                     // SF against yielding (VDI R10)
                     _result.SF_yield = _result.Rp02 / _result.SigmaRed_assembly;
         
-                    // SF against clamp force loss
-                    if (_result.FKR_min > 0)
-                    {
-                        _result.SF_clamp = _result.FK_min / _result.FKR_min;
-                    }
-                    else
-                    {
-                        // If no specific clamp force is required, safety is high as long as FK_min > 0.
-                        // A large number indicates no risk of failing a specific requirement.
-                        _result.SF_clamp = (_result.FK_min > 0) ? 999 : 0;
-                    }
+                    // SF against clamp force loss.
+                    //
+                    // FM_min is SIZED as FKR_min + FZ + FPA, so FK_min = FM_min - FPA - FZ
+                    // lands back on exactly FKR_min. With no clamp requirement that is
+                    // exactly zero - give or take the last floating point bit. The old
+                    // "FK_min > 0 ? 999 : 0" therefore sat on a knife edge and could
+                    // report either infinity or a hard 0.00 FAIL for the same joint.
+                    // With nothing required to stay clamped there is simply nothing to
+                    // fall short of, so the check does not apply.
+                    _result.SF_clamp = _result.FKR_min > 0
+                        ? _result.FK_min / _result.FKR_min
+                        : 999;
         
                     // SF against slipping (if shear load present)
                     if (_input.ShearForce > 0)
@@ -1494,10 +1424,16 @@ namespace MechanicalCalculatorWeb.Services
                     else if (_result.SF_yield < 1.1)
                         _result.Warnings.Add("Yield safety factor low (< 1.1)");
         
-                    if (_result.FK_min <= 0)
+                    // Only a joint that was REQUIRED to stay clamped can fail by opening.
+                    // Guarding on FKR_min matters: without it this fired on every purely
+                    // axial, concentric joint, because FK_min is 0 there by construction.
+                    //
+                    // No "SF_clamp < 1.2" warning either: since FM_min is sized to meet
+                    // FKR_min exactly, SF_clamp is 1.00 whenever a clamp force is required,
+                    // so the warning would fire on literally every such joint. The margin
+                    // above the requirement is what the F0.9,max scenario shows instead.
+                    if (_result.FKR_min > 0 && _result.FK_min <= 0)
                         _result.Errors.Add("Joint opens under load (FK_min <= 0)!");
-                    else if (_result.SF_clamp < 1.2 && _result.FKR_min > 0)
-                        _result.Warnings.Add("Clamp safety factor low (< 1.2)");
         
                     if (_result.SF_slip < 1.0 && _input.ShearForce > 0)
                         _result.Errors.Add("Slip safety factor < 1.0 - joint will slip!");
@@ -1647,10 +1583,25 @@ namespace MechanicalCalculatorWeb.Services
                     return sigmaA_base * strengthFactor * kt;
                 }
 
+                /// <summary>
+                /// Fatigue check (VDI 2230 R12).
+                ///
+                /// This runs on EVERY calculation. It used to be skipped whenever the
+                /// load type was Static, which left SigmaA/SigmaM/SigmaASV/SF_fatigue at
+                /// their default 0 - and the page rendered that as SF_fatigue = 0.00,
+                /// i.e. a FAIL, on joints that were in fact fine. When the load does not
+                /// cycle the amplitude is genuinely zero, and this now says so.
+                ///
+                /// It is also the single owner of the fatigue results. A second method
+                /// (CalculateFatigueAnalysis) used to produce FatigueLife/Damage/cycles
+                /// on a different code path with a different Static test, so the two
+                /// halves of the fatigue card could disagree with each other.
+                /// </summary>
                 private void CalculateFatigue()
                 {
-                    // === FATIGUE CALCULATION (VDI 2230 R12) ===
-                    // Amplitude comes from the cyclic external load only.
+                    // The bolt only sees the CYCLIC part of the load: the additional
+                    // bolt force FSA swings between FA_min and FA_max.
+                    _result.FatigueLoad = Math.Abs(_result.FSA - _result.FSA_min);
                     _result.SigmaA = CalculateStressAmplitude();
 
                     // Mean stress uses the maximum preload (the realistic worst case
@@ -1659,24 +1610,54 @@ namespace MechanicalCalculatorWeb.Services
                         ? (_result.FM_max + (_result.FSA + _result.FSA_min) / 2.0) / _result.As
                         : 0;
 
-                    // === ALLOWABLE STRESS AMPLITUDE (VDI 2230 Table 5.6/1) ===
+                    // Allowable stress amplitude (VDI 2230 Table 5.6/1). This is a
+                    // property of the bolt, so it is reported even for a static joint.
                     _result.SigmaASV = CalculateAllowableStressAmplitude();
 
-                    // Fatigue safety factor
-                    if (_result.SigmaA > 0)
+                    _result.LoadTypeUsed = _input.LoadType;
+                    _result.FatigueRelevant = _input.LoadType != LoadType.Static && _result.SigmaA > 0;
+
+                    if (!_result.FatigueRelevant)
                     {
-                        _result.SF_fatigue = _result.SigmaASV / _result.SigmaA;
+                        // No load swing: fatigue cannot govern. Say "not applicable"
+                        // rather than leaving a zero that reads as a failed check.
+                        _result.SF_fatigue = 999;
+                        _result.NumberOfLoadCycles = 1;
+                        _result.FatigueLife = 1e10;
+                        _result.FatigueDamage = 0;
+                        return;
                     }
-                    else
-                    {
-                        _result.SF_fatigue = 999; // No stress amplitude, no fatigue risk
-                    }
-        
+
+                    _result.SF_fatigue = _result.SigmaASV / _result.SigmaA;
+
+                    // Life from an S-N curve anchored at σASV: N = N_ref × (σASV/σa)^m.
+                    // Above σASV this drops into the low-cycle region, below it the
+                    // life runs away - hence the floor and the cap.
+                    const double N_ref = 2e6;   // reference cycles at σASV
+                    const double m = 5.0;       // fatigue exponent for bolted joints
+                    _result.FatigueLife = N_ref * Math.Pow(_result.SigmaASV / _result.SigmaA, m);
+                    if (_result.FatigueLife > 1e10) _result.FatigueLife = 1e10;
+                    if (_result.FatigueLife < 1000) _result.FatigueLife = 1000;
+
+                    // Design cycles: the user's figure, or a load-type default.
+                    _result.NumberOfLoadCycles = _input.DesignLoadCycles > 0
+                        ? _input.DesignLoadCycles
+                        : (_input.LoadType == LoadType.Pulsating ? 1e7 : 1e6);
+
+                    // Miner's rule at a single load level: D = n / N
+                    _result.FatigueDamage = _result.NumberOfLoadCycles / _result.FatigueLife;
+
                     if (_result.SF_fatigue < 1.0)
                         _result.Errors.Add("Fatigue safety factor < 1.0 - bolt will fail in fatigue!");
                     else if (_result.SF_fatigue < 1.2)
                         _result.Warnings.Add("Fatigue safety factor low (< 1.2) - consider higher preload or shot-peened bolt");
-        
+
+                    if (_result.FatigueDamage > 1.0)
+                        _result.Errors.Add($"Design load cycles exceed the estimated fatigue life (damage D = {_result.FatigueDamage:F2})");
+
+                    if (_result.NumberOfLoadCycles < 1e4)
+                        _result.Warnings.Add("Design load cycles below 10⁴ - the endurance limit approach used here (VDI 2230 Table 5.6/1) is meant for high-cycle fatigue");
+
                     // Update minimum safety factor if fatigue is critical
                     if (_result.SF_fatigue < _result.SF_min)
                     {
