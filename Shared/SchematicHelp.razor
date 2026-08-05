@@ -24,7 +24,16 @@
             </div>
             <div class="schematic-body">
                 <div class="schematic-figure">
-                    <img src="@Src" alt="@Title" />
+                    @* width/height carry the drawing's INTRINSIC size so the browser can
+                       reserve the right box before the SVG arrives. Without them the img
+                       is 0 high until it loads and the dialog visibly grows from a thin
+                       strip into the full drawing - invisible on localhost, obvious over
+                       the network. They are attributes, not CSS: the CSS below still
+                       scales the image (max-width/height:auto), the attributes only
+                       supply the aspect ratio. *@
+                    <img src="@Src" alt="@Title"
+                         width="@(Width > 0 ? Width.ToString() : null)"
+                         height="@(Height > 0 ? Height.ToString() : null)" />
                 </div>
                 @if (ChildContent is not null)
                 {
@@ -44,6 +53,15 @@
     [Parameter, EditorRequired] public string Src { get; set; } = "";
 
     [Parameter, EditorRequired] public string Title { get; set; } = "";
+
+    /// <summary>
+    /// The drawing's intrinsic size, straight from its viewBox. Supply both or the
+    /// dialog will jump as the image loads (see the img tag above).
+    /// </summary>
+    [Parameter] public int Width { get; set; }
+
+    /// <inheritdoc cref="Width"/>
+    [Parameter] public int Height { get; set; }
 
     /// <summary>Symbol legend rendered under the drawing.</summary>
     [Parameter] public RenderFragment? ChildContent { get; set; }

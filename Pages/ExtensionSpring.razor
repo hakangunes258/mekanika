@@ -715,12 +715,15 @@ else
             return "∞ (Infinite Life)";
         else if (engine.FatigueEstimatedCycles >= 1e7)
             return $">{engine.FatigueEstimatedCycles/1e6:F0}M cycles";
+        // The $ prefix was missing on these three, so they printed the template
+        // source instead of the number. Only the >= 1e7 branch above was correct,
+        // which is why it went unnoticed on infinite-life springs.
         else if (engine.FatigueEstimatedCycles >= 1e6)
-            return "~{engine.FatigueEstimatedCycles/1e6:F1}M cycles";
+            return $"~{engine.FatigueEstimatedCycles / 1e6:F1}M cycles";
         else if (engine.FatigueEstimatedCycles >= 1e5)
-            return "~{engine.FatigueEstimatedCycles/1e3:F0}k cycles";
+            return $"~{engine.FatigueEstimatedCycles / 1e3:F0}k cycles";
         else
-            return "~{engine.FatigueEstimatedCycles:F0} cycles";
+            return $"~{engine.FatigueEstimatedCycles:F0} cycles";
     }
 
     private string GetSafetyRowClass(double sf) =>

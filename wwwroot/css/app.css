@@ -164,14 +164,13 @@ html, body {
 
 .modules-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 20px;
-}
-
-@media (min-width: 1400px) {
-    .modules-grid {
-        grid-template-columns: repeat(4, 1fr);
-    }
+    /* Narrower track + tighter gap so more cards fit per row; see the sizing
+       block for .module-card in modern-icons.css.
+       auto-fill with a 200px floor keeps every card between ~200 and ~260px at
+       any window size. The old fixed `repeat(4, 1fr)` above 1400px did the
+       opposite - it stretched cards wider the wider the screen got. */
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 14px;
 }
 
 /* ========== Mobile navigation ==========

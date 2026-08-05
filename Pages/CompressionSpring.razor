@@ -29,6 +29,7 @@
                 <ModuleIcon Type="geometry" Size="medium" Style="solid" />
                 <h2>Spring Geometry</h2>
                 <SchematicHelp Src="schematics/compression-spring/01-geometry.svg"
+                               Width="520" Height="500"
                                Title="Spring Geometry — Symbol Reference">
                     <div><b>d</b> Wire diameter</div>
                     <div><b>D<sub>m</sub></b> Mean coil diameter</div>
@@ -82,6 +83,7 @@
                 <label>
                     End Type
                     <SchematicHelp Src="schematics/compression-spring/02-coils-end-types.svg"
+                                   Width="1000" Height="470"
                                    Title="Coil Count and End Types">
                         <div><b>n</b> Active (working) coils — the value you enter</div>
                         <div><b>n<sub>t</sub></b> Total coils, including the dead end coils</div>
@@ -188,6 +190,7 @@
                     <label>
                         Working Length — L₁ <span style="color: #e74c3c;">*</span>
                         <SchematicHelp Src="schematics/compression-spring/03a-lengths-static.svg"
+                                       Width="870" Height="460"
                                        Title="Lengths, Deflections and Forces — Static Load">
                             <div><b>L<sub>0</sub></b> Free length (unloaded)</div>
                             <div><b>L<sub>1</sub></b> Working length — the value you enter</div>
@@ -212,6 +215,7 @@
                     <label>
                         Assembled Length — L₁ <span style="color: #e74c3c;">*</span>
                         <SchematicHelp Src="schematics/compression-spring/03b-lengths-dynamic.svg"
+                                       Width="1040" Height="460"
                                        Title="Lengths, Deflections and Forces — Dynamic Load">
                             <div><b>L<sub>0</sub></b> Free length (unloaded)</div>
                             <div><b>L<sub>1</sub></b> Assembled length — preload position</div>
@@ -656,7 +660,9 @@ else
                     (EN 13906-1, Table 1). A spring buckles when the effective slenderness λ/ν exceeds 2.62.
                 </p>
                 <div class="schematic-figure" style="margin-bottom: 16px;">
-                    <img src="schematics/compression-spring/04-buckling.svg" alt="Buckling and end support factors" />
+                    @* Intrinsic size, same reason as SchematicHelp: reserve the box. *@
+                    <img src="schematics/compression-spring/04-buckling.svg" alt="Buckling and end support factors"
+                         width="860" height="640" />
                 </div>
                 <table class="info-table">
                     <thead>
