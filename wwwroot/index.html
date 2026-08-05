@@ -80,10 +80,14 @@
 
     <link rel="icon" type="image/png" href="logo.png" />
     <link rel="apple-touch-icon" href="logo.png" />
-    <!-- Bump ?v= when either stylesheet changes, so browsers fetch the new file
-         instead of a cached copy (they cache linked CSS aggressively). -->
-    <link href="css/modern-icons.css?v=5" rel="stylesheet" />
-    <link href="css/app.css?v=7" rel="stylesheet" />
+    <!-- Bump BOTH ?v= numbers whenever EITHER stylesheet changes, and keep them in
+         lockstep - browsers cache linked CSS aggressively and a stale sheet fails
+         silently. This bit once: modern-icons.css gained the schematic-modal styles
+         but kept ?v=5, so returning visitors got the old file and the modal rendered
+         as unstyled markup dumped into the middle of the form. Same number on both
+         means there is one thing to remember, not two. -->
+    <link href="css/modern-icons.css?v=8" rel="stylesheet" />
+    <link href="css/app.css?v=8" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
     <!-- Google tag (gtag.js) -->

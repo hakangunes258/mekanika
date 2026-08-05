@@ -46,10 +46,14 @@ img {
 }
 
 .hero-logo {
-    width: 450px;
+    /* Was 450px, which made the logo the tallest thing on the page and pushed the
+       hero to roughly half the viewport. The negative margins trim the whitespace
+       baked into logo.png, so they are tuned to the width - rescale both together
+       if this changes. */
+    width: 280px;
     height: auto;
-    margin-top: -70px;
-    margin-bottom: -50px;
+    margin-top: -44px;
+    margin-bottom: -31px;
     filter: brightness(0) invert(1);
 }
 
