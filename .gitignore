@@ -53,3 +53,8 @@ $RECYCLE.BIN/
 # settings.local.json holds machine-local tool permissions - keep it out.
 # ---------------------------------------------
 .claude/settings.local.json
+
+# Reference standards kept locally for implementation work. These are licensed
+# copies (the ISO 6336 PDF carries a Beuth/SNV licensee watermark) and must never
+# be committed - this repo is public and publishes to GitHub Pages.
+*.pdf

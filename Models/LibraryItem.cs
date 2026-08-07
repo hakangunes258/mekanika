@@ -16,6 +16,14 @@ public class LibraryItem
     public const string KindMaterial = "material";
     public const string KindBearing = "bearing";
 
+    /// <summary>
+    /// Gear grades are their own kind, not a flavour of <see cref="KindMaterial"/>: a gear
+    /// material carries an ISO 6336-5 classification (material group, ML/MQ/ME quality
+    /// grade, surface hardness) that <see cref="Material"/> has no fields for, and its
+    /// allowable stress numbers are derived from those rather than entered.
+    /// </summary>
+    public const string KindGearMaterial = "gear-material";
+
     [JsonPropertyName("id")]
     public string Id { get; set; } = "";
 

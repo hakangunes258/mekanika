@@ -1289,9 +1289,10 @@ VerificationStandards = new[] { "DIN 6885", "ISO 773" },
 
 Set `IsVerified = false` for any module whose engine uses a simplified or
 uncalibrated model, and record why in a comment next to the flag. Currently
-`false` for: **gear-pair** (ISO 6336 factors heavily simplified),
-**clamp-connection** (split-hub model; single-slit lever effect not modelled),
-and **bolt** (general-purpose, no standard reference).
+`false` for: **clamp-connection** (split-hub model; single-slit lever effect not
+modelled) and **bolt** (general-purpose, no standard reference).
+
+**gear-pair was promoted to `true` in Aug 2026** — see the gear module section below.
 
 **Badge CSS:**
 ```razor
@@ -1529,7 +1530,7 @@ Signed-in users can add their own entries to the reference libraries. Live for
 
 **Files:**
 - `supabase/library_items.sql` — one table for every library, kind-tagged
-  (`material` | `bearing` | `bolt`), `data` jsonb in the shape of the C# model,
+  (`material` | `bearing` | `bolt` | `gear-material`), `data` jsonb in the shape of the C# model,
   `name` duplicated into its own column purely to carry a case-insensitive unique
   index per (user, kind). 4 RLS policies, same pattern as `calculations`.
   **Run it once in the SQL editor after `schema.sql`.**
@@ -1588,6 +1589,27 @@ a library load.
   Materials page says so under the form. Do not "fix" this by embedding material
   properties in the link.
 
+**Gear materials are a fourth kind, not a flavour of `material`.** `Models/Material.cs` has
+no field for an ISO 6336-5 classification, and a gear grade's σ_Flim / σ_Hlim are *derived*
+from that classification rather than entered — so `GearMaterial` (in `GearPairEngine.cs`) is
+its own model with its own merged provider. Three things are specific to it:
+
+- **`supabase/library_items_gear_material.sql` must be run once**, after `library_items.sql`.
+  The original `kind` CHECK only allowed three values; this widens it. Everything else
+  (indexes, the four RLS policies) already covers the new kind.
+- **The key is `GearMaterial.Label` — `"Name - HeatTreatment"` — not the bare name.** C45
+  appears twice among the built-ins with different treatments, so the name alone is
+  ambiguous. That label is what the `name` column stores, what the unique index enforces,
+  what share links carry, and what the gear page's dropdown resolves by. `GearPair.razor`
+  formats it in exactly one place (`Label`) for this reason; a second `$"{Name} - {Heat}"`
+  anywhere is how the two would drift and start resolving links to the wrong grade.
+  `ToGearMaterial` splits it back on the **last** `" - "`, so a name that itself contains a
+  dash survives the round trip.
+- **`SetCustomGearMaterials` calls `ApplyIso6336Strength()` on the way in.** The stored jsonb
+  carries the classification, not the stress numbers, so skipping this leaves σ_Flim/σ_Hlim
+  at 0 — and the engine divides by them, so every safety factor for that grade comes out 0.
+  The built-ins get the same treatment in the static constructor.
+
 **To add bolts:** the table already allows the kind. `BoltService` still exposes
 `public static List<…>` properties read directly by the pages — those need to become
 merged accessors over private built-in fields first, exactly as `BearingService` now
@@ -1600,6 +1622,77 @@ no standard. Do not go back to `.Name`; the standard is what disambiguates two
 grades sharing a name. Where a select binds by value rather than index
 (`SingleBolt.razor`), the **value stays the bare `Name`** — share links, saved
 calculations and `GetMaterial(name)` all resolve by it.
+
+### **Cylindrical Gear Pair — the standards chain**
+
+The gear module is the site's deepest calculation and is meant to stay that way. The
+engine is deliberately thin: `GearPairEngine` sequences the steps and holds the
+inputs/outputs, while every standard's equations live in their own service so each
+file can be read against the clause it implements.
+
+| service | covers |
+|---|---|
+| `Iso6336DynamicFactor.cs` | K_V — ISO 6336-1 Clause 6, Method B (stiffness, resonance, speed ranges) |
+| `Iso6336FaceLoadFactor.cs` | K_Hβ, K_Fβ — ISO 6336-1 Clauses 7.5 (Method C) and 7.6, incl. the Eq. (56) floor on F_βx |
+| `Iso6336ShaftDeflection.cs` | f_sh — ISO 6336-1 Eq. (57)/(58) with the Figure 13 constant K′ |
+| `Iso6336TransverseFactor.cs` | K_Hα, K_Fα — ISO 6336-1 Clause 8, with the 8.3.3/8.3.4 limits |
+| `Iso6336ToothForm.cs` | Y_F, Y_S — ISO 6336-3 Method B, 30° tangent construction |
+| `Iso6336SurfaceFactors.cs` | Z_B/Z_D, Z_E, Z_L/Z_v/Z_R — ISO 6336-2 Clauses 6, 7, 12 |
+| `Iso6336LifeFactors.cs` | Y_NT/Z_NT, Y_δrelT, Y_RrelT, Y_X, Z_X, Z_W |
+| `Iso6336Material.cs` | σ_Flim, σ_Hlim from ISO 6336-5 Table 1 (A·hardness + B) |
+| `Iso1328Tolerance.cs` | flank tolerances, ISO 1328-1:2013 |
+| `GearToothMeasurement.cs` | tooth thickness, span W_k, over-balls M_d, chordal, backlash |
+
+**Rules — these are the ones that actually bit:**
+
+- **Never apply Y_ε together with ISO 6336-3 Method B.** Method B applies the load at the
+  *outer point of single pair tooth contact*, so load sharing is already inside Y_F. Y_ε
+  belongs to the DIN 3990 Method C scheme, where the load sits at the *tip* (Y_Fa, Y_Sa)
+  and Y_ε corrects afterwards. Mixing them shipped once: σ_F0 came out 29 % low and every
+  tooth root safety factor was ~40 % too high. The two schemes were cross-checked against
+  each other and against the classical Lewis form factor — all three agree at ~122 MPa for
+  the default gear; the mixed version gave 86 MPa.
+- **Every curve is anchored, not eyeballed.** Y_NT/Z_NT, Y_RrelT, Y_X, Z_X, Y_B and Y_DT
+  each reproduce their standard's own tabulated end points (e.g. Y_RrelT = 1.000 at
+  Rz = 10 µm for all three material rows; Y_DT = 0.701 at ε_αn = 2.5). If you touch a
+  constant, re-check the anchor — that is what makes these trustworthy rather than plausible.
+- **`f_sh` is never silently zero.** Shaft deflection dominates K_Hβ — on the default gear,
+  12 µm takes it from 1.76 to 3.02 — so `ShaftDeflectionSource` makes the choice explicit:
+  *Calculated* (ISO 6336-1 Eq. 57 from span, offset, diameter and the Figure 13 arrangement),
+  *Manual*, or *Neglected*. Calculated is the default, and when the shaft dimensions are left
+  blank the engine stands in a representative shaft (l = 3b, d₁/d_sh = 1.15) **and says so in
+  the results**. Never make Neglected the default again: this module does not model shafts,
+  but pretending they are rigid is the one answer that is always wrong.
+- **The Eq. (56) floor on F_βx was missing and is non-conservative when omitted.** Both
+  Eq. (52) and Eq. (53) carry `F_βx ≥ F_βx,min = max(0.005·F_m/b, 0.5·f_Hβ)`. Only the
+  additive Eq. (52) is implemented — Eq. (53) is the compensatory branch and is only allowed
+  once a favourable contact pattern has been *verified*, which a web calculator cannot do.
+- **The "best size" ball targets mid-flank, not the reference cylinder.** The textbook rule
+  (contact at the reference cylinder) only works for an unshifted gear; on a positively
+  shifted one it picks a ball that never reaches past the tip, so the measurement cannot
+  physically be taken. Same target as the span measurement.
+- **Allowances are negative, and the "nominal" W_k / M_d is the zero-allowance theoretical
+  value.** Both permitted limits therefore sit *below* nominal. The results label them
+  "Largest/Smallest Permitted (at A_sne/A_sni)" for exactly this reason — "Upper/Lower
+  Limit" next to a larger nominal reads as a bug.
+- **M_d limits are recomputed, not differentiated.** `MdForThicknessDeviation` re-runs the
+  whole involute solve with the thinned tooth. Exact, and no linearisation to get wrong.
+- **Status text uses literal characters, never HTML entities.** Razor escapes the strings it
+  renders, so a `GetSafetyStatus` returning `"&#10003; OK"` puts that text on the page
+  verbatim. This module shipped that way. Use `"✓ OK"` / `"⚠️ Marginal"` / `"❌ FAIL"`,
+  matching KeyConnection.
+- **ISO 1328-1 edition mismatch is real and is surfaced in the UI.** Tolerances use the 2013
+  edition (classes 1–11); ISO 6336-1:2006 normatively references the 1995 edition (grades
+  0–12). The numbering and formulae differ. Do not silently equate them.
+
+**Out of scope, stated in the results card:** scuffing (ISO/TR 13989), micropitting
+(ISO/TR 15144), tooth flank fracture, planetary and internal arrangements.
+
+**Verifying a change:** there is no test project. Build a throwaway console harness that
+`<Compile Include="…/Services/*.cs" />`s the gear services and prints the anchor points
+(geometry against hand values, W_k for m=1 z=20 20° = 7.6604 mm, Z_H = 2.4945, Z_E = 189.8,
+the life-factor table ends, and an inverse-involute round trip). That is how the Y_ε bug
+was found; a plausible-looking safety factor will not reveal it.
 
 ### **Related Calculators Feature**
 

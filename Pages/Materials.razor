@@ -210,6 +210,184 @@
     </div>
 </div>
 
+<div class="card">
+    <div class="card-header">
+        <ModuleIcon Type="gear" Size="medium" Style="solid" />
+        <h2>Gear Materials (ISO 6336-5)</h2>
+        <div class="header-actions">
+            <AuthorizeView>
+                <Authorized>
+                    <button class="btn btn-secondary btn-sm" @onclick="StartNewGear" disabled="@(gearDraft != null)">
+                        <ModuleIcon Type="add" Size="button" Style="transparent" />
+                        <span>Add my own</span>
+                    </button>
+                </Authorized>
+                <NotAuthorized>
+                    <a href="/login" class="btn btn-secondary btn-sm">Sign in to add your own</a>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
+    </div>
+
+    @if (gearDraft != null)
+    {
+        <div class="entry-form">
+            <div class="entry-form-title">
+                @(editingGearId == null ? "New gear material" : $"Editing “{gearDraft.Label}”")
+            </div>
+
+            <div class="entry-form-grid">
+                <div class="form-group">
+                    <label>Name</label>
+                    <input type="text" @bind="gearDraft.Name" placeholder="e.g. 20MnCr5" />
+                </div>
+                <div class="form-group">
+                    <label>Heat treatment</label>
+                    <input type="text" @bind="gearDraft.HeatTreatment" placeholder="e.g. Case-hardened" />
+                    <small>Name + heat treatment together identify the grade</small>
+                </div>
+                <div class="form-group">
+                    <label>ISO 6336-5 material group</label>
+                    <select @bind="gearDraft.Iso6336Type" @bind:after="OnGearClassificationChanged">
+                        @foreach (var t in Enum.GetValues<GearMaterialType>())
+                        {
+                            <option value="@t">@Iso6336Material.DisplayName(t)</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Quality grade</label>
+                    <select @bind="gearDraft.Quality" @bind:after="OnGearClassificationChanged">
+                        <option value="@GearQualityGrade.ML">ML - modest demands</option>
+                        <option value="@GearQualityGrade.MQ">MQ - normal demands</option>
+                        <option value="@GearQualityGrade.ME">ME - high demands</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Surface hardness (HV or HBW)</label>
+                    <input type="number" step="1" @bind="gearDraft.SurfaceHardnessIso" @bind:after="OnGearClassificationChanged" />
+                    <small>@gearHardnessScaleNote</small>
+                </div>
+                <div class="form-group">
+                    <label>Yield strength R<sub>e</sub> (MPa)</label>
+                    <input type="number" step="1" @bind="gearDraft.YieldStrength" />
+                    <small>Drives the notch sensitivity Y<sub>δrelT</sub></small>
+                </div>
+                <div class="form-group">
+                    <label>Tensile strength R<sub>m</sub> (MPa)</label>
+                    <input type="number" step="1" @bind="gearDraft.TensileStrength" />
+                </div>
+                <div class="form-group">
+                    <label>Elastic modulus E (GPa)</label>
+                    <input type="number" step="1" @bind="gearDraft.ElasticModulus" />
+                </div>
+                <div class="form-group">
+                    <label>Poisson's ratio ν</label>
+                    <input type="number" step="0.01" @bind="gearDraft.PoissonRatio" />
+                </div>
+            </div>
+
+            <div class="alert" style="margin: 12px 0 0; background: #f8f9fa; padding: 12px; font-size: 13px;">
+                <strong>Derived from the classification:</strong>
+                σ<sub>Hlim</sub> = @gearDraft.ContactFatigueLimit.ToString("F0") MPa,
+                σ<sub>Flim</sub> = @gearDraft.BendingFatigueLimit.ToString("F0") MPa.
+                These come from ISO 6336-5 Table 1 (σ<sub>lim</sub> = A·hardness + B) and are not
+                entered directly — pick the group, grade and hardness that match your grade's
+                certificate and the stress numbers follow.
+                @if (gearStrengthWarning != null)
+                {
+                    <div style="margin-top: 8px; color: #856404;">@gearStrengthWarning</div>
+                }
+            </div>
+
+            @if (gearFormError != null)
+            {
+                <div class="alert alert-danger" style="margin: 12px 0 0;">
+                    <ModuleIcon Type="warning" Size="button" Style="transparent" />
+                    <div>@gearFormError</div>
+                </div>
+            }
+
+            <div class="entry-form-actions">
+                <button class="btn btn-success" @onclick="SaveGearDraft" disabled="@isBusy">
+                    @if (isBusy)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    else
+                    {
+                        <ModuleIcon Type="save" Size="button" Style="transparent" />
+                        <span>Save gear material</span>
+                    }
+                </button>
+                <button class="btn btn-secondary" @onclick="CancelGearDraft" disabled="@isBusy">Cancel</button>
+            </div>
+
+            <small class="entry-form-note">
+                Saved to your account and available in the gear pair calculator's material lists.
+                Shared calculation links carry the grade by name, so someone opening your link
+                without this grade will fall back to their own selection.
+            </small>
+        </div>
+    }
+
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Material</th>
+                    <th>Heat Treatment</th>
+                    <th>ISO 6336-5 Group</th>
+                    <th>Grade</th>
+                    <th>Hardness</th>
+                    <th>σHlim (MPa)</th>
+                    <th>σFlim (MPa)</th>
+                    <th>E (GPa)</th>
+                    <th>Re (MPa)</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var mat in gearMaterials)
+                {
+                    <tr>
+                        <td>
+                            <strong>@mat.Name</strong>
+                            @if (mat.IsCustom)
+                            {
+                                <span class="badge-custom">Mine</span>
+                            }
+                        </td>
+                        <td>@mat.HeatTreatment</td>
+                        <td>@Iso6336Material.DisplayName(mat.Iso6336Type)</td>
+                        <td>@mat.Quality</td>
+                        <td>@mat.SurfaceHardnessIso.ToString("F0")</td>
+                        <td>@mat.ContactFatigueLimit.ToString("F0")</td>
+                        <td>@mat.BendingFatigueLimit.ToString("F0")</td>
+                        <td>@mat.ElasticModulus</td>
+                        <td>@mat.YieldStrength</td>
+                        <td class="row-actions">
+                            @if (mat.IsCustom)
+                            {
+                                if (confirmDeleteGearId == mat.CustomId)
+                                {
+                                    <button class="btn btn-danger btn-sm" @onclick="() => DeleteGear(mat)" disabled="@isBusy">Confirm</button>
+                                    <button class="btn btn-secondary btn-sm" @onclick="() => confirmDeleteGearId = null" disabled="@isBusy">Cancel</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-secondary btn-sm" @onclick="() => StartEditGear(mat)" disabled="@isBusy">Edit</button>
+                                    <button class="btn btn-secondary btn-sm" @onclick="() => confirmDeleteGearId = mat.CustomId">Delete</button>
+                                }
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
 
 
 <style>
@@ -308,6 +486,7 @@
     private ModuleInfo moduleInfo = new();
     private List<Material> materials = new();
     private List<SpringMaterial> springMaterials = new();
+    private List<GearMaterial> gearMaterials = new();
 
     // User-added materials: null draft = form closed.
     private Material? draft;
@@ -316,10 +495,19 @@
     private string? formError;
     private bool isBusy;
 
+    // User-added gear materials, same pattern.
+    private GearMaterial? gearDraft;
+    private string? editingGearId;
+    private string? confirmDeleteGearId;
+    private string? gearFormError;
+    private string? gearStrengthWarning;
+    private string gearHardnessScaleNote = "";
+
     protected override async Task OnInitializedAsync()
     {
         materials = MaterialService.GetMaterials();
         springMaterials = GetSpringMaterials();
+        gearMaterials = GearMaterial.StandardMaterials;
 
         // Load module metadata
         moduleInfo = Metadata.GetModule("materials");
@@ -428,6 +616,147 @@
     }
 
     private void Reload() => materials = MaterialService.GetMaterials();
+
+    // ============ USER-ADDED GEAR MATERIALS ============
+
+    /// <summary>
+    /// A blank gear grade starts as a case-hardened MQ steel, which is what most gear
+    /// grades on this site are, so the user only changes what differs.
+    /// </summary>
+    private void StartNewGear()
+    {
+        editingGearId = null;
+        confirmDeleteGearId = null;
+        gearFormError = null;
+        gearDraft = new GearMaterial
+        {
+            Name = "",
+            HeatTreatment = "Case-hardened",
+            Iso6336Type = GearMaterialType.CaseHardened,
+            Quality = GearQualityGrade.MQ,
+            SurfaceHardnessIso = 700,
+            YieldStrength = 850,
+            TensileStrength = 1200,
+            ElasticModulus = 206,
+            PoissonRatio = 0.3
+        };
+        OnGearClassificationChanged();
+    }
+
+    /// <summary>
+    /// Edits a COPY. Binding the form straight to the list's instance would put
+    /// half-typed values into the gear calculator's dropdown, and a failed save would
+    /// strand them there.
+    /// </summary>
+    private void StartEditGear(GearMaterial material)
+    {
+        editingGearId = material.CustomId;
+        confirmDeleteGearId = null;
+        gearFormError = null;
+        gearDraft = new GearMaterial
+        {
+            CustomId = material.CustomId,
+            Name = material.Name,
+            HeatTreatment = material.HeatTreatment,
+            Iso6336Type = material.Iso6336Type,
+            Quality = material.Quality,
+            SurfaceHardnessIso = material.SurfaceHardnessIso,
+            SurfaceHardness = material.SurfaceHardness,
+            YieldStrength = material.YieldStrength,
+            TensileStrength = material.TensileStrength,
+            ElasticModulus = material.ElasticModulus,
+            PoissonRatio = material.PoissonRatio
+        };
+        OnGearClassificationChanged();
+    }
+
+    /// <summary>
+    /// Re-derives σFlim / σHlim from ISO 6336-5 Table 1 whenever the classification
+    /// changes, so the form shows the stress numbers the grade will actually calculate
+    /// with before it is saved — and surfaces the range warning if the hardness falls
+    /// outside the row's validity.
+    /// </summary>
+    private void OnGearClassificationChanged()
+    {
+        if (gearDraft == null) return;
+
+        var (contactWarning, bendingWarning) = gearDraft.ApplyIso6336Strength();
+        gearStrengthWarning = contactWarning ?? bendingWarning;
+
+        var entry = Iso6336Material.Get(gearDraft.Iso6336Type, GearStressType.Contact,
+                                        gearDraft.Quality, gearDraft.SurfaceHardnessIso);
+        gearHardnessScaleNote = string.IsNullOrEmpty(entry.HardnessScale)
+            ? "No ISO 6336-5 row for this combination"
+            : $"{entry.HardnessScale}, valid {entry.HMin:F0}–{entry.HMax:F0} (Table 1 row {entry.TableRow})";
+    }
+
+    private void CancelGearDraft()
+    {
+        gearDraft = null;
+        editingGearId = null;
+        gearFormError = null;
+    }
+
+    private async Task SaveGearDraft()
+    {
+        if (gearDraft == null) return;
+
+        gearFormError = ValidateGear(gearDraft);
+        if (gearFormError != null) return;
+
+        isBusy = true;
+        var (ok, error) = await Library.SaveGearMaterialAsync(gearDraft);
+        isBusy = false;
+
+        if (!ok)
+        {
+            gearFormError = error ?? "Could not save. Please try again.";
+            return;
+        }
+
+        gearDraft = null;
+        editingGearId = null;
+        ReloadGear();
+    }
+
+    private async Task DeleteGear(GearMaterial material)
+    {
+        if (material.CustomId == null) return;
+
+        isBusy = true;
+        var (ok, error) = await Library.DeleteGearMaterialAsync(material.CustomId);
+        isBusy = false;
+        confirmDeleteGearId = null;
+
+        if (!ok)
+        {
+            gearFormError = error ?? "Could not delete. Please try again.";
+            return;
+        }
+
+        // Deleting the grade currently open in the form would leave an orphaned draft.
+        if (editingGearId == material.CustomId) CancelGearDraft();
+        ReloadGear();
+    }
+
+    private void ReloadGear() => gearMaterials = GearMaterial.StandardMaterials;
+
+    /// <summary>
+    /// The gear engine divides by these, so a zero here surfaces much later as a nonsense
+    /// safety factor rather than an error. Reject it at the source instead.
+    /// </summary>
+    private static string? ValidateGear(GearMaterial m)
+    {
+        if (string.IsNullOrWhiteSpace(m.Name)) return "Give the gear material a name.";
+        if (string.IsNullOrWhiteSpace(m.HeatTreatment)) return "Give the gear material a heat treatment.";
+        if (m.SurfaceHardnessIso <= 0) return "Surface hardness must be greater than zero.";
+        if (m.ElasticModulus <= 0) return "Elastic modulus must be greater than zero.";
+        if (m.PoissonRatio <= 0 || m.PoissonRatio >= 0.5) return "Poisson's ratio must be between 0 and 0.5.";
+        if (m.YieldStrength <= 0) return "Yield strength must be greater than zero.";
+        if (m.ContactFatigueLimit <= 0 || m.BendingFatigueLimit <= 0)
+            return "This material group, quality grade and hardness give no allowable stress. Check the classification.";
+        return null;
+    }
 
     /// <summary>
     /// The engines divide by these, so a zero here surfaces later as a nonsense safety

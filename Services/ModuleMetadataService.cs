@@ -280,14 +280,22 @@ public class ModuleMetadataService
                 Route = "/gear-pair",
                 Category = "Gears",
                 Icon = "⚙️",
-                Description = "Design spur and helical gear pairs. Calculate geometry, bending stress, contact stress, and safety factors according to ISO 6336 and DIN 3990.",
-                Keywords = "spur gear, helical gear, gear design, gear calculation, ISO 6336, DIN 3990, gear strength",
+                Description = "Design spur and helical gear pairs. Calculate geometry, tooth thickness and inspection dimensions, flank tolerances, backlash, bending and contact stress, and safety factors according to ISO 6336, ISO 21771 and ISO 1328-1.",
+                Keywords = "spur gear, helical gear, gear design, gear calculation, ISO 6336, ISO 21771, ISO 1328, DIN 3990, gear strength, backlash, base tangent length, span measurement, measurement over pins, tooth thickness, gear tolerances",
                 RelatedModules = new[] { "materials", "ball-bearing", "key-connection" },
-                // Not verified: KV, KHβ, YF and YS are heavily simplified relative to
-                // ISO 6336, and the load/life factors are approximations. Use for
-                // preliminary sizing only.
-                IsVerified = false,
-                VerificationStandards = new[] { "ISO 6336 (simplified)", "DIN 3990 (simplified)" },
+                // Verified: KV (6336-1 cl.6 Method B), KHβ/KFβ (cl.7.5/7.6), KHα/KFα (cl.8),
+                // YF/YS (6336-3 Method B), ZB/ZD and ZL/Zv/ZR (6336-2 cl.6/12), YNT/ZNT,
+                // YδrelT, YRrelT, YX, ZX, ZW, and σFlim/σHlim from 6336-5 Table 1 are all
+                // the standards' own equations, checked against their published anchor
+                // points; geometry and W_k cross-check against classical table values.
+                // f_sh follows the standard's own approximate method (Eq. 57 + Figure 13)
+                // from four shaft dimensions; it is not a shaft analysis, and the results
+                // say so whenever a representative shaft had to be assumed.
+                // Still OUT OF SCOPE (stated in the results): scuffing (ISO/TR 13989),
+                // micropitting (ISO/TR 15144), tooth flank fracture, and planetary or
+                // internal gear arrangements.
+                IsVerified = true,
+                VerificationStandards = new[] { "ISO 6336-1", "ISO 6336-2", "ISO 6336-3", "ISO 6336-5", "ISO 1328-1", "ISO 21771", "ISO/TR 10064-2" },
                 HasVideo = false
             },
 

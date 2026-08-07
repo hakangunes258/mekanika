@@ -11,7 +11,8 @@ namespace MechanicalCalculatorWeb.Services;
 /// the queries here — the database enforces it.
 ///
 /// <see cref="RefreshAsync"/> pushes the loaded items into the static providers
-/// (today <see cref="MaterialService"/>), so every calculator sees the merged list
+/// (<see cref="MaterialService"/>, <see cref="BearingService"/> and
+/// <see cref="GearMaterial"/>), so every calculator sees the merged list
 /// through the accessor it already uses. It runs once at startup — before the first
 /// render — and again whenever the auth state changes, which keeps every consumer
 /// synchronous. Signed out, it clears the custom items rather than leaving another
@@ -66,6 +67,10 @@ public class CustomLibraryService
                     .Select(i => To<AngularContactBearing>(i, (b, id) => { b.CustomId = id; b.Designation = i.Name; }))
                     .Where(b => b != null)!);
 
+        var gearMaterials = await ListAsync(LibraryItem.KindGearMaterial);
+        GearMaterial.SetCustomGearMaterials(
+            gearMaterials.Select(ToGearMaterial).Where(m => m != null)!);
+
         Changed?.Invoke();
     }
 
@@ -105,6 +110,73 @@ public class CustomLibraryService
 
     private static Material? ToMaterial(LibraryItem item)
         => To<Material>(item, (m, id) => { m.CustomId = id; m.Name = item.Name; });
+
+    // ============ GEAR MATERIALS ============
+
+    /// <summary>
+    /// Creates or updates one custom gear grade and republishes the merged library.
+    /// A non-null <see cref="GearMaterial.CustomId"/> means update.
+    /// </summary>
+    public async Task<(bool ok, string? error)> SaveGearMaterialAsync(GearMaterial material)
+    {
+        var name = material.Name.Trim();
+        var heat = material.HeatTreatment.Trim();
+
+        if (string.IsNullOrEmpty(name))
+            return (false, "Give the gear material a name.");
+        if (string.IsNullOrEmpty(heat))
+            return (false, "Give the gear material a heat treatment.");
+
+        material.Name = name;
+        material.HeatTreatment = heat;
+
+        // The key is the "name - heat treatment" pair, not the name alone: C45 legitimately
+        // appears twice among the built-ins with different treatments, and every stored
+        // reference (share links, saved calculations) resolves by the pair.
+        var label = material.Label;
+        if (GearMaterial.IsBuiltInLabel(label))
+            return (false, $"“{label}” is already a built-in gear material. Change the name or the heat treatment.");
+
+        if (material.SurfaceHardnessIso <= 0)
+            return (false, "Give a surface hardness — the allowable stresses are derived from it.");
+
+        var result = material.CustomId == null
+            ? await InsertAsync(LibraryItem.KindGearMaterial, label, material)
+            : await UpdateAsync(material.CustomId, label, material);
+
+        if (result.ok) await RefreshAsync();
+        return result;
+    }
+
+    /// <summary>Deletes one custom gear grade and republishes the merged library.</summary>
+    public async Task<(bool ok, string? error)> DeleteGearMaterialAsync(string id)
+    {
+        var result = await DeleteAsync(id);
+        if (result.ok) await RefreshAsync();
+        return result;
+    }
+
+    /// <summary>
+    /// The `name` column holds the "Name - HeatTreatment" label, so it is split back apart
+    /// on the way in. A row saved before the label convention, or one with no separator,
+    /// keeps whatever the jsonb carried rather than losing its heat treatment.
+    /// </summary>
+    private static GearMaterial? ToGearMaterial(LibraryItem item)
+        => To<GearMaterial>(item, (m, id) =>
+        {
+            m.CustomId = id;
+
+            int split = item.Name.LastIndexOf(" - ", StringComparison.Ordinal);
+            if (split > 0)
+            {
+                m.Name = item.Name[..split];
+                m.HeatTreatment = item.Name[(split + 3)..];
+            }
+            else if (!string.IsNullOrWhiteSpace(item.Name))
+            {
+                m.Name = item.Name;
+            }
+        });
 
     // ============ BEARINGS ============
 
