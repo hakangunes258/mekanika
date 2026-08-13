@@ -42,14 +42,58 @@
             </div>
 
             <div class="form-group">
-                <label>Application Factor (K<sub>A</sub>)</label>
+                <div class="label-row">
+                    <label>Application Factor (K<sub>A</sub>)</label>
+                    @* Title is rendered as escaped text and Unicode has no subscript A, so the
+                       heading says K_A rather than an entity that would show up verbatim.
+                       Keep Razor comments OUT of a component's attribute list: one placed
+                       between two attributes here compiled cleanly and then rendered nothing
+                       at all - no button, no dialog. *@
+                    <StandardPicker TItem="ApplicationFactorRow"
+                                    Title="Application Factor K_A &#8212; ISO 6336-1 Table A.1"
+                                    ButtonText="From table"
+                                    MaxWidth="820"
+                                    Headers="@(new[] { "Driving machine", "Driven machine", "K<sub>A</sub>" })"
+                                    Items="ApplicationFactorTable"
+                                    IsCurrent="@(r => r.Value == selectedApplicationFactor)"
+                                    OnSelect="ApplyApplicationFactor">
+                        <Intro>
+                            <p style="margin: 0 0 10px;">
+                                K<sub>A</sub> covers the load increase from the working characteristics of
+                                the driving and driven machines. Pick the pair that describes your drive.
+                            </p>
+                            <p style="margin: 0;">
+                                <strong>Driving machine examples.</strong>
+                                Uniform: electric motor, steady steam or gas turbine &#183;
+                                Light shocks: steam or gas turbine with varying load, large frequently
+                                started electric motor &#183;
+                                Moderate shocks: multi-cylinder combustion engine &#183;
+                                Heavy shocks: single-cylinder combustion engine.
+                            </p>
+                        </Intro>
+                        <Row Context="r">
+                            <td>@r.Driving</td>
+                            <td style="text-align: left; font-family: inherit;">@r.Driven</td>
+                            <td>@r.Ka.ToString("F2")</td>
+                        </Row>
+                        <Footer>
+                            Values apply to gears working away from a resonant speed and under
+                            reasonably uniform load. Where the driven machine can stall or the drive is
+                            reversing, ISO 6336-1 requires the peak torque to be checked separately
+                            &#8212; K<sub>A</sub> does not cover it.
+                        </Footer>
+                    </StandardPicker>
+                </div>
                 <select @bind="selectedApplicationFactor" @bind:after="OnApplicationFactorChanged">
-                    <option value="1.0">1.00 - Uniform</option>
-                    <option value="1.25">1.25 - Light shock</option>
-                    <option value="1.35">1.35 - Moderate shock</option>
-                    <option value="1.5">1.50 - Heavy shock</option>
-                    <option value="1.75">1.75 - Very heavy shock</option>
+                    @foreach (var (value, label) in ApplicationFactorChoices)
+                    {
+                        <option value="@value">@label</option>
+                    }
                 </select>
+                <small style="color: #6c757d; font-size: 12px;">
+                    The named cases are the row for a uniform prime mover. For any other drive,
+                    take the value from the table.
+                </small>
             </div>
 
             <div class="form-group">
@@ -69,12 +113,38 @@
             </div>
 
             <div class="form-group">
-                <label>Normal Module (m<sub>n</sub>)</label>
+                <div class="label-row">
+                    <label>Normal Module (m<sub>n</sub>)</label>
+                    <StandardPicker TItem="double"
+                                    Title="Standard Modules &#8212; ISO 54"
+                                    ButtonText="Series"
+                                    MaxWidth="520"
+                                    Headers="@(new[] { "m<sub>n</sub> (mm)", "Reference a for these z", "Series" })"
+                                    Items="GearPairEngine.StandardModules"
+                                    IsCurrent="@(m => Math.Abs(m - engine.NormalModule) < 1e-9)"
+                                    OnSelect="ApplyStandardModule">
+                        <Intro>
+                            <p style="margin: 0;">
+                                The middle column is the reference centre distance
+                                (&#931;x = 0) this module would give with the tooth counts
+                                currently entered, so the choice can be made against the space
+                                available rather than in the abstract.
+                            </p>
+                        </Intro>
+                        <Row Context="m">
+                            <td>@m.ToString("0.###")</td>
+                            <td>@ReferenceCentreFor(m)</td>
+                            <td style="text-align: left; font-family: inherit;">@(IsPreferredModule(m) ? "I (preferred)" : "II")</td>
+                        </Row>
+                        <Footer>
+                            Series I is preferred; series II is used only where series I does not fit.
+                        </Footer>
+                    </StandardPicker>
+                </div>
                 <div class="input-group">
                     <input type="number" step="0.1" @bind="engine.NormalModule" @bind:after="OnGeometryChanged" placeholder="e.g. 1.5" />
                     <span class="unit">mm</span>
                 </div>
-                <small style="color: #6c757d; font-size: 12px;">Standard: 1, 1.25, 1.5, 2, 2.5, 3, 4, 5...</small>
             </div>
 
             <div class="form-group">
@@ -142,26 +212,18 @@
             </div>
 
             <div class="form-group">
-                <label>Quality Grade (ISO 1328)</label>
+                <div class="label-row">
+                    <label>Quality Grade (ISO 1328)</label>
+                    @QualityPicker(1)
+                </div>
                 <select @bind="engine.QualityGrade1">
-                    <option value="4">4 - Ultra precision</option>
-                    <option value="5">5 - Very High</option>
-                    <option value="6">6 - High</option>
-                    <option value="7">7 - Medium</option>
-                    <option value="8">8 - Normal</option>
-                    <option value="9">9 - Low</option>
-                    <option value="10">10 - Coarse</option>
+                    @foreach (var (grade, label) in QualityGradeChoices)
+                    {
+                        <option value="@grade">@label</option>
+                    }
                 </select>
             </div>
 
-            <div class="form-group">
-                <label>Bore Diameter (d<sub>i1</sub>)</label>
-                <div class="input-group">
-                    <input type="number" step="1" min="0" @bind="engine.BoreDiameter1" />
-                    <span class="unit">mm</span>
-                </div>
-                <small style="color: #6c757d; font-size: 12px;">0 = solid blank. Drives the rim thickness factor Y<sub>B</sub>.</small>
-            </div>
         </div>
 
         <!-- Gear 2 (Wheel) Card -->
@@ -197,28 +259,100 @@
             </div>
 
             <div class="form-group">
-                <label>Quality Grade (ISO 1328)</label>
+                <div class="label-row">
+                    <label>Quality Grade (ISO 1328)</label>
+                    @QualityPicker(2)
+                </div>
                 <select @bind="engine.QualityGrade2">
-                    <option value="4">4 - Ultra precision</option>
-                    <option value="5">5 - Very High</option>
-                    <option value="6">6 - High</option>
-                    <option value="7">7 - Medium</option>
-                    <option value="8">8 - Normal</option>
-                    <option value="9">9 - Low</option>
-                    <option value="10">10 - Coarse</option>
+                    @foreach (var (grade, label) in QualityGradeChoices)
+                    {
+                        <option value="@grade">@label</option>
+                    }
                 </select>
             </div>
 
-            <div class="form-group">
-                <label>Bore Diameter (d<sub>i2</sub>)</label>
-                <div class="input-group">
-                    <input type="number" step="1" min="0" @bind="engine.BoreDiameter2" />
-                    <span class="unit">mm</span>
-                </div>
-                <small style="color: #6c757d; font-size: 12px;">0 = solid blank</small>
-            </div>
         </div>
 
+        <!-- Materials Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="material" Size="medium" Style="solid" />
+                <h2>Materials</h2>
+                <StandardPicker TItem="GearMaterial"
+                                Title="Gear Materials &#8212; ISO 6336-5"
+                                ButtonText="Compare"
+                                MaxWidth="900"
+                                Headers="@(new[] { "Grade", "Treatment", "&#963;<sub>Flim</sub>", "&#963;<sub>Hlim</sub>", "Hardness", "Quality" })"
+                                Items="gearMaterials"
+                                IsCurrent="@(m => m.Label == CurrentMaterialLabel)"
+                                OnSelect="ApplyMaterialToBoth">
+                    <Intro>
+                        <p style="margin: 0;">
+                            Allowable stress numbers come from ISO 6336-5 Table 1 for the grade's
+                            material group, quality class and surface hardness &#8212; they are derived,
+                            not stored, so they always agree with the classification. Picking here sets
+                            <strong>both</strong> gears; set them separately below if they differ.
+                        </p>
+                    </Intro>
+                    <Row Context="m">
+                        <td>@m.Name@(m.IsCustom ? " · mine" : "")</td>
+                        <td style="text-align: left; font-family: inherit;">@m.HeatTreatment</td>
+                        <td>@m.BendingFatigueLimit.ToString("F0")</td>
+                        <td>@m.ContactFatigueLimit.ToString("F0")</td>
+                        <td>@m.SurfaceHardnessIso.ToString("F0")</td>
+                        <td>@m.Quality</td>
+                    </Row>
+                    <Footer>
+                        &#963; in MPa, hardness in HV or HBW as ISO 6336-5 Table 1 states it for that row.
+                        Quality ML / MQ / ME is the material and heat-treatment quality class, not the
+                        ISO 1328 tolerance class.
+                    </Footer>
+                </StandardPicker>
+            </div>
+
+            <div class="form-group">
+                <label>Pinion Material</label>
+                <select @bind="selectedMaterial1Index">
+                    @for (int i = 0; i < gearMaterials.Count; i++)
+                    {
+                        <option value="@i">@gearMaterials[i].Label@(gearMaterials[i].IsCustom ? " · mine" : "")</option>
+                    }
+                </select>
+                @if (gearMaterials.Any())
+                {
+                    <div class="material-info">
+                        &#963;<sub>Flim</sub> = @gearMaterials[selectedMaterial1Index].BendingFatigueLimit.ToString("F0") MPa |
+                        &#963;<sub>Hlim</sub> = @gearMaterials[selectedMaterial1Index].ContactFatigueLimit.ToString("F0") MPa
+                        (ISO 6336-5 @gearMaterials[selectedMaterial1Index].Quality, @gearMaterials[selectedMaterial1Index].SurfaceHardnessIso.ToString("F0") HV/HBW)
+                    </div>
+                }
+            </div>
+
+            <div class="form-group">
+                <label>Wheel Material</label>
+                <select @bind="selectedMaterial2Index">
+                    @for (int i = 0; i < gearMaterials.Count; i++)
+                    {
+                        <option value="@i">@gearMaterials[i].Label@(gearMaterials[i].IsCustom ? " · mine" : "")</option>
+                    }
+                </select>
+                @if (gearMaterials.Any())
+                {
+                    <div class="material-info">
+                        &#963;<sub>Flim</sub> = @gearMaterials[selectedMaterial2Index].BendingFatigueLimit.ToString("F0") MPa |
+                        &#963;<sub>Hlim</sub> = @gearMaterials[selectedMaterial2Index].ContactFatigueLimit.ToString("F0") MPa
+                        (ISO 6336-5 @gearMaterials[selectedMaterial2Index].Quality, @gearMaterials[selectedMaterial2Index].SurfaceHardnessIso.ToString("F0") HV/HBW)
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <AdvancedSection Title="Reference Profile &amp; Tip"
+                     Summary="Basic rack proportions and the tip shortening coefficient k.">
+        <State>@ReferenceProfileState</State>
+        <ChildContent>
+    <div class="form-grid">
         <!-- Reference Profile Card -->
         <div class="card">
             <div class="card-header">
@@ -250,8 +384,50 @@
                 </div>
                 <small style="color: #6c757d; font-size: 12px;">ISO 53 profile A: 0.38, profile B: 0.30</small>
             </div>
-        </div>
 
+            <div class="form-group">
+                <label>Tip Alteration (k)</label>
+                <select @bind="engine.TipAlterationMode" @bind:after="OnGeometryChanged">
+                    <option value="@TipAlterationSource.None">None &#8212; full depth, k = 0</option>
+                    <option value="@TipAlterationSource.Calculated">Calculated &#8212; k = y &#8722; &#931;x, keeps the tip clearance</option>
+                    <option value="@TipAlterationSource.Manual">Manual &#8212; enter k</option>
+                </select>
+                <small style="color: #6c757d; font-size: 12px;">
+                    Profile shift moves the teeth out but the centre distance does not follow,
+                    so the tip clearance shrinks. k turns both tips down by k&#183;m<sub>n</sub>
+                    to put it back. It changes d<sub>a</sub>, and through it
+                    &#949;<sub>&#945;</sub> and the tooth form factors.
+                </small>
+            </div>
+
+            @if (engine.TipAlterationMode == TipAlterationSource.Manual)
+            {
+                <div class="form-group">
+                    <label>k</label>
+                    <div class="input-group">
+                        <input type="number" step="0.01" @bind="engine.TipAlterationCoeff" />
+                        <span class="unit">-</span>
+                    </div>
+                    <small style="color: #6c757d; font-size: 12px;">Negative shortens the teeth.</small>
+                </div>
+            }
+            else if (engine.TipAlterationMode == TipAlterationSource.Calculated && PreviewTipAlteration() is { } kPreview)
+            {
+                <div class="alert alert-success" style="margin: 12px 0;">
+                    <span>&#8730;</span>
+                    <div>k = @kPreview.ToString("F4") for the geometry entered above.</div>
+                </div>
+            }
+        </div>
+    </div>
+        </ChildContent>
+    </AdvancedSection>
+
+    <AdvancedSection Title="Tooth Thickness &amp; Backlash"
+                     Summary="How the tooth thickness is specified, the centre distance tolerance, and the measuring ball.">
+        <State>@ToothThicknessState</State>
+        <ChildContent>
+    <div class="form-grid">
         <!-- Tooth Thickness & Backlash Card -->
         <div class="card">
             <div class="card-header">
@@ -260,11 +436,22 @@
             </div>
 
             <div class="form-group">
-                <label>Tooth Thickness Allowances</label>
+                <label>Specify the Tooth Thickness By</label>
                 <select @bind="engine.AllowanceMode">
-                    <option value="@ToothThicknessAllowanceMode.Automatic">Automatic - from ISO/TR 10064-2 minimum backlash</option>
-                    <option value="@ToothThicknessAllowanceMode.Manual">Manual - enter the allowances</option>
+                    <option value="@ToothThicknessAllowanceMode.Automatic">Automatic &#8212; ISO/TR 10064-2 minimum backlash</option>
+                    <option value="@ToothThicknessAllowanceMode.Din3967">DIN 3967 tolerance zone (e.g. 27cd)</option>
+                    <option value="@ToothThicknessAllowanceMode.Manual">Tooth thickness allowance A<sub>sne</sub> / A<sub>sni</sub></option>
+                    <option value="@ToothThicknessAllowanceMode.NormalBacklash">Normal backlash j<sub>bn</sub></option>
+                    <option value="@ToothThicknessAllowanceMode.CircumferentialBacklash">Circumferential backlash j<sub>wt</sub></option>
+                    <option value="@ToothThicknessAllowanceMode.RadialBacklash">Radial backlash j<sub>r</sub></option>
+                    <option value="@ToothThicknessAllowanceMode.SpanLimits">Base tangent length W<sub>k</sub> limits</option>
+                    <option value="@ToothThicknessAllowanceMode.BallLimits">Dimension over balls M<sub>d</sub> limits</option>
                 </select>
+                <small style="color: #6c757d; font-size: 12px;">
+                    All of these end up as the allowances A<sub>sne</sub> / A<sub>sni</sub>; pick whichever
+                    one you actually have. Backlash belongs to the <em>pair</em>, so it also needs a split
+                    rule; W<sub>k</sub> and M<sub>d</sub> are measured on one gear and do not.
+                </small>
             </div>
 
             @if (engine.AllowanceMode == ToothThicknessAllowanceMode.Manual)
@@ -287,32 +474,245 @@
                     </div>
                     <small style="color: #6c757d; font-size: 12px;">
                         Both negative (teeth are thinned from nominal), upper first.
-                        Take them from a DIN 3967 deviation series if you have one.
+                    </small>
+                </div>
+            }
+            else if (engine.AllowanceMode == ToothThicknessAllowanceMode.Din3967)
+            {
+                <div class="form-group">
+                    <div class="label-row">
+                        <label>Allowance Series (A<sub>sne</sub>)</label>
+                        <StandardPicker TItem="Din3967.Result"
+                                        Title="DIN 3967 Allowance Series &#8212; Table 1"
+                                        ButtonText="From table"
+                                        MaxWidth="760"
+                                        Disabled="@Din3967PickerBlocked()"
+                                        DisabledReason="Enter the module and tooth counts first"
+                                        Headers="@(new[] { "Series", "A<sub>sne1</sub>", "A<sub>sni1</sub>", "A<sub>sne2</sub>", "A<sub>sni2</sub>" })"
+                                        Items="@Din3967SeriesRows()"
+                                        IsCurrent="@(r => r.Designation.EndsWith(engine.Din3967AllowanceSeries))"
+                                        OnSelect="ApplyDin3967Series">
+                            <Intro>
+                                <p style="margin: 0 0 8px;">
+                                    Micrometres, for d<sub>1</sub> = @ReferenceDiameterOf(1).ToString("F2") mm
+                                    and d<sub>2</sub> = @ReferenceDiameterOf(2).ToString("F2") mm, with the
+                                    tolerance series set below (@engine.Din3967ToleranceSeries1 /
+                                    @engine.Din3967ToleranceSeries2).
+                                </p>
+                                <p style="margin: 0;">
+                                    Series a is the coarsest, h is zero allowance. Clause 3.1 takes one letter
+                                    for both gears as the rule.
+                                </p>
+                            </Intro>
+                            <Row Context="r">
+                                <td>@SeriesLetterOf(r.Designation)</td>
+                                <td>@r.AsneMicron.ToString("F0")</td>
+                                <td>@r.AsniMicron.ToString("F0")</td>
+                                <td>@(Din3967SecondGear(SeriesLetterOf(r.Designation))?.AsneMicron.ToString("F0") ?? "-")</td>
+                                <td>@(Din3967SecondGear(SeriesLetterOf(r.Designation))?.AsniMicron.ToString("F0") ?? "-")</td>
+                            </Row>
+                            <Footer>
+                                DIN 3967 (August 1978), Tables 1 and 2. The allowances are tabulated; the
+                                backlash that follows is the <em>theoretical</em> one. Clause A.1.2 lists the
+                                effects that sit between the two &#8212; temperature, housing tolerance, bore
+                                parallelism, tooth deviations and elasticity.
+                            </Footer>
+                        </StandardPicker>
+                    </div>
+                    <select @bind="engine.Din3967AllowanceSeries">
+                        @foreach (var letter in Din3967.AllowanceSeries)
+                        {
+                            <option value="@letter">@letter</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Tolerance Series T<sub>sn</sub> (gear 1 / gear 2)</label>
+                    <div class="input-group">
+                        <select @bind="engine.Din3967ToleranceSeries1">
+                            @foreach (var s in Din3967.ToleranceSeries)
+                            {
+                                <option value="@s">@s@(Din3967.IsPreferredToleranceSeries(s) ? " (preferred)" : "")</option>
+                            }
+                        </select>
+                        <select @bind="engine.Din3967ToleranceSeries2" style="margin-left:8px;">
+                            @foreach (var s in Din3967.ToleranceSeries)
+                            {
+                                <option value="@s">@s@(Din3967.IsPreferredToleranceSeries(s) ? " (preferred)" : "")</option>
+                            }
+                        </select>
+                    </div>
+                    <small style="color: #6c757d; font-size: 12px;">
+                        Drawing designation = series number + letter, e.g.
+                        <strong>@engine.Din3967ToleranceSeries1@engine.Din3967AllowanceSeries</strong> and
+                        <strong>@engine.Din3967ToleranceSeries2@engine.Din3967AllowanceSeries</strong>.
+                        A<sub>sni</sub> = A<sub>sne</sub> &#8722; T<sub>sn</sub>.
+                    </small>
+                </div>
+            }
+            else if (IsBacklashMode(engine.AllowanceMode))
+            {
+                <div class="form-group">
+                    <label>@BacklashModeLabel(engine.AllowanceMode) (min / max)</label>
+                    <div class="input-group">
+                        <input type="number" step="1" min="0" @bind="jMinMicron" />
+                        <input type="number" step="1" min="0" @bind="jMaxMicron" style="margin-left:8px;" />
+                        <span class="unit">&#956;m</span>
+                    </div>
+                    <small style="color: #6c757d; font-size: 12px;">
+                        Leave the maximum at 0 to let the tolerance width come from the two gears'
+                        ISO 1328-1 cumulative pitch tolerances F<sub>p</sub>.
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label>Share the Thinning</label>
+                    <select @bind="engine.SplitRule">
+                        <option value="@BacklashSplit.Even">Evenly between both gears</option>
+                        <option value="@BacklashSplit.PinionOnly">All on the pinion</option>
+                        <option value="@BacklashSplit.WheelOnly">All on the wheel</option>
+                    </select>
+                    <small style="color: #6c757d; font-size: 12px;">
+                        A backlash figure fixes only the <em>sum</em> of the two gears' allowances.
+                    </small>
+                </div>
+            }
+            else if (engine.AllowanceMode == ToothThicknessAllowanceMode.SpanLimits)
+            {
+                <div class="form-group">
+                    <label>Gear 1 W<sub>k</sub> (largest / smallest permitted)</label>
+                    <div class="input-group">
+                        <input type="number" step="0.001" min="0" @bind="engine.SpanLimitUpper1" />
+                        <input type="number" step="0.001" min="0" @bind="engine.SpanLimitLower1" style="margin-left:8px;" />
+                        <span class="unit">mm</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Gear 2 W<sub>k</sub> (largest / smallest permitted)</label>
+                    <div class="input-group">
+                        <input type="number" step="0.001" min="0" @bind="engine.SpanLimitUpper2" />
+                        <input type="number" step="0.001" min="0" @bind="engine.SpanLimitLower2" style="margin-left:8px;" />
+                        <span class="unit">mm</span>
+                    </div>
+                    <small style="color: #6c757d; font-size: 12px;">
+                        Both sit <strong>below</strong> the theoretical W<sub>k</sub>, because the teeth are
+                        thinned from nominal. The number of teeth spanned k is chosen by the calculator and
+                        shown in the results.
+                    </small>
+                </div>
+            }
+            else if (engine.AllowanceMode == ToothThicknessAllowanceMode.BallLimits)
+            {
+                <div class="form-group">
+                    <label>Gear 1 M<sub>d</sub> (largest / smallest permitted)</label>
+                    <div class="input-group">
+                        <input type="number" step="0.001" min="0" @bind="engine.BallLimitUpper1" />
+                        <input type="number" step="0.001" min="0" @bind="engine.BallLimitLower1" style="margin-left:8px;" />
+                        <span class="unit">mm</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Gear 2 M<sub>d</sub> (largest / smallest permitted)</label>
+                    <div class="input-group">
+                        <input type="number" step="0.001" min="0" @bind="engine.BallLimitUpper2" />
+                        <input type="number" step="0.001" min="0" @bind="engine.BallLimitLower2" style="margin-left:8px;" />
+                        <span class="unit">mm</span>
+                    </div>
+                    <small style="color: #6c757d; font-size: 12px;">
+                        Measured with the ball diameter set below. Both sit below the theoretical
+                        M<sub>d</sub>.
                     </small>
                 </div>
             }
 
             <div class="form-group">
-                <label>Center Distance Deviation (A<sub>a</sub>)</label>
+                <div class="label-row">
+                    <label>Center Distance Tolerance</label>
+                    <StandardPicker TItem="CentreDistanceFieldRow"
+                                    Title="Centre Distance Tolerance &#8212; ISO 286"
+                                    ButtonText="From table"
+                                    MaxWidth="700"
+                                    Disabled="@(engine.CenterDistance <= 0)"
+                                    DisabledReason="Enter the centre distance first"
+                                    Headers="@(new[] { "Field", "Upper", "Lower", "Total", "Typical housing" })"
+                                    Items="@CentreDistanceFieldRows()"
+                                    IsCurrent="@(r => r.Field == engine.CentreDistanceToleranceField)"
+                                    OnSelect="@(r => engine.CentreDistanceToleranceField = r.Field)">
+                        <Intro>
+                            <p style="margin: 0;">
+                                Deviations at a = @engine.CenterDistance.ToString("F3") mm, in micrometres.
+                                A<sub>a</sub> opens the backlash by
+                                2&#183;A<sub>a</sub>&#183;sin&#945;<sub>wt</sub>&#183;cos&#946;<sub>b</sub>,
+                                so a loose housing costs backlash as directly as thin teeth do.
+                            </p>
+                        </Intro>
+                        <Row Context="r">
+                            <td>@r.Field</td>
+                            <td>@(r.Supported ? r.Upper.ToString("F0") : "-")</td>
+                            <td>@(r.Supported ? r.Lower.ToString("F0") : "-")</td>
+                            <td>@(r.Supported ? (r.Upper - r.Lower).ToString("F0") : "-")</td>
+                            <td style="text-align: left; font-family: inherit;">@r.Use</td>
+                        </Row>
+                        <Footer>
+                            js is symmetrical about the nominal centre distance
+                            (es = &#8722;ei = IT/2). Entering deviations below overrides this choice
+                            &#8212; use that for a housing drawing that is not a plain ISO field.
+                        </Footer>
+                    </StandardPicker>
+                </div>
+                <select @bind="engine.CentreDistanceToleranceField">
+                    @foreach (var field in CentreDistanceFieldOptions)
+                    {
+                        <option value="@field">@field</option>
+                    }
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Center Distance Deviation (A<sub>a</sub>) &#8212; override</label>
                 <div class="input-group">
                     <input type="number" step="1" @bind="aaUpperMicron" />
                     <input type="number" step="1" @bind="aaLowerMicron" style="margin-left:8px;" />
                     <span class="unit">&#956;m</span>
                 </div>
-                <small style="color: #6c757d; font-size: 12px;">Upper / lower. Leave both 0 to use js7 on the center distance.</small>
+                <small style="color: #6c757d; font-size: 12px;">
+                    Upper / lower. Leave both 0 to use the ISO 286 field selected above.
+                </small>
             </div>
 
             <div class="form-group">
-                <label>Ball / Pin Diameter (D<sub>M1</sub> / D<sub>M2</sub>)</label>
-                <div class="input-group">
-                    <input type="number" step="0.1" min="0" @bind="engine.BallDiameter1" />
-                    <input type="number" step="0.1" min="0" @bind="engine.BallDiameter2" style="margin-left:8px;" />
+                <label>Ball / Pin Diameter for M<sub>d</sub></label>
+                <div class="dual-field">
+                    <div class="dual-box">
+                        <span class="dual-cap">Gear 1 (D<sub>M1</sub>)</span>
+                        <input type="number" step="0.1" min="0" @bind="engine.BallDiameter1" />
+                    </div>
+                    <div class="dual-box">
+                        <span class="dual-cap">Gear 2 (D<sub>M2</sub>)</span>
+                        <input type="number" step="0.1" min="0" @bind="engine.BallDiameter2" />
+                    </div>
                     <span class="unit">mm</span>
                 </div>
-                <small style="color: #6c757d; font-size: 12px;">0 = pick the best size for the gear automatically</small>
+                <small style="color: #6c757d; font-size: 12px;">
+                    Two separate gears, not a ratio. The ball is what the dimension over balls
+                    M<sub>d</sub> is measured with, so use the size you actually have &#8212; a bigger
+                    ball sits higher on the flank and reads larger. 0 lets the calculator pick a
+                    best size and it reports both.
+                </small>
             </div>
         </div>
+    </div>
+        </ChildContent>
+    </AdvancedSection>
 
+    <AdvancedSection Title="Load Factor Detail"
+                     Summary="ISO 6336-1 inputs behind K&#7515;, K&#8341;&#946; and K&#8341;&#945; — deviations, shaft deflection, mounting.">
+        <State>@LoadFactorState</State>
+        <ChildContent>
+    <div class="form-grid">
         <!-- Load Factor Detail Card -->
         <div class="card">
             <div class="card-header">
@@ -492,6 +892,15 @@
             </div>
         </div>
 
+    </div>
+        </ChildContent>
+    </AdvancedSection>
+
+    <AdvancedSection Title="Lubrication &amp; Surface"
+                     Summary="Oil viscosity and the roughness that drives Z&#8343; and Y&#7523;&#7523;&#8337;&#8348;.">
+        <State>@LubricationState</State>
+        <ChildContent>
+    <div class="form-grid">
         <!-- Lubrication and surface finish Card -->
         <div class="card">
             <div class="card-header">
@@ -520,10 +929,16 @@
             </div>
 
             <div class="form-group">
-                <label>Flank Roughness after Running-in (R<sub>z1</sub> / R<sub>z2</sub>)</label>
-                <div class="input-group">
-                    <input type="number" step="0.1" min="0.1" @bind="engine.FlankRoughnessRz1" />
-                    <input type="number" step="0.1" min="0.1" @bind="engine.FlankRoughnessRz2" style="margin-left:8px;" />
+                <label>Flank Roughness after Running-in (R<sub>z</sub>)</label>
+                <div class="dual-field">
+                    <div class="dual-box">
+                        <span class="dual-cap">Gear 1</span>
+                        <input type="number" step="0.1" min="0.1" @bind="engine.FlankRoughnessRz1" />
+                    </div>
+                    <div class="dual-box">
+                        <span class="dual-cap">Gear 2</span>
+                        <input type="number" step="0.1" min="0.1" @bind="engine.FlankRoughnessRz2" />
+                    </div>
                     <span class="unit">&#956;m</span>
                 </div>
                 <small style="color: #6c757d; font-size: 12px;">
@@ -532,10 +947,16 @@
             </div>
 
             <div class="form-group">
-                <label>Root Fillet Roughness (R<sub>z1</sub> / R<sub>z2</sub>)</label>
-                <div class="input-group">
-                    <input type="number" step="0.5" min="0.1" @bind="engine.RootRoughnessRz1" />
-                    <input type="number" step="0.5" min="0.1" @bind="engine.RootRoughnessRz2" style="margin-left:8px;" />
+                <label>Root Fillet Roughness (R<sub>z</sub>)</label>
+                <div class="dual-field">
+                    <div class="dual-box">
+                        <span class="dual-cap">Gear 1</span>
+                        <input type="number" step="0.5" min="0.1" @bind="engine.RootRoughnessRz1" />
+                    </div>
+                    <div class="dual-box">
+                        <span class="dual-cap">Gear 2</span>
+                        <input type="number" step="0.5" min="0.1" @bind="engine.RootRoughnessRz2" />
+                    </div>
                     <span class="unit">&#956;m</span>
                 </div>
                 <small style="color: #6c757d; font-size: 12px;">
@@ -543,51 +964,145 @@
                 </small>
             </div>
         </div>
+    </div>
+        </ChildContent>
+    </AdvancedSection>
 
-        <!-- Materials Card -->
+    <AdvancedSection Title="Gear Body"
+                     Summary="The blank under the teeth. Only the rim thickness reaches the calculation.">
+        <State>@GearBodyState</State>
+        <ChildContent>
+    <div class="form-grid">
         <div class="card">
             <div class="card-header">
-                <ModuleIcon Type="material" Size="medium" Style="solid" />
-                <h2>Materials</h2>
+                <ModuleIcon Type="diameter" Size="medium" Style="solid" />
+                <h2>Rim &amp; Bore</h2>
             </div>
 
             <div class="form-group">
-                <label>Pinion Material</label>
-                <select @bind="selectedMaterial1Index">
-                    @for (int i = 0; i < gearMaterials.Count; i++)
-                    {
-                        <option value="@i">@gearMaterials[i].Label@(gearMaterials[i].IsCustom ? " · mine" : "")</option>
-                    }
-                </select>
-                @if (gearMaterials.Any())
-                {
-                    <div class="material-info">
-                        &#963;<sub>Flim</sub> = @gearMaterials[selectedMaterial1Index].BendingFatigueLimit.ToString("F0") MPa |
-                        &#963;<sub>Hlim</sub> = @gearMaterials[selectedMaterial1Index].ContactFatigueLimit.ToString("F0") MPa
-                        (ISO 6336-5 @gearMaterials[selectedMaterial1Index].Quality, @gearMaterials[selectedMaterial1Index].SurfaceHardnessIso.ToString("F0") HV/HBW)
+                <label>Bore Diameter (d<sub>i</sub>)</label>
+                <div class="dual-field">
+                    <div class="dual-box">
+                        <span class="dual-cap">Gear 1</span>
+                        <input type="number" step="1" min="0" @bind="engine.BoreDiameter1" />
                     </div>
-                }
+                    <div class="dual-box">
+                        <span class="dual-cap">Gear 2</span>
+                        <input type="number" step="1" min="0" @bind="engine.BoreDiameter2" />
+                    </div>
+                    <span class="unit">mm</span>
+                </div>
+                <small style="color: #6c757d; font-size: 12px;">
+                    0 = solid blank. This is the only body dimension the calculation uses: it sets the
+                    rim thickness s<sub>R</sub> = (d<sub>f</sub> &#8722; d<sub>i</sub>)/2 and through it the
+                    rim thickness factor Y<sub>B</sub> of ISO 6336-3 Clause 8.
+                </small>
             </div>
 
             <div class="form-group">
-                <label>Wheel Material</label>
-                <select @bind="selectedMaterial2Index">
-                    @for (int i = 0; i < gearMaterials.Count; i++)
-                    {
-                        <option value="@i">@gearMaterials[i].Label@(gearMaterials[i].IsCustom ? " · mine" : "")</option>
-                    }
-                </select>
-                @if (gearMaterials.Any())
-                {
-                    <div class="material-info">
-                        &#963;<sub>Flim</sub> = @gearMaterials[selectedMaterial2Index].BendingFatigueLimit.ToString("F0") MPa |
-                        &#963;<sub>Hlim</sub> = @gearMaterials[selectedMaterial2Index].ContactFatigueLimit.ToString("F0") MPa
-                        (ISO 6336-5 @gearMaterials[selectedMaterial2Index].Quality, @gearMaterials[selectedMaterial2Index].SurfaceHardnessIso.ToString("F0") HV/HBW)
+                <label>Blank Type</label>
+                <div class="dual-field">
+                    <div class="dual-box">
+                        <span class="dual-cap">Gear 1</span>
+                        <select @bind="blankType1">
+                            <option value="Solid">Solid disc</option>
+                            <option value="Webbed">Rim + web + hub</option>
+                        </select>
                     </div>
-                }
+                    <div class="dual-box">
+                        <span class="dual-cap">Gear 2</span>
+                        <select @bind="blankType2">
+                            <option value="Solid">Solid disc</option>
+                            <option value="Webbed">Rim + web + hub</option>
+                        </select>
+                    </div>
+                </div>
+                <small style="color: #6c757d; font-size: 12px;">
+                    From here down the values shape the <strong>3D model only</strong> &#8212; ISO 6336
+                    knows nothing about the hub or the web, so none of them move a safety factor.
+                </small>
             </div>
+
+            @if (blankType1 == "Webbed" || blankType2 == "Webbed")
+            {
+                <div class="form-group">
+                    <label>Rim Inner &#216; (d<sub>R</sub>)</label>
+                    <div class="dual-field">
+                        <div class="dual-box">
+                            <span class="dual-cap">Gear 1</span>
+                            <input type="number" step="1" min="0" @bind="rimInnerDia1" disabled="@(blankType1 != "Webbed")" />
+                        </div>
+                        <div class="dual-box">
+                            <span class="dual-cap">Gear 2</span>
+                            <input type="number" step="1" min="0" @bind="rimInnerDia2" disabled="@(blankType2 != "Webbed")" />
+                        </div>
+                        <span class="unit">mm</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Hub &#216; (d<sub>N</sub>)</label>
+                    <div class="dual-field">
+                        <div class="dual-box">
+                            <span class="dual-cap">Gear 1</span>
+                            <input type="number" step="1" min="0" @bind="hubDia1" disabled="@(blankType1 != "Webbed")" />
+                        </div>
+                        <div class="dual-box">
+                            <span class="dual-cap">Gear 2</span>
+                            <input type="number" step="1" min="0" @bind="hubDia2" disabled="@(blankType2 != "Webbed")" />
+                        </div>
+                        <span class="unit">mm</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Web Thickness (s<sub>W</sub>)</label>
+                    <div class="dual-field">
+                        <div class="dual-box">
+                            <span class="dual-cap">Gear 1</span>
+                            <input type="number" step="1" min="0" @bind="webThickness1" disabled="@(blankType1 != "Webbed")" />
+                        </div>
+                        <div class="dual-box">
+                            <span class="dual-cap">Gear 2</span>
+                            <input type="number" step="1" min="0" @bind="webThickness2" disabled="@(blankType2 != "Webbed")" />
+                        </div>
+                        <span class="unit">mm</span>
+                    </div>
+                    <small style="color: #6c757d; font-size: 12px;">
+                        Must be less than the face width, or the web fills the blank and the rim
+                        reads as solid.
+                    </small>
+                </div>
+            }
+
+            @if (RimPreview(1) is { } r1 && RimPreview(2) is { } r2)
+            {
+                <div class="alert @(r1.yb > 1.0 || r2.yb > 1.0 ? "alert-warning" : "alert-info")" style="margin: 12px 0;">
+                    <ModuleIcon Type="info" Size="small" Style="default" CustomStyle="margin-right: 8px;" />
+                    <div>
+                        s<sub>R</sub>/m<sub>n</sub> = @r1.ratio.ToString("F2") / @r2.ratio.ToString("F2")
+                        &#8594; Y<sub>B</sub> = @r1.yb.ToString("F3") / @r2.yb.ToString("F3").
+                        @if (r1.yb > 1.0 || r2.yb > 1.0)
+                        {
+                            <text>
+                                A thin rim lets the root bend as part of the rim, so the root stress is
+                                raised by this factor.
+                            </text>
+                        }
+                        else
+                        {
+                            <text>
+                                Above s<sub>R</sub>/m<sub>n</sub> = 1.2 the rim is thick enough that
+                                Y<sub>B</sub> = 1 and the bore changes nothing.
+                            </text>
+                        }
+                    </div>
+                </div>
+            }
         </div>
     </div>
+        </ChildContent>
+    </AdvancedSection>
 
     <div class="button-group">
         <button class="btn btn-success btn-lg @(isCalculating ? "btn-calculating" : "")" @onclick="Calculate" disabled="@isCalculating">
@@ -629,6 +1144,7 @@ else
                 <span>Save as PDF</span>
             }
         </button>
+        <Viewer3D Module="gear-pair" Parameters="@Build3dParameters()" />
         <ShareCalculation Module="gear-pair" State="@BuildShareState()" />
         <SaveCalculation Module="gear-pair" State="@BuildShareState()" />
     </div>
@@ -696,11 +1212,34 @@ else
                     <tr><td>Addendum</td><td>h<sub>a</sub></td><td>@engine.Addendum1.ToString("F3")</td><td>@engine.Addendum2.ToString("F3")</td><td>mm</td></tr>
                     <tr><td>Dedendum</td><td>h<sub>f</sub></td><td>@engine.Dedendum1.ToString("F3")</td><td>@engine.Dedendum2.ToString("F3")</td><td>mm</td></tr>
                     <tr><td>Tooth Height</td><td>h</td><td colspan="2">@engine.ToothHeight.ToString("F3")</td><td>mm</td></tr>
+                    <tr class="@(engine.TipAlterationCoeff != 0 ? "highlight" : "")">
+                        <td>Tip Alteration Coefficient</td><td>k</td>
+                        <td colspan="2">@engine.TipAlterationCoeff.ToString("F4")</td><td>-</td>
+                    </tr>
                     <tr class="@(engine.TipClearance < 0.1 * engine.NormalModule ? "danger" : engine.TipClearance < 0.2 * engine.NormalModule ? "warning" : "")">
                         <td>Tip Clearance (working)</td><td>c</td><td colspan="2">@engine.TipClearance.ToString("F3")</td><td>mm</td>
                     </tr>
                 </tbody>
             </table>
+            @if (engine.TipAlterationNote != null)
+            {
+                <div class="alert alert-info" style="margin: 16px;">
+                    <ModuleIcon Type="info" Size="small" Style="default" CustomStyle="margin-right: 8px;" />
+                    <div>@engine.TipAlterationNote</div>
+                </div>
+            }
+            else if (engine.TipAlterationMode == TipAlterationSource.None && engine.TipClearance < 0.2 * engine.NormalModule)
+            {
+                <div class="alert alert-warning" style="margin: 16px;">
+                    <ModuleIcon Type="warning" Size="small" Style="default" CustomStyle="margin-right: 8px;" />
+                    <div>
+                        The tip clearance is tight and no tip alteration is applied. Setting
+                        <strong>Tip Alteration</strong> to <em>Calculated</em> on the input form turns both
+                        tips down by k&#183;m<sub>n</sub> and restores the reference profile's clearance
+                        of @((engine.DedendumCoeff - engine.AddendumCoeff).ToString("F2"))&#183;m<sub>n</sub>.
+                    </div>
+                </div>
+            }
             @if (engine.TipClearance < 0.1 * engine.NormalModule)
             {
                 <div class="alert alert-danger" style="margin: 16px;">
@@ -1018,6 +1557,13 @@ else
                     </div>
                 }
 
+                @if (engine.CentreDistanceNote != null)
+                {
+                    <div class="alert" style="margin: 16px; background: #f8f9fa; padding: 12px; font-size: 13px;">
+                        <strong>Center distance:</strong> @engine.CentreDistanceNote
+                    </div>
+                }
+
                 <div class="alert" style="margin: 16px; background: #f8f9fa; padding: 12px; font-size: 13px;">
                     Backlash follows from the tooth thickness allowances and the center distance deviation:
                     j<sub>bn</sub> = &#8722;(A<sub>sn1</sub> + A<sub>sn2</sub>)&#183;cos&#945;<sub>n</sub> +
@@ -1322,11 +1868,432 @@ else
     private double asne1Micron, asni1Micron, asne2Micron, asni2Micron;
     private double aaUpperMicron, aaLowerMicron;
 
+    /// <summary>Target backlash, in whichever quantity the allowance mode selects (µm).</summary>
+    private double jMinMicron, jMaxMicron;
+
+    // Gear blank shape. MODEL ONLY - none of these reach GearPairEngine, which is why they
+    // live on the page rather than on the engine. They feed the 3D viewer, and the bore
+    // (which IS an engine input, through Y_B) sits alongside them on the form.
+    private string blankType1 = "Solid", blankType2 = "Solid";
+    private double rimInnerDia1, rimInnerDia2;
+    private double hubDia1, hubDia2;
+    private double webThickness1, webThickness2;
+
+    /// <summary>Blank types offered by the dropdowns; a link carrying anything else falls back to Solid.</summary>
+    private static readonly string[] BlankTypeOptions = { "Solid", "Webbed" };
+
+    private static bool IsBacklashMode(ToothThicknessAllowanceMode mode)
+        => mode is ToothThicknessAllowanceMode.NormalBacklash
+                or ToothThicknessAllowanceMode.CircumferentialBacklash
+                or ToothThicknessAllowanceMode.RadialBacklash;
+
+    private static MarkupString BacklashModeLabel(ToothThicknessAllowanceMode mode) => (MarkupString)(mode switch
+    {
+        ToothThicknessAllowanceMode.CircumferentialBacklash => "Circumferential Backlash j<sub>wt</sub>",
+        ToothThicknessAllowanceMode.RadialBacklash => "Radial Backlash j<sub>r</sub>",
+        _ => "Normal Backlash j<sub>bn</sub>"
+    });
+
+    // ============ STANDARD PICKER DATA ============
+
+    /// <summary>
+    /// The K_A dropdown. Values are every distinct entry of ISO 6336-1 Table A.1, so the
+    /// picker can always write back a value the select can render.
+    ///
+    /// Only the four cases in the table's *uniform prime mover* row carry a name; the rest
+    /// belong to combinations that cannot be described by the driven machine alone. The
+    /// earlier list named 1.35 "moderate shock" and 1.5 "heavy shock", which is not what
+    /// Table A.1 says - the names below follow the table.
+    /// </summary>
+    private static readonly (string Value, string Label)[] ApplicationFactorChoices =
+    {
+        ("1.0",  "1.00 - Uniform"),
+        ("1.1",  "1.10"),
+        ("1.25", "1.25 - Light shocks"),
+        ("1.35", "1.35"),
+        ("1.5",  "1.50 - Moderate shocks"),
+        ("1.6",  "1.60"),
+        ("1.75", "1.75 - Heavy shocks"),
+        ("1.85", "1.85"),
+        ("2.0",  "2.00"),
+        ("2.25", "2.25")
+    };
+
     /// <summary>Application factors offered by the dropdown. A link carrying anything else falls back to 1.0.</summary>
-    private static readonly string[] ApplicationFactorOptions = { "1.0", "1.25", "1.35", "1.5", "1.75" };
+    private static readonly string[] ApplicationFactorOptions =
+        ApplicationFactorChoices.Select(c => c.Value).ToArray();
 
     /// <summary>Quality grades offered by the dropdowns; an out-of-range link falls back to 6.</summary>
-    private static readonly int[] QualityGradeOptions = { 4, 5, 6, 7, 8, 9, 10 };
+    private static readonly (int Grade, string Label)[] QualityGradeChoices =
+    {
+        (4,  "4 - Ultra precision"),
+        (5,  "5 - Very High"),
+        (6,  "6 - High"),
+        (7,  "7 - Medium"),
+        (8,  "8 - Normal"),
+        (9,  "9 - Low"),
+        (10, "10 - Coarse")
+    };
+
+    /// <inheritdoc cref="QualityGradeChoices"/>
+    private static readonly int[] QualityGradeOptions =
+        QualityGradeChoices.Select(c => c.Grade).ToArray();
+
+    /// <summary>One cell of ISO 6336-1 Table A.1.</summary>
+    private record ApplicationFactorRow(string Driving, string Driven, double Ka, string Value);
+
+    /// <summary>
+    /// ISO 6336-1:2006 Annex A, Table A.1. Flattened to one row per cell so each row is a
+    /// single choice; the matrix form would need cell-level selection.
+    /// </summary>
+    private static readonly ApplicationFactorRow[] ApplicationFactorTable = BuildApplicationFactorTable();
+
+    private static ApplicationFactorRow[] BuildApplicationFactorTable()
+    {
+        string[] driving = { "Uniform", "Light shocks", "Moderate shocks", "Heavy shocks" };
+        string[] driven = { "Uniform", "Light shocks", "Moderate shocks", "Heavy shocks" };
+
+        // Table A.1, row by row. The standard notes that the bottom-right case may need a
+        // higher value still, which is why 2.25 is a floor rather than a ceiling.
+        double[,] ka =
+        {
+            { 1.00, 1.25, 1.50, 1.75 },
+            { 1.10, 1.35, 1.60, 1.85 },
+            { 1.25, 1.50, 1.75, 2.00 },
+            { 1.50, 1.75, 2.00, 2.25 }
+        };
+
+        var rows = new List<ApplicationFactorRow>();
+        for (int i = 0; i < driving.Length; i++)
+        {
+            for (int j = 0; j < driven.Length; j++)
+            {
+                double value = ka[i, j];
+
+                // Match the dropdown's own string for this value rather than formatting a new
+                // one: a value the select cannot find renders as a blank field.
+                string option = ApplicationFactorChoices
+                    .First(c => Math.Abs(double.Parse(c.Value, System.Globalization.CultureInfo.InvariantCulture) - value) < 1e-9)
+                    .Value;
+
+                rows.Add(new ApplicationFactorRow(driving[i], driven[j], value, option));
+            }
+        }
+        return rows.ToArray();
+    }
+
+    private void ApplyApplicationFactor(ApplicationFactorRow row)
+    {
+        selectedApplicationFactor = row.Value;
+        OnApplicationFactorChanged();
+    }
+
+    /// <summary>One tolerance class of ISO 1328-1, evaluated for the gear being edited.</summary>
+    private record QualityRow(int Grade, Iso1328Tolerance.Tolerances T);
+
+    // --- Advanced section state lines ---------------------------------------
+    // A collapsed section still has to say what it is doing to the calculation, so each of
+    // these is a one-line digest of the values inside it.
+
+    private string ReferenceProfileState =>
+        $"h*aP {engine.AddendumCoeff:F2} · h*fP {engine.DedendumCoeff:F2} · ρ*fP {engine.RootRadiusCoeff:F2} · "
+        + engine.TipAlterationMode switch
+        {
+            TipAlterationSource.Calculated => $"k calculated ({PreviewTipAlteration()?.ToString("F4") ?? "—"})",
+            TipAlterationSource.Manual => $"k = {engine.TipAlterationCoeff:F4}",
+            _ => "no tip alteration"
+        };
+
+    private string ToothThicknessState
+    {
+        get
+        {
+            string how = engine.AllowanceMode switch
+            {
+                ToothThicknessAllowanceMode.Automatic => "ISO/TR 10064-2 minimum backlash",
+                ToothThicknessAllowanceMode.Manual => "allowances entered",
+                ToothThicknessAllowanceMode.Din3967 =>
+                    $"DIN 3967 {engine.Din3967ToleranceSeries1}{engine.Din3967AllowanceSeries} / "
+                    + $"{engine.Din3967ToleranceSeries2}{engine.Din3967AllowanceSeries}",
+                ToothThicknessAllowanceMode.NormalBacklash => $"j_bn {jMinMicron:F0}–{jMaxMicron:F0} µm",
+                ToothThicknessAllowanceMode.CircumferentialBacklash => $"j_wt {jMinMicron:F0}–{jMaxMicron:F0} µm",
+                ToothThicknessAllowanceMode.RadialBacklash => $"j_r {jMinMicron:F0}–{jMaxMicron:F0} µm",
+                ToothThicknessAllowanceMode.SpanLimits => "from W_k limits",
+                ToothThicknessAllowanceMode.BallLimits => "from M_d limits",
+                _ => ""
+            };
+
+            string aa = aaUpperMicron != 0 || aaLowerMicron != 0
+                ? $"A_a {aaUpperMicron:F0}/{aaLowerMicron:F0} µm"
+                : engine.CentreDistanceToleranceField;
+
+            return $"{how} · {aa}";
+        }
+    }
+
+    private string LoadFactorState
+    {
+        get
+        {
+            string kh = engine.UseDirectFaceLoadFactor
+                ? $"K_Hβ = {engine.DirectKHbeta:F2} entered"
+                : engine.FshSource switch
+                {
+                    ShaftDeflectionSource.Calculated => "f_sh calculated",
+                    ShaftDeflectionSource.Manual => $"f_sh = {engine.ShaftDeflectionFsh:F1} µm",
+                    _ => "f_sh neglected"
+                };
+
+            string dev = engine.UseMeasuredDeviations ? "measured deviations" : "deviations from the class";
+            return $"{kh} · {dev}";
+        }
+    }
+
+    private string LubricationState =>
+        $"{(selectedViscosityGrade == "custom" ? $"ν40 = {engine.LubricantViscosity40:F0}" : selectedViscosityGrade)}"
+        + $" · flank Rz {engine.FlankRoughnessRz1:F1}/{engine.FlankRoughnessRz2:F1} µm";
+
+    private string GearBodyState
+    {
+        get
+        {
+            if (engine.BoreDiameter1 <= 0 && engine.BoreDiameter2 <= 0) return "solid blanks, Y_B = 1";
+
+            var r1 = RimPreview(1);
+            var r2 = RimPreview(2);
+            if (r1 is null || r2 is null) return "bore entered";
+            return $"Y_B = {r1.Value.yb:F3} / {r2.Value.yb:F3}";
+        }
+    }
+
+    /// <summary>
+    /// Rim thickness and Y_B as the engine would compute them, shown while the user is still
+    /// filling the form. Mirrors GearPairEngine.RimThicknessFactor — keep the two in step.
+    /// </summary>
+    private (double sR, double ratio, double yb)? RimPreview(int gear)
+    {
+        double bore = gear == 1 ? engine.BoreDiameter1 : engine.BoreDiameter2;
+        double d = ReferenceDiameterOf(gear);
+        double x = gear == 1 ? engine.ProfileShiftCoeff1 : engine.ProfileShiftCoeff2;
+
+        if (bore <= 0 || d <= 0 || engine.NormalModule <= 0) return null;
+
+        double df = d - 2.0 * engine.NormalModule * (engine.DedendumCoeff - x);
+        double sR = (df - bore) / 2.0;
+        if (sR <= 0) return null;
+
+        double ratio = sR / engine.NormalModule;
+        double yb = ratio >= 1.2 ? 1.0 : 1.6 * Math.Log(2.242 / Math.Max(ratio, 0.5));
+        return (sR, ratio, yb);
+    }
+
+    /// <summary>
+    /// Geometry handed to BUILDERS['gear-pair'] in wwwroot/js/viewer3d.js.
+    ///
+    /// These are the ENGINE's own diameters, not a redrawing of the nominal gear, so the
+    /// model shows this calculation - profile shift, tip alteration and all. Keys are read
+    /// case-insensitively at the JS end (see caseInsensitiveParams), but they are written in
+    /// the camelCase the Web serialiser produces anyway.
+    /// </summary>
+    private object Build3dParameters() => new
+    {
+        mn = engine.NormalModule,
+        alphaN = engine.PressureAngle,
+        beta = engine.HelixAngle,
+        a = engine.CenterDistance,
+        z1 = engine.NumberOfTeeth1,
+        z2 = engine.NumberOfTeeth2,
+        x1 = engine.ProfileShiftCoeff1,
+        x2 = engine.ProfileShiftCoeff2,
+        b1 = engine.FaceWidth1,
+        b2 = engine.FaceWidth2,
+        d1 = engine.ReferenceDiameter1,
+        d2 = engine.ReferenceDiameter2,
+        da1 = engine.TipDiameter1,
+        da2 = engine.TipDiameter2,
+        df1 = engine.RootDiameter1,
+        df2 = engine.RootDiameter2,
+        di1 = engine.BoreDiameter1,
+        di2 = engine.BoreDiameter2,
+        blank1 = blankType1,
+        blank2 = blankType2,
+        rim1 = rimInnerDia1,
+        rim2 = rimInnerDia2,
+        hub1 = hubDia1,
+        hub2 = hubDia2,
+        web1 = webThickness1,
+        web2 = webThickness2
+    };
+
+    // --- Modules --------------------------------------------------------------
+
+    /// <summary>
+    /// ISO 54 series I — the preferred modules. Everything else in
+    /// <see cref="GearPairEngine.StandardModules"/> is series II, used only where series I
+    /// will not fit.
+    /// </summary>
+    private static readonly double[] PreferredModules =
+        { 0.5, 0.6, 0.8, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0, 12.0, 16.0, 20.0 };
+
+    private static bool IsPreferredModule(double m)
+        => PreferredModules.Any(p => Math.Abs(p - m) < 1e-9);
+
+    /// <summary>The reference centre distance this module would give with the current z1, z2.</summary>
+    private string ReferenceCentreFor(double module)
+    {
+        if (engine.NumberOfTeeth1 <= 0 || engine.NumberOfTeeth2 <= 0) return "-";
+        double mt = module / Math.Cos(engine.HelixAngle * Math.PI / 180.0);
+        return (mt * (engine.NumberOfTeeth1 + engine.NumberOfTeeth2) / 2.0).ToString("F2") + " mm";
+    }
+
+    private void ApplyStandardModule(double module)
+    {
+        engine.NormalModule = module;
+        OnGeometryChanged();
+    }
+
+    // --- Materials ------------------------------------------------------------
+
+    /// <summary>Label of the pinion material, or null when the two gears differ.</summary>
+    private string? CurrentMaterialLabel =>
+        selectedMaterial1Index == selectedMaterial2Index && gearMaterials.Any()
+            ? gearMaterials[selectedMaterial1Index].Label
+            : null;
+
+    /// <summary>
+    /// The picker sets both gears: a mixed pair is the exception, and the two selects below
+    /// are still there for it.
+    /// </summary>
+    private void ApplyMaterialToBoth(GearMaterial material)
+    {
+        int index = gearMaterials.FindIndex(m => m.Label == material.Label);
+        if (index < 0) return;
+        selectedMaterial1Index = index;
+        selectedMaterial2Index = index;
+    }
+
+    // --- DIN 3967 ---
+
+    private bool Din3967PickerBlocked()
+        => engine.NormalModule <= 0 || engine.NumberOfTeeth1 <= 0 || engine.NumberOfTeeth2 <= 0;
+
+    /// <summary>Table 1 evaluated for the pinion; the wheel's columns come from <see cref="Din3967SecondGear"/>.</summary>
+    private IEnumerable<Din3967.Result> Din3967SeriesRows()
+        => Din3967.AllZones(engine.Din3967ToleranceSeries1, ReferenceDiameterOf(1));
+
+    private Din3967.Result? Din3967SecondGear(string letter)
+        => Din3967.Allowances(engine.Din3967ToleranceSeries2, letter, ReferenceDiameterOf(2));
+
+    /// <summary>"27cd" -> "cd". The designation is series number then letter (Clause 3.4).</summary>
+    private static string SeriesLetterOf(string designation)
+        => new(designation.SkipWhile(char.IsDigit).ToArray());
+
+    private void ApplyDin3967Series(Din3967.Result row)
+        => engine.Din3967AllowanceSeries = SeriesLetterOf(row.Designation);
+
+    /// <summary>ISO 286 fields offered for the centre distance. A link carrying anything else falls back to js7.</summary>
+    private static readonly string[] CentreDistanceFieldOptions =
+        { "js6", "js7", "js8", "js9", "js10", "H7", "H8" };
+
+    /// <summary>One ISO 286 field evaluated at the current centre distance.</summary>
+    private record CentreDistanceFieldRow(string Field, double Upper, double Lower, bool Supported, string Use);
+
+    private IEnumerable<CentreDistanceFieldRow> CentreDistanceFieldRows()
+    {
+        var uses = new Dictionary<string, string>
+        {
+            ["js6"] = "Precision, ground bores",
+            ["js7"] = "Machined housing — the usual choice",
+            ["js8"] = "General machined housing",
+            ["js9"] = "Cast or fabricated housing",
+            ["js10"] = "Coarse / non-critical drive",
+            ["H7"] = "Bore fit, one-sided",
+            ["H8"] = "Bore fit, one-sided, coarser"
+        };
+
+        foreach (var field in CentreDistanceFieldOptions)
+        {
+            var dev = Iso286.TryGetDeviations(field, engine.CenterDistance);
+            yield return new CentreDistanceFieldRow(
+                field, dev?.upper ?? 0, dev?.lower ?? 0, dev != null, uses[field]);
+        }
+    }
+
+    private int TeethOf(int gear) => gear == 1 ? engine.NumberOfTeeth1 : engine.NumberOfTeeth2;
+
+    private double FaceWidthOf(int gear) => gear == 1 ? engine.FaceWidth1 : engine.FaceWidth2;
+
+    /// <summary>
+    /// d = mn z / cos(beta). The engine only fills ReferenceDiameter1/2 during Calculate(),
+    /// and the picker has to work while the form is still being filled in.
+    /// </summary>
+    private double ReferenceDiameterOf(int gear)
+    {
+        double cosBeta = Math.Cos(engine.HelixAngle * Math.PI / 180.0);
+        return cosBeta > 1e-9 ? engine.NormalModule * TeethOf(gear) / cosBeta : 0;
+    }
+
+    private bool QualityPickerBlocked(int gear)
+        => engine.NormalModule <= 0 || TeethOf(gear) <= 0 || FaceWidthOf(gear) <= 0;
+
+    private IEnumerable<QualityRow> QualityRows(int gear)
+    {
+        double d = ReferenceDiameterOf(gear);
+        foreach (var (grade, _) in QualityGradeChoices)
+        {
+            yield return new QualityRow(grade, Iso1328Tolerance.Calculate(
+                grade, d, engine.NormalModule, FaceWidthOf(gear), TeethOf(gear), engine.HelixAngle));
+        }
+    }
+
+    private void SetQualityGrade(int gear, int grade)
+    {
+        if (gear == 1) engine.QualityGrade1 = grade;
+        else engine.QualityGrade2 = grade;
+    }
+
+    /// <summary>
+    /// The tolerance-class picker. Unlike a static table this one is computed from the gear
+    /// the user is editing, so the choice is made against the actual micrometres rather than
+    /// against words like "High".
+    /// </summary>
+    private RenderFragment QualityPicker(int gear) => @<StandardPicker TItem="QualityRow"
+        Title="@($"Flank Tolerances — ISO 1328-1:2013, gear {gear}")"
+        ButtonText="Compare"
+        MaxWidth="880"
+        Disabled="@QualityPickerBlocked(gear)"
+        DisabledReason="Enter the normal module, number of teeth and face width first"
+        Headers="@(new[] { "Class", "f<sub>pt</sub>", "F<sub>p</sub>", "f<sub>f&#945;</sub>", "F<sub>&#945;</sub>", "f<sub>H&#946;</sub>", "F<sub>&#946;</sub>" })"
+        Items="@QualityRows(gear)"
+        IsCurrent="@(r => r.Grade == (gear == 1 ? engine.QualityGrade1 : engine.QualityGrade2))"
+        OnSelect="@(r => SetQualityGrade(gear, r.Grade))">
+        <Intro>
+            <p style="margin: 0 0 8px;">
+                Tolerances in micrometres for
+                d = @ReferenceDiameterOf(gear).ToString("F2") mm,
+                m<sub>n</sub> = @engine.NormalModule.ToString("F2") mm,
+                b = @FaceWidthOf(gear).ToString("F1") mm,
+                z = @TeethOf(gear).
+            </p>
+            <p style="margin: 0;">
+                A class costs roughly &#8730;2 in tolerance per step, and the wheel's deviations
+                drive the dynamic factor K<sub>V</sub> and the face load factor K<sub>H&#946;</sub>
+                &#8212; so this is a strength decision, not only a manufacturing one.
+            </p>
+        </Intro>
+        <Row Context="r">
+            <td>@r.Grade</td>
+            <td>@r.T.SinglePitch.ToString("F1")</td>
+            <td>@r.T.CumulativePitch.ToString("F1")</td>
+            <td>@r.T.ProfileForm.ToString("F1")</td>
+            <td>@r.T.ProfileTotal.ToString("F1")</td>
+            <td>@r.T.HelixSlope.ToString("F1")</td>
+            <td>@r.T.HelixTotal.ToString("F1")</td>
+        </Row>
+        <Footer>
+            @Iso1328Tolerance.EditionMismatchNote
+        </Footer>
+    </StandardPicker>;
 
     protected override void OnInitialized()
     {
@@ -1367,6 +2334,9 @@ else
         selectedViscosityGrade = "VG 220";
         asne1Micron = asni1Micron = asne2Micron = asni2Micron = 0;
         aaUpperMicron = aaLowerMicron = 0;
+        jMinMicron = jMaxMicron = 0;
+        blankType1 = blankType2 = "Solid";
+        rimInnerDia1 = rimInnerDia2 = hubDia1 = hubDia2 = webThickness1 = webThickness2 = 0;
     }
 
     private void OnViscosityGradeChanged()
@@ -1395,6 +2365,18 @@ else
         {
             engine.CalculateProfileShift2();
         }
+    }
+
+    /// <summary>
+    /// k as the engine would derive it, shown on the input form so the choice is not blind.
+    /// Same expression as GearPairEngine.CalculateTipAlteration; Σx is already current because
+    /// OnGeometryChanged calls CalculateProfileShift2.
+    /// </summary>
+    private double? PreviewTipAlteration()
+    {
+        double ad = engine.ReferenceCentreDistance();
+        if (ad <= 0 || engine.NormalModule <= 0 || engine.CenterDistance <= 0) return null;
+        return (engine.CenterDistance - ad) / engine.NormalModule - engine.SumProfileShift;
     }
 
     private void UseReferenceCentreDistance()
@@ -1450,13 +2432,14 @@ else
         engine.Asni2 = asni2Micron / 1000.0;
         engine.CentreDistanceUpperDev = aaUpperMicron / 1000.0;
         engine.CentreDistanceLowerDev = aaLowerMicron / 1000.0;
+        engine.TargetBacklashMin = jMinMicron / 1000.0;
+        engine.TargetBacklashMax = jMaxMicron / 1000.0;
 
         engine.Calculate();
 
-        // In automatic mode the engine derives the allowances, so mirror them back into
-        // the form fields: switching to manual then starts from the derived values
-        // instead of from zero.
-        if (engine.AllowanceMode == ToothThicknessAllowanceMode.Automatic)
+        // Every mode except Manual derives the allowances, so mirror them back into the form
+        // fields: switching to Manual then starts from the derived values instead of zero.
+        if (engine.AllowanceMode != ToothThicknessAllowanceMode.Manual)
         {
             asne1Micron = Math.Round(engine.Asne1 * 1000.0, 1);
             asni1Micron = Math.Round(engine.Asni1 * 1000.0, 1);
@@ -1505,17 +2488,42 @@ else
         .Set("ha", engine.AddendumCoeff)
         .Set("hf", engine.DedendumCoeff)
         .Set("rf", engine.RootRadiusCoeff)
+        .Set("km", engine.TipAlterationMode.ToString())
+        .Set("k", engine.TipAlterationCoeff)
         .Set("m1", GearMaterialLabelAt(selectedMaterial1Index))
         .Set("m2", GearMaterialLabelAt(selectedMaterial2Index))
-        // gear blanks
+        // gear blanks - the bore drives Y_B, the rest is 3D model only
         .Set("di1", engine.BoreDiameter1)
         .Set("di2", engine.BoreDiameter2)
+        .Set("bk1", blankType1)
+        .Set("bk2", blankType2)
+        .Set("ri1", rimInnerDia1)
+        .Set("ri2", rimInnerDia2)
+        .Set("hb1", hubDia1)
+        .Set("hb2", hubDia2)
+        .Set("wb1", webThickness1)
+        .Set("wb2", webThickness2)
         // tooth thickness allowances and backlash
         .Set("am", engine.AllowanceMode.ToString())
         .Set("ae1", asne1Micron)
         .Set("ai1", asni1Micron)
         .Set("ae2", asne2Micron)
         .Set("ai2", asni2Micron)
+        .Set("d3s", engine.Din3967AllowanceSeries)
+        .Set("d3t1", engine.Din3967ToleranceSeries1)
+        .Set("d3t2", engine.Din3967ToleranceSeries2)
+        .Set("sr", engine.SplitRule.ToString())
+        .Set("jmin", jMinMicron)
+        .Set("jmax", jMaxMicron)
+        .Set("wu1", engine.SpanLimitUpper1)
+        .Set("wl1", engine.SpanLimitLower1)
+        .Set("wu2", engine.SpanLimitUpper2)
+        .Set("wl2", engine.SpanLimitLower2)
+        .Set("mu1", engine.BallLimitUpper1)
+        .Set("ml1", engine.BallLimitLower1)
+        .Set("mu2", engine.BallLimitUpper2)
+        .Set("ml2", engine.BallLimitLower2)
+        .Set("aaf", engine.CentreDistanceToleranceField)
         .Set("aau", aaUpperMicron)
         .Set("aal", aaLowerMicron)
         .Set("bd1", engine.BallDiameter1)
@@ -1571,6 +2579,13 @@ else
         engine.DedendumCoeff = state.GetDouble("hf", engine.DedendumCoeff);
         engine.RootRadiusCoeff = state.GetDouble("rf", engine.RootRadiusCoeff);
 
+        // A link written before k existed carries no "km", so it falls back to None - which is
+        // exactly what that build calculated.
+        engine.TipAlterationMode =
+            Enum.TryParse<TipAlterationSource>(state.GetString("km"), out var km)
+                ? km : TipAlterationSource.None;
+        engine.TipAlterationCoeff = state.GetDouble("k", engine.TipAlterationCoeff);
+
         // Dropdown values are validated against their option set, or the select renders blank.
         int q1 = state.GetInt("q1", engine.QualityGrade1);
         int q2 = state.GetInt("q2", engine.QualityGrade2);
@@ -1587,6 +2602,17 @@ else
         engine.BoreDiameter1 = state.GetDouble("di1", engine.BoreDiameter1);
         engine.BoreDiameter2 = state.GetDouble("di2", engine.BoreDiameter2);
 
+        var bk1 = state.GetString("bk1", blankType1);
+        var bk2 = state.GetString("bk2", blankType2);
+        blankType1 = BlankTypeOptions.Contains(bk1) ? bk1 : "Solid";
+        blankType2 = BlankTypeOptions.Contains(bk2) ? bk2 : "Solid";
+        rimInnerDia1 = state.GetDouble("ri1", rimInnerDia1);
+        rimInnerDia2 = state.GetDouble("ri2", rimInnerDia2);
+        hubDia1 = state.GetDouble("hb1", hubDia1);
+        hubDia2 = state.GetDouble("hb2", hubDia2);
+        webThickness1 = state.GetDouble("wb1", webThickness1);
+        webThickness2 = state.GetDouble("wb2", webThickness2);
+
         engine.AllowanceMode =
             Enum.TryParse<ToothThicknessAllowanceMode>(state.GetString("am"), out var mode)
                 ? mode : ToothThicknessAllowanceMode.Automatic;
@@ -1594,6 +2620,30 @@ else
         asni1Micron = state.GetDouble("ai1", asni1Micron);
         asne2Micron = state.GetDouble("ae2", asne2Micron);
         asni2Micron = state.GetDouble("ai2", asni2Micron);
+        // Dropdown values validated against their option sets, or the selects render blank.
+        var d3s = state.GetString("d3s", engine.Din3967AllowanceSeries);
+        engine.Din3967AllowanceSeries = Din3967.AllowanceSeries.Contains(d3s) ? d3s : "cd";
+        int d3t1 = state.GetInt("d3t1", engine.Din3967ToleranceSeries1);
+        int d3t2 = state.GetInt("d3t2", engine.Din3967ToleranceSeries2);
+        engine.Din3967ToleranceSeries1 = Din3967.ToleranceSeries.Contains(d3t1) ? d3t1 : 26;
+        engine.Din3967ToleranceSeries2 = Din3967.ToleranceSeries.Contains(d3t2) ? d3t2 : 26;
+
+        engine.SplitRule =
+            Enum.TryParse<BacklashSplit>(state.GetString("sr"), out var sr) ? sr : BacklashSplit.Even;
+        jMinMicron = state.GetDouble("jmin", jMinMicron);
+        jMaxMicron = state.GetDouble("jmax", jMaxMicron);
+        engine.SpanLimitUpper1 = state.GetDouble("wu1", engine.SpanLimitUpper1);
+        engine.SpanLimitLower1 = state.GetDouble("wl1", engine.SpanLimitLower1);
+        engine.SpanLimitUpper2 = state.GetDouble("wu2", engine.SpanLimitUpper2);
+        engine.SpanLimitLower2 = state.GetDouble("wl2", engine.SpanLimitLower2);
+        engine.BallLimitUpper1 = state.GetDouble("mu1", engine.BallLimitUpper1);
+        engine.BallLimitLower1 = state.GetDouble("ml1", engine.BallLimitLower1);
+        engine.BallLimitUpper2 = state.GetDouble("mu2", engine.BallLimitUpper2);
+        engine.BallLimitLower2 = state.GetDouble("ml2", engine.BallLimitLower2);
+
+        var aaField = state.GetString("aaf", engine.CentreDistanceToleranceField);
+        engine.CentreDistanceToleranceField =
+            CentreDistanceFieldOptions.Contains(aaField) ? aaField : "js7";
         aaUpperMicron = state.GetDouble("aau", aaUpperMicron);
         aaLowerMicron = state.GetDouble("aal", aaLowerMicron);
         engine.BallDiameter1 = state.GetDouble("bd1", engine.BallDiameter1);

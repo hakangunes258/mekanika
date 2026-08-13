@@ -423,6 +423,13 @@
     color: #721c24;
 }
 
+/* Neutral note: how a value was derived, not a verdict on the design. */
+.alert-info {
+    background: #e3f2fd;
+    border: 1px solid #bbdefb;
+    color: #0d3c61;
+}
+
 /* Input Groups Modernization */
 .input-group {
     display: flex;
@@ -498,6 +505,171 @@ select:focus {
     color: #495057;
     margin-bottom: 6px;
     letter-spacing: -0.01em;
+}
+
+/* ============================================================
+   Collapsible advanced input groups — Shared/AdvancedSection.razor
+   ============================================================ */
+
+.advanced-section {
+    background: white;
+    border: 1px solid #e4e7eb;
+    border-radius: 12px;
+    margin-bottom: 12px;
+    overflow: hidden;
+}
+
+.advanced-section.is-open {
+    border-color: #cfe0f2;
+    box-shadow: 0 2px 10px rgba(44, 111, 181, 0.07);
+}
+
+.advanced-head {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font: inherit;
+    padding: 16px 20px;
+    text-align: left;
+}
+
+.advanced-head:hover {
+    background: #f8fafc;
+}
+
+.advanced-chevron {
+    color: #8a94a0;
+    flex-shrink: 0;
+    font-size: 13px;
+    transition: transform 0.15s;
+}
+
+.advanced-section.is-open .advanced-chevron {
+    transform: rotate(90deg);
+}
+
+.advanced-heading {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.advanced-title {
+    color: #2c3e50;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.advanced-summary {
+    color: #6c757d;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+/* The live digest of what a collapsed section is currently doing. Pushed to the far
+   right so the column of them reads as a settings summary. */
+.advanced-state {
+    margin-left: auto;
+    padding-left: 16px;
+    color: #2c6fb5;
+    font-size: 12px;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.advanced-body {
+    border-top: 1px solid #eef1f4;
+    padding: 20px;
+    background: #fbfcfd;
+}
+
+/* Cards inside a section are already grouped by the section itself, so they drop the
+   outer card chrome and become plain columns. */
+.advanced-body .form-grid {
+    margin: 0;
+}
+
+.advanced-body .card {
+    box-shadow: none;
+    border: 1px solid #e9edf1;
+}
+
+@media (max-width: 640px) {
+    .advanced-state {
+        display: none;
+    }
+
+    .advanced-head {
+        padding: 14px 16px;
+    }
+
+    .advanced-body {
+        padding: 16px;
+    }
+}
+
+/* ============================================================
+   Two-box fields — the "/" in a label is not an operator
+   ============================================================
+   "D_M1 / D_M2", "A_sne1 / A_sni1", "min / max", "d_sh / bore": the same slash
+   meant six different relationships on the gear form, and a user read one of
+   them as a ratio. Each box now carries its own caption. */
+
+.dual-field {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.dual-field .dual-box {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    flex: 1;
+}
+
+.dual-field .dual-cap {
+    color: #7a8592;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+}
+
+.dual-field input,
+.dual-field select {
+    width: 100%;
+}
+
+.dual-field .unit {
+    background: #f1f3f5;
+    border: 1px solid #ced4da;
+    border-radius: 8px;
+    color: #495057;
+    flex-shrink: 0;
+    font-size: 13px;
+    padding: 10px 12px;
+}
+
+/* A label with a StandardPicker button beside it.
+   The button must NOT sit inside the <label>: a click anywhere in a label is
+   forwarded by the browser to that label's control, and since StandardPicker
+   renders its dialog next to its button, clicking a row inside the dialog was
+   being re-dispatched to the button and reopened the dialog on the spot. The
+   value was written and the dialog appeared stuck. Keep them siblings. */
+.label-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.label-row label {
+    margin-bottom: 0;
 }
 
 /* Results Tables Enhancement */
@@ -687,10 +859,13 @@ select:focus {
 }
 
 /* ============================================================
-   Dimension schematics — Shared/SchematicHelp.razor
-   The small "show diagram" button next to an input label and the
-   modal it opens. Global rather than page-scoped so the styles are
-   present on first paint when a user deep-links into a calculator.
+   Field dialogs — Shared/SchematicHelp.razor and Shared/StandardPicker.razor
+   The small button that sits next to an input label and the modal it
+   opens. The .schematic-overlay/-dialog/-head/-close/-body/-note shell
+   is shared by both components; the .picker-* rules below are the
+   table StandardPicker puts inside it.
+   Global rather than page-scoped so the styles are present on first
+   paint when a user deep-links into a calculator.
    ============================================================ */
 
 .schematic-btn {
@@ -844,6 +1019,120 @@ select:focus {
     line-height: 1.5;
 }
 
+/* --- StandardPicker: the button and the table of standard values --- */
+
+/* Deliberately louder than .schematic-btn. That button is optional help; this one
+   is the shortest route to a correct value, so it should read as an action. */
+.picker-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: #eef5fc;
+    border: 1px solid #cfe0f2;
+    border-radius: 6px;
+    color: #2c6fb5;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1;
+    margin-left: 6px;
+    padding: 4px 9px;
+    transition: background 0.15s, border-color 0.15s;
+    vertical-align: middle;
+}
+
+.picker-btn:hover:not(:disabled) {
+    background: #dceaf7;
+    border-color: #b3d1ec;
+}
+
+.picker-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.card-header .picker-btn {
+    margin-left: auto;
+}
+
+.picker-intro {
+    font-size: 13px;
+    color: #495057;
+    line-height: 1.55;
+    margin-bottom: 14px;
+}
+
+/* Standard tables are wide (the K_A matrix, the eight ISO 1328 tolerances).
+   Scroll the table, never the page — same rule the results tables follow. */
+.picker-scroll {
+    overflow-x: auto;
+}
+
+.picker-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.picker-table th {
+    background: #f8f9fa;
+    padding: 9px 12px;
+    text-align: right;
+    font-weight: 600;
+    color: #2c3e50;
+    border-bottom: 2px solid #dee2e6;
+    position: sticky;
+    top: 0;
+}
+
+.picker-table th:first-child {
+    text-align: left;
+}
+
+.picker-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #eee;
+    text-align: right;
+    font-family: 'Consolas', monospace;
+}
+
+.picker-table td:first-child {
+    text-align: left;
+    font-family: inherit;
+}
+
+.picker-table tbody tr {
+    cursor: pointer;
+    transition: background 0.12s;
+}
+
+.picker-table tbody tr:hover,
+.picker-table tbody tr:focus {
+    background: #e3f2fd;
+    outline: none;
+}
+
+.picker-table tbody tr:focus-visible {
+    box-shadow: inset 0 0 0 2px #2c6fb5;
+}
+
+/* Where the form currently sits, so picking is a comparison and not a guess. */
+.picker-table tbody tr.is-current {
+    background: #e8f5e9;
+    font-weight: 500;
+}
+
+.picker-table tbody tr.is-current:hover {
+    background: #d8ecda;
+}
+
+/* A row the standard does not define for this size, kept in place so the gap in
+   the table is visible rather than silently closed up. */
+.picker-table td.na {
+    color: #adb5bd;
+}
+
 @media (max-width: 640px) {
     .schematic-body {
         padding: 16px;
@@ -851,5 +1140,14 @@ select:focus {
 
     .schematic-head {
         padding: 14px 16px;
+    }
+
+    .picker-table {
+        font-size: 12px;
+    }
+
+    .picker-table th,
+    .picker-table td {
+        padding: 7px 9px;
     }
 }

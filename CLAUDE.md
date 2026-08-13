@@ -1331,7 +1331,16 @@ modelled) and **bolt** (general-purpose, no standard reference).
 
 A full-screen viewer that shows the geometry of a completed calculation, driven
 by the user's own inputs. Live on: **interference-fit**, **taper-fit**,
-**key-connection**, **compression-spring**.
+**key-connection**, **compression-spring**, **gear-pair**.
+
+**`mekanika3d.inspect(moduleKey, params)`** builds a module's geometry without opening the
+overlay and returns each layer's bounding box in millimetres. This is how a new builder gets
+checked — run it from the browser console and compare the boxes against the diameters and
+face widths that went in. It does **not** use `Box3.setFromObject`: that transforms the eight
+corners of each mesh's *local* box, so any rotated part reports the axis-aligned box of a
+rotated box. The gear wheel, phased by −90° − 180/z, came back 7 % oversize and looked like a
+geometry bug until the inspector was rewritten to walk real vertices. Whatever you do, do not
+"fix" a builder against a number that tool produced without checking the tool first.
 
 **Files:**
 - `wwwroot/js/viewer3d.js` — scene, orbit, explode, transparency, legend + the
@@ -1430,8 +1439,17 @@ draw outlines nor act as snap targets.
   band sat 90° from the cutaway because it used a raw `CylinderGeometry` rotation
   while the shaft and hub used `prism`. See the convention table above.
 - **Verify a new builder numerically**, since the geometry cannot be eyeballed from
-  a terminal: check layer bounding boxes against the inputs, and confirm every
-  layer of a cutaway leaves the *same* quadrant empty.
+  a terminal: run `mekanika3d.inspect`, check layer bounding boxes against the inputs,
+  and confirm every layer of a cutaway leaves the *same* quadrant empty.
+- **`num(v, dflt)` rejects anything ≤ 0 and substitutes the default.** That is right for a
+  diameter and wrong for every signed input — a profile shift of −0.2 would silently become
+  0 and draw a different gear. The gear builder carries a local `snum` for x and β; any new
+  builder taking signed values needs the same.
+- **The gear pair's meshing phase is a tooth centre against a space centre** on the line of
+  centres. A tooth is symmetric about its own centre, so the neighbouring space centre sits
+  exactly half a pitch away *at every radius* — which is what makes one construction correct
+  for a profile-shifted pair too, where the reference circles are not the ones in contact.
+  Check it by confirming the wheel's tooth 0 lands 180/z₂ degrees off the line of centres.
 
 ### **Shareable Calculation Links**
 
@@ -1641,9 +1659,35 @@ file can be read against the clause it implements.
 | `Iso6336LifeFactors.cs` | Y_NT/Z_NT, Y_δrelT, Y_RrelT, Y_X, Z_X, Z_W |
 | `Iso6336Material.cs` | σ_Flim, σ_Hlim from ISO 6336-5 Table 1 (A·hardness + B) |
 | `Iso1328Tolerance.cs` | flank tolerances, ISO 1328-1:2013 |
+| `Din3967.cs` | tooth thickness allowance / tolerance series, DIN 3967:1978 Tables 1 & 2 |
 | `GearToothMeasurement.cs` | tooth thickness, span W_k, over-balls M_d, chordal, backlash |
 
+**The tooth thickness can be specified seven ways** (`ToothThicknessAllowanceMode`), all
+converted to A_sne/A_sni on the way in: the automatic ISO/TR 10064-2 minimum, a DIN 3967
+zone, the allowances themselves, j_bn, j_wt, j_r, W_k limits or M_d limits. The split that
+matters: **backlash is a property of the pair**, so it fixes only A_sn1 + A_sn2 and needs a
+`BacklashSplit` rule; **W_k and M_d are measured on one gear** and invert per gear with no
+split. New enum members are appended, never reordered — the mode rides in shared links by
+name.
+
 **Rules — these are the ones that actually bit:**
+
+- **The tip alteration coefficient k is not the tip chamfer.** k (`TipAlterationSource`)
+  moves the whole tip circle in by k·m_n to restore the clearance profile shift ate; a tip
+  chamfer leaves d_a alone and only shortens the usable involute. The anchor for k:
+  substituting k = y − Σx into c = a − d_a1/2 − d_f2/2 collapses to c = m_n(h*_fP − h*_aP)
+  exactly, for any shifted pair. Default stays `None` so links written before k existed
+  still reproduce their own numbers.
+- **"D_M = 9,297 ≈ 9" means measure with the 9 mm ball.** Verifying against the DIN 3967
+  Clause 5 example with the *best* size instead of the ball actually used put M_d out by
+  0.9 mm and looked like an engine bug. With the right ball the module reproduces the
+  standard's published dimensions to under 1 µm (pinion M_d 117.7096 vs 117.710, wheel
+  508.057 vs 508.058, wheel W_k 177.6544 vs 177.654).
+- Our best-size ball differs from that example's (9.557 vs 9.297) because we target
+  mid-flank rather than the reference cylinder — see the rule further down. That is a
+  deliberate difference, not drift.
+- **Both permitted limits sit below nominal**, and each gear has its own mean allowance.
+  Checking the wheel against the pinion's mean is how a passing implementation looks broken.
 
 - **Never apply Y_ε together with ISO 6336-3 Method B.** Method B applies the load at the
   *outer point of single pair tooth contact*, so load sharing is already inside Y_F. Y_ε

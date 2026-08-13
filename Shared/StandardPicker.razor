@@ -1,0 +1,154 @@
+@*
+    "Pick from a standard" button next to an input, plus the dialog it opens.
+
+    Sibling of SchematicHelp, and the distinction is the whole point:
+
+      SchematicHelp  shows a DRAWING that explains what a symbol means. Read-only.
+      StandardPicker shows DATA from a standard. Clicking a row WRITES the value(s)
+                     into the form.
+
+    Rows may be a static table (ISO 53 reference profiles, the K_A matrix) or
+    computed live from what the user has already entered — the ISO 1328-1 picker
+    shows the actual tolerances for this gear's d, m_n and b. Live rows are the
+    reason the caller owns the row template: this component knows nothing about
+    any particular standard.
+
+    Styles live in wwwroot/css/modern-icons.css rather than a <style> block here,
+    for the same reason SchematicHelp does: a Razor <style> only reaches the DOM
+    once that component's page has rendered, so a user deep-linking straight into
+    a calculator would get an unstyled dialog.
+
+    CALL SITES: never put this component inside a <label>. The browser forwards a
+    click from anywhere in a label to that label's control, and the dialog renders
+    as a sibling of the button - so clicking a row got re-dispatched to the button
+    and reopened the dialog in the same tick. It looked like the dialog refused to
+    close while the value was, in fact, written. Use the .label-row flex wrapper:
+
+        <div class="label-row">
+            <label>Application Factor (K<sub>A</sub>)</label>
+            <StandardPicker ... />
+        </div>
+*@
+
+@typeparam TItem
+
+<button type="button" class="picker-btn" title="@(Disabled ? DisabledReason : ButtonTitle ?? Title)"
+        aria-label="@(ButtonTitle ?? Title)" disabled="@Disabled" @onclick="Open">
+    <ModuleIcon Type="table" Size="button" />
+    @if (!string.IsNullOrEmpty(ButtonText))
+    {
+        <span>@ButtonText</span>
+    }
+</button>
+
+@if (isOpen)
+{
+    <div class="schematic-overlay" @onclick="Close">
+        <div class="schematic-dialog" style="@(MaxWidth > 0 ? $"max-width: {MaxWidth}px;" : null)"
+             role="dialog" aria-modal="true" aria-label="@Title" @onclick:stopPropagation="true">
+            <div class="schematic-head">
+                <h3>@Title</h3>
+                <button type="button" class="schematic-close" aria-label="Close" @onclick="Close">&times;</button>
+            </div>
+            <div class="schematic-body">
+                @if (Intro is not null)
+                {
+                    <div class="picker-intro">@Intro</div>
+                }
+
+                <div class="picker-scroll">
+                    <table class="picker-table">
+                        <thead>
+                            <tr>
+                                @foreach (var header in Headers)
+                                {
+                                    @* Headers are authored in our own Razor call sites, never user
+                                       input, so they may carry markup for subscripts (f<sub>pt</sub>).
+                                       Row cells go through the normal escaping path. *@
+                                    <th>@((MarkupString)header)</th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in Items)
+                            {
+                                var current = IsCurrent?.Invoke(item) == true;
+                                <tr class="@(current ? "is-current" : null)" tabindex="0"
+                                    @onclick="() => Select(item)"
+                                    @onkeydown="e => OnRowKey(e, item)">
+                                    @Row?.Invoke(item)
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @if (Footer is not null)
+                {
+                    <div class="schematic-note">@Footer</div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>Dialog heading. Name the standard here — that is what makes the value trustworthy.</summary>
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+
+    /// <summary>Column headings. May contain markup; see the note at the call site above.</summary>
+    [Parameter, EditorRequired] public string[] Headers { get; set; } = Array.Empty<string>();
+
+    /// <summary>The rows. Compute them from the current inputs where the standard allows it.</summary>
+    [Parameter, EditorRequired] public IEnumerable<TItem> Items { get; set; } = Array.Empty<TItem>();
+
+    /// <summary>The &lt;td&gt; cells for one row.</summary>
+    [Parameter, EditorRequired] public RenderFragment<TItem>? Row { get; set; }
+
+    /// <summary>Called with the clicked row. Write the value(s) into the form here.</summary>
+    [Parameter] public EventCallback<TItem> OnSelect { get; set; }
+
+    /// <summary>Marks the row matching the form's current value, so the user can see where they are.</summary>
+    [Parameter] public Func<TItem, bool>? IsCurrent { get; set; }
+
+    /// <summary>Optional text above the table — what the table is and how to read it.</summary>
+    [Parameter] public RenderFragment? Intro { get; set; }
+
+    /// <summary>Optional small print below the table: edition, scope, caveats.</summary>
+    [Parameter] public RenderFragment? Footer { get; set; }
+
+    /// <summary>Label next to the icon. Omit for an icon-only button next to a field.</summary>
+    [Parameter] public string? ButtonText { get; set; }
+
+    /// <summary>Tooltip, when it should differ from the title.</summary>
+    [Parameter] public string? ButtonTitle { get; set; }
+
+    /// <summary>0 keeps the shared dialog width.</summary>
+    [Parameter] public int MaxWidth { get; set; }
+
+    /// <summary>
+    /// Set when the rows cannot be produced yet — a live table needs geometry the user
+    /// has not entered. Say so rather than opening an empty dialog.
+    /// </summary>
+    [Parameter] public bool Disabled { get; set; }
+
+    /// <inheritdoc cref="Disabled"/>
+    [Parameter] public string? DisabledReason { get; set; }
+
+    private bool isOpen;
+
+    private void Open() => isOpen = true;
+
+    private void Close() => isOpen = false;
+
+    private async Task Select(TItem item)
+    {
+        isOpen = false;
+        await OnSelect.InvokeAsync(item);
+    }
+
+    private async Task OnRowKey(KeyboardEventArgs e, TItem item)
+    {
+        if (e.Key is "Enter" or " ") await Select(item);
+    }
+}
