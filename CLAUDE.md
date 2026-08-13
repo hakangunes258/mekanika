@@ -1660,6 +1660,7 @@ file can be read against the clause it implements.
 | `Iso6336Material.cs` | σ_Flim, σ_Hlim from ISO 6336-5 Table 1 (A·hardness + B) |
 | `Iso1328Tolerance.cs` | flank tolerances, ISO 1328-1:2013 |
 | `Din3967.cs` | tooth thickness allowance / tolerance series, DIN 3967:1978 Tables 1 & 2 |
+| `Iso13989FlashTemperature.cs` | scuffing, ISO/TR 13989-1 flash temperature method |
 | `GearToothMeasurement.cs` | tooth thickness, span W_k, over-balls M_d, chordal, backlash |
 
 **The tooth thickness can be specified seven ways** (`ToothThicknessAllowanceMode`), all
@@ -1729,8 +1730,35 @@ name.
   edition (classes 1–11); ISO 6336-1:2006 normatively references the 1995 edition (grades
   0–12). The numbering and formulae differ. Do not silently equate them.
 
-**Out of scope, stated in the results card:** scuffing (ISO/TR 13989), micropitting
-(ISO/TR 15144), tooth flank fracture, planetary and internal arrangements.
+**Scuffing — ISO/TR 13989-1, flash temperature method.** Θ_B(Γ) = Θ_M + Θ_fl(Γ), swept over
+200 points on the path of contact. Three rules from getting it working:
+
+- **X_M carries a factor of 1000 that is not in the printed formula.** Clause 3.2 says the
+  units of B_M, c_γ and X_M "are adapted to the mixed application of metre and millimetre" —
+  E_r is N/mm² while B_M is N/(mm^½·m^½·s^½·K). The anchor is Eq. (A.14): E = 206000, ν = 0.3,
+  B_M = 435 must give X_M = 50.0. Without the 1000 the flash temperature comes out at 0.03 K
+  instead of 27 K, which is how it was caught — a result three orders of magnitude out still
+  produced a plausible-looking safety factor.
+- **X_αβ is 1.6 % (spur) to 3.1 % (β = 20°) below Table A.1 and that is left alone.** The annex
+  is informative, footnote 5 says the 0.51/1.22 split exists only to simplify Eq. (A.8), and
+  the standard states the factor "can be approximated by the value 1,00". The binding check is
+  that Eq. (A.5) and the independent Eq. (5) give the same flash temperature (they agree to
+  1 %). Do not tune a constant to chase that table.
+- **Lubrication method reaches scuffing and nothing else.** ISO 6336-2's film factors Z_L, Z_v
+  and Z_R see only viscosity, velocity and roughness; the method enters solely through X_S in
+  Eq. (22), which sets the bulk temperature. The flash temperature itself is unchanged by it —
+  there is a test for exactly that.
+- **Judge scuffing on the margin in kelvin, not on S_B.** Clause 10.5 says a safety expressed
+  as a quotient of temperatures "may cause confusion" and advises a demanded difference,
+  "for instance ≥ 50 K". The results colour the row on the margin.
+- The oil temperature is either entered or built as ambient + rise, with the rise supplied by
+  the user. This module does not model a thermal network and must not pretend to.
+
+**Out of scope, stated in the results card:** the integral temperature method
+(ISO/TR 13989-2), micropitting (ISO/TR 15144), tooth flank fracture, planetary and internal
+arrangements. Within scuffing: bevel/hypoid geometry and the profile-modified load sharing
+branches (Clauses 9.3, 9.5, 9.7) are not implemented — a stated tip relief still reaches the
+approach factor.
 
 **Verifying a change:** there is no test project. Build a throwaway console harness that
 `<Compile Include="…/Services/*.cs" />`s the gear services and prints the anchor points

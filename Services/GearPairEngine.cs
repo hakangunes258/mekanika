@@ -200,6 +200,52 @@ public class GearPairEngine
     public double RootRoughnessRz1 { get; set; } = 10.0;     // root fillet Rz (µm), Y_RrelT
     public double RootRoughnessRz2 { get; set; } = 10.0;
 
+    // === Scuffing, ISO/TR 13989-1 (flash temperature method) ===
+
+    /// <summary>Base oil type. Sets X_L, which reaches both the friction and the scuffing limit.</summary>
+    public LubricantType OilType { get; set; } = LubricantType.Mineral;
+
+    /// <summary>
+    /// How the oil reaches the mesh. This is the term the pitting calculation has no place
+    /// for: ISO 6336-2's film factors see only viscosity, while ISO/TR 13989-1 Eq. (22) uses
+    /// the method through X_S to set how hot the teeth run.
+    /// </summary>
+    public LubricationMethod LubricationMethod { get; set; } = LubricationMethod.Dip;
+
+    /// <summary>
+    /// True to derive the oil temperature as ambient + rise instead of entering it. The rise
+    /// is the user's own figure - this module does not model a thermal network, and inventing
+    /// one would be worse than asking.
+    /// </summary>
+    public bool OilTemperatureFromAmbient { get; set; } = true;
+
+    /// <summary>Ambient temperature (°C).</summary>
+    public double AmbientTemperature { get; set; } = 20;
+
+    /// <summary>Temperature rise of the oil above ambient (K).</summary>
+    public double OilTemperatureRise { get; set; } = 50;
+
+    /// <summary>Oil temperature (°C), used directly when <see cref="OilTemperatureFromAmbient"/> is false.</summary>
+    public double OilTemperatureDirect { get; set; } = 70;
+
+    /// <summary>Kinematic viscosity at 100 °C (mm²/s). 0 = estimate from ν40 for a mineral oil.</summary>
+    public double LubricantViscosity100 { get; set; }
+
+    /// <summary>Oil density at 15 °C (kg/dm³), to turn kinematic viscosity into dynamic.</summary>
+    public double OilDensity { get; set; } = 0.89;
+
+    /// <summary>FZG A/8,3/90 load stage at which the oil scuffs.</summary>
+    public double FzgLoadStage { get; set; } = 12;
+
+    /// <summary>Oils with anti-scuff additives gain from a short contact exposure, Clause 10.3.</summary>
+    public bool AntiScuffAdditives { get; set; }
+
+    /// <summary>Structural factor X_W, Table 2. 0 = derive from the pinion's material group.</summary>
+    public double StructuralFactorOverride { get; set; }
+
+    /// <summary>True when the pinion drives; decides which end of the path the approach factor hits.</summary>
+    public bool PinionDrives { get; set; } = true;
+
     /// <summary>
     /// When true, Y_NT and Z_NT are held at 1.0 in the long-life range instead of following
     /// the descending branch. ISO 6336 allows this only with optimum material, manufacturing
@@ -477,6 +523,18 @@ public class GearPairEngine
     public double MinRootSafety { get; set; }
     public double MinFlankSafety { get; set; }
 
+    /// <summary>Scuffing result, ISO/TR 13989-1 flash temperature method.</summary>
+    public Iso13989FlashTemperature.Result? Scuffing { get; set; }
+
+    /// <summary>Oil temperature actually used (°C), whether entered or derived from ambient.</summary>
+    public double OilTemperatureUsed { get; set; }
+
+    /// <summary>Kinematic viscosity at the oil temperature (mm²/s).</summary>
+    public double ScuffingViscosityAtOil { get; set; }
+
+    /// <summary>Scuffing safety S_B. A temperature ratio, not a stress one — see the results note.</summary>
+    public double MinScuffingSafety { get; set; }
+
     /// <summary>
     /// Recommended minimum tooth root safety factor SFmin (ISO 6336).
     /// The reported RootSafetyFactor must be compared against this, not against 1.0.
@@ -509,6 +567,7 @@ public class GearPairEngine
         CalculateToothFlankStrength();
         CalculateSafetyFactors();
         CalculateMeasurements();        // needs α_wt and the allowances
+        CalculateScuffing();            // needs the load factors and the geometry
     }
 
     // ============ CALCULATION STEPS ============
@@ -1316,6 +1375,94 @@ public class GearPairEngine
             UsedCentreDistanceUpperDev, UsedCentreDistanceLowerDev,
             PressureAngle, WorkingPressureAngle, BaseHelixAngle,
             CenterDistance, NormalModule);
+    }
+
+    /// <summary>
+    /// Scuffing by the flash temperature method, ISO/TR 13989-1.
+    ///
+    /// Runs last because it consumes almost everything else: the geometry, the load factors
+    /// K_A K_V K_Hβ K_Hα, and the surface roughness. It is reported separately from the
+    /// pitting and bending safeties because it is a different kind of limit - a temperature
+    /// one, which a single overload can breach.
+    /// </summary>
+    private void CalculateScuffing()
+    {
+        OilTemperatureUsed = OilTemperatureFromAmbient
+            ? AmbientTemperature + OilTemperatureRise
+            : OilTemperatureDirect;
+
+        // Viscosity at the oil temperature, from the two datasheet points. nu100 is estimated
+        // for a mineral oil when it is not given; a synthetic of the same VG grade has a
+        // markedly flatter curve, so entering it matters there.
+        double nu100 = LubricantViscosity100 > 0
+            ? LubricantViscosity100
+            : Iso13989FlashTemperature.TypicalNu100(LubricantViscosity40);
+
+        double nuAtOil = Iso13989FlashTemperature.ViscosityAt(
+            LubricantViscosity40, nu100, OilTemperatureUsed);
+
+        // eta [mPa.s] = nu [mm2/s] * rho [kg/dm3]
+        double etaOil = nuAtOil * OilDensity;
+
+        double xw = StructuralFactorOverride > 0
+            ? StructuralFactorOverride
+            : Iso13989FlashTemperature.StructuralFactor(Material1.Iso6336Type);
+
+        Scuffing = Iso13989FlashTemperature.Calculate(new Iso13989FlashTemperature.Input
+        {
+            mn = NormalModule,
+            alphaN = PressureAngle,
+            beta = HelixAngle,
+            alphaT = TransversePressureAngle,
+            alphaWt = WorkingPressureAngle,
+            betaB = BaseHelixAngle,
+            a = CenterDistance,
+            u = GearRatio,
+            z1 = NumberOfTeeth1,
+            z2 = NumberOfTeeth2,
+            d1 = ReferenceDiameter1,
+            d2 = ReferenceDiameter2,
+            da1 = TipDiameter1,
+            da2 = TipDiameter2,
+            b = Math.Min(FaceWidth1, FaceWidth2),
+            epsilonAlpha = TransverseContactRatio,
+            epsilonBeta = OverlapRatio,
+            epsilonGamma = TotalContactRatio,
+
+            Ft = TangentialForce,
+            vt = PitchLineVelocity,
+            KA = ApplicationFactor,
+            KV = DynamicFactor,
+            KHbeta = FaceLoadFactorFlank,
+            KHalpha = TransverseLoadFactorFlank,
+            Kmp = 1.0,
+            PinionDrives = PinionDrives,
+
+            E1 = Material1.ElasticModulus * 1000.0,     // GPa -> N/mm²
+            E2 = Material2.ElasticModulus * 1000.0,
+            nu1 = Material1.PoissonRatio,
+            nu2 = Material2.PoissonRatio,
+            XW = xw,
+
+            // ISO/TR 13989-1 works in Ra; the rest of this module works in Rz. The standard's
+            // own note in Eq. (28) is that these are the roughnesses of newly manufactured
+            // gears, and Rz ~ 6 Ra is the conversion ISO 6336-2 uses.
+            Ra1 = FlankRoughnessRz1 / 6.0,
+            Ra2 = FlankRoughnessRz2 / 6.0,
+            QualityGrade = Math.Max(QualityGrade1, QualityGrade2),
+
+            cGamma = DynamicResult?.cGammaAlpha ?? 20.0,
+
+            OilTemperature = OilTemperatureUsed,
+            EtaOil = etaOil,
+            Lubricant = OilType,
+            Method = LubricationMethod,
+            FzgLoadStage = FzgLoadStage,
+            AntiScuffAdditives = AntiScuffAdditives
+        });
+
+        ScuffingViscosityAtOil = nuAtOil;
+        MinScuffingSafety = Scuffing is { Valid: true } s ? s.SafetyFactor : 0;
     }
 
     /// <summary>The measurement input for one gear at a given pair of allowances.</summary>

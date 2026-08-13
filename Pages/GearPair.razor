@@ -235,6 +235,156 @@
                     Z<sub>L</sub>, Z<sub>v</sub> and Z<sub>R</sub>.
                 </small>
             </div>
+
+            <div class="form-group">
+                <div class="label-row">
+                    <label>Base Oil Type</label>
+                    <DialogButton Title="Lubricant Factor X_L &#8212; ISO/TR 13989-1 Eq. (27)" MaxWidth="620">
+                        <Intro>
+                            The base oil enters the scuffing calculation twice: it scales the mean
+                            coefficient of friction, and it scales the scuffing temperature itself.
+                            It does <strong>not</strong> enter the pitting calculation &#8212; ISO 6336-2's
+                            film factors see only viscosity.
+                        </Intro>
+                        <ChildContent>
+                            <table class="info-table">
+                                <thead>
+                                    <tr><th>Base oil</th><th class="num">Coefficient in X<sub>L</sub></th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="@(engine.OilType == LubricantType.Mineral ? "is-current" : null)"><td>Mineral</td><td class="num">1.0</td></tr>
+                                    <tr class="@(engine.OilType == LubricantType.PolyglycolWaterSoluble ? "is-current" : null)"><td>Polyglycol, water soluble</td><td class="num">0.6</td></tr>
+                                    <tr class="@(engine.OilType == LubricantType.PolyglycolNonWaterSoluble ? "is-current" : null)"><td>Polyglycol, non water soluble</td><td class="num">0.7</td></tr>
+                                    <tr class="@(engine.OilType == LubricantType.Polyalphaolefin ? "is-current" : null)"><td>Polyalphaolefin</td><td class="num">0.8</td></tr>
+                                    <tr class="@(engine.OilType == LubricantType.PhosphateEster ? "is-current" : null)"><td>Phosphate ester</td><td class="num">1.3</td></tr>
+                                    <tr class="@(engine.OilType == LubricantType.TractionFluid ? "is-current" : null)"><td>Traction fluid</td><td class="num">1.5</td></tr>
+                                </tbody>
+                            </table>
+                        </ChildContent>
+                        <Footer>
+                            X<sub>L</sub> = coefficient &#183; &#951;<sub>oil</sub><sup>&#8722;0.05</sup>,
+                            with &#951; the dynamic viscosity at the oil temperature.
+                        </Footer>
+                    </DialogButton>
+                </div>
+                <select @bind="engine.OilType">
+                    <option value="@LubricantType.Mineral">Mineral</option>
+                    <option value="@LubricantType.PolyglycolWaterSoluble">Polyglycol, water soluble</option>
+                    <option value="@LubricantType.PolyglycolNonWaterSoluble">Polyglycol, non water soluble</option>
+                    <option value="@LubricantType.Polyalphaolefin">Polyalphaolefin (PAO)</option>
+                    <option value="@LubricantType.PhosphateEster">Phosphate ester</option>
+                    <option value="@LubricantType.TractionFluid">Traction fluid</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <div class="label-row">
+                    <label>Lubrication Method</label>
+                    <DialogButton Title="Lubrication Method &#8212; ISO/TR 13989-1 Eq. (22)" MaxWidth="620">
+                        <Intro>
+                            The method does not change the flash temperature, which is set by the
+                            contact itself. It changes how well the heat leaves the teeth, and so
+                            how hot the <em>bulk</em> runs &#8212; and the contact temperature is the
+                            sum of the two.
+                        </Intro>
+                        <ChildContent>
+                            <table class="info-table">
+                                <thead>
+                                    <tr><th>Method</th><th class="num">X<sub>S</sub></th><th>Effect</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="@(engine.LubricationMethod == LubricationMethod.Spray ? "is-current" : null)">
+                                        <td>Injected spray</td><td class="num">1.2</td>
+                                        <td>Heat transfer into the oil is impeded; the bulk runs hottest</td>
+                                    </tr>
+                                    <tr class="@(engine.LubricationMethod == LubricationMethod.Dip ? "is-current" : null)">
+                                        <td>Dip (splash)</td><td class="num">1.0</td>
+                                        <td>The reference case; also a mesh with an additional cooling spray</td>
+                                    </tr>
+                                    <tr class="@(engine.LubricationMethod == LubricationMethod.Submerged ? "is-current" : null)">
+                                        <td>Submerged in oil</td><td class="num">0.2</td>
+                                        <td>Only with sufficient cooling</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </ChildContent>
+                        <Footer>
+                            &#920;<sub>M</sub> = &#920;<sub>oil</sub> +
+                            0.47&#183;X<sub>S</sub>&#183;X<sub>mp</sub>&#183;&#920;<sub>flm</sub>.
+                            Scuffing is the only check in this module that the method reaches.
+                        </Footer>
+                    </DialogButton>
+                </div>
+                <select @bind="engine.LubricationMethod">
+                    <option value="@LubricationMethod.Spray">Injected spray</option>
+                    <option value="@LubricationMethod.Dip">Dip (splash)</option>
+                    <option value="@LubricationMethod.Submerged">Submerged in oil</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Oil Temperature (&#920;<sub>oil</sub>)</label>
+                <select @bind="engine.OilTemperatureFromAmbient">
+                    <option value="true">From ambient + rise</option>
+                    <option value="false">Entered directly</option>
+                </select>
+            </div>
+
+            @if (engine.OilTemperatureFromAmbient)
+            {
+                <div class="form-group">
+                    <div class="dual-field">
+                        <div class="dual-box">
+                            <span class="dual-cap">Ambient (&#176;C)</span>
+                            <input type="number" step="1" @bind="engine.AmbientTemperature" />
+                        </div>
+                        <div class="dual-box">
+                            <span class="dual-cap">Rise (K)</span>
+                            <input type="number" step="1" min="0" @bind="engine.OilTemperatureRise" />
+                        </div>
+                    </div>
+                    <small style="color: #6c757d; font-size: 12px;">
+                        &#920;<sub>oil</sub> =
+                        <strong>@((engine.AmbientTemperature + engine.OilTemperatureRise).ToString("F0")) &#176;C</strong>.
+                        The rise is your own figure &#8212; this module does not model a thermal
+                        network, and a guessed one would be worse than asking.
+                    </small>
+                </div>
+            }
+            else
+            {
+                <div class="form-group">
+                    <div class="input-group">
+                        <input type="number" step="1" @bind="engine.OilTemperatureDirect" />
+                        <span class="unit">&#176;C</span>
+                    </div>
+                </div>
+            }
+
+            <div class="form-group">
+                <label>Scuffing Resistance (FZG A/8,3/90)</label>
+                <div class="input-group">
+                    <input type="number" step="1" min="1" max="14" @bind="engine.FzgLoadStage" />
+                    <span class="unit">stage</span>
+                </div>
+                <small style="color: #6c757d; font-size: 12px;">
+                    The load stage at which the oil scuffs, from its datasheet. A plain mineral gear
+                    oil is around 12; an EP oil reaches 14. The standard notes a variation of &#177;1
+                    stage is common and that oil deteriorates in service, so calculating one stage
+                    below the specification is reasonable.
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" @bind="engine.AntiScuffAdditives" />
+                    <span>Oil has anti-scuff (EP) additives</span>
+                </label>
+                <small style="color: #6c757d; font-size: 12px;">
+                    With EP additives a short contact exposure time raises the scuffing temperature
+                    (Clause 10.3). That margin only holds while the exposure time does not increase.
+                </small>
+            </div>
         </div>
         <!-- Reference Profile Card -->
         <div class="card">
@@ -1466,6 +1616,65 @@ else
             }
         </div>
 
+        <!-- Scuffing -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="surface" Size="medium" Style="solid" /><h2>Scuffing (ISO/TR 13989-1, Flash Temperature)</h2></div>
+            @if (engine.Scuffing is { Valid: true } sc)
+            {
+                <table class="results-table">
+                    <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                    <tbody>
+                        <tr><td>Mean Coefficient of Friction</td><td>&#956;<sub>m</sub></td><td>@sc.MuM.ToString("F4")</td><td>-</td></tr>
+                        <tr><td>Lubricant Factor</td><td>X<sub>L</sub></td><td>@sc.XL.ToString("F3")</td><td>-</td></tr>
+                        <tr><td>Roughness Factor</td><td>X<sub>R</sub></td><td>@sc.XR.ToString("F3")</td><td>-</td></tr>
+                        <tr><td>Thermo-elastic Factor</td><td>X<sub>M</sub></td><td>@sc.XM.ToString("F1")</td><td>K&#183;N<sup>-&#190;</sup>s<sup>&#189;</sup>m<sup>-&#189;</sup>mm</td></tr>
+                        <tr><td>Lubrication Method Factor</td><td>X<sub>S</sub></td><td>@sc.XS.ToString("F1")</td><td>-</td></tr>
+                        <tr><td>Transverse Unit Load</td><td>w<sub>Bt</sub></td><td>@sc.wBt.ToString("F1")</td><td>N/mm</td></tr>
+                        <tr><td>Viscosity at Oil Temperature</td><td>&#957;</td><td>@engine.ScuffingViscosityAtOil.ToString("F1")</td><td>mm&#178;/s</td></tr>
+                        <tr><td>Oil Temperature</td><td>&#920;<sub>oil</sub></td><td>@engine.OilTemperatureUsed.ToString("F0")</td><td>&#176;C</td></tr>
+                        <tr class="highlight"><td>Maximum Flash Temperature</td><td>&#920;<sub>flmax</sub></td><td>@sc.FlashMax.ToString("F1")</td><td>K</td></tr>
+                        <tr><td>Mean Flash Temperature</td><td>&#920;<sub>flm</sub></td><td>@sc.FlashMean.ToString("F1")</td><td>K</td></tr>
+                        <tr><td>Bulk Temperature</td><td>&#920;<sub>M</sub></td><td>@sc.BulkTemperature.ToString("F1")</td><td>&#176;C</td></tr>
+                        <tr class="highlight"><td>Maximum Contact Temperature</td><td>&#920;<sub>Bmax</sub></td><td>@sc.ContactMax.ToString("F1")</td><td>&#176;C</td></tr>
+                        <tr><td>Scuffing Temperature</td><td>&#920;<sub>S</sub></td><td>@sc.ScuffingTemperature.ToString("F0")</td><td>&#176;C</td></tr>
+                        <tr><td>Contact Exposure Time</td><td>t<sub>max</sub></td><td>@sc.ContactExposureTime.ToString("F1")</td><td>&#956;s</td></tr>
+                        <tr class="@GetScuffingRowClass(sc)">
+                            <td>Temperature Margin</td><td>&#920;<sub>S</sub> &#8722; &#920;<sub>Bmax</sub></td>
+                            <td>@sc.MarginKelvin.ToString("F0")</td><td>K</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                @foreach (var n in sc.Notes)
+                {
+                    <div class="alert alert-warning" style="margin: 12px 16px; font-size: 13px;">@n</div>
+                }
+
+                <div class="alert" style="margin: 16px; background: #f8f9fa; padding: 12px; font-size: 13px;">
+                    Scuffing is a <strong>temperature limit, not a fatigue life</strong> &#8212; a single
+                    momentary overload can do damage that ends the gear's service, which is why the
+                    standard asks for a wider margin here than a fatigue safety would need.
+                    Clause 10.5 warns that a safety expressed as a quotient of temperatures
+                    "may cause confusion", and advises stating the margin
+                    &#920;<sub>S</sub> &#8722; &#920;<sub>Bmax</sub> directly &#8212; for instance
+                    &#8805; 50 K. Both are given above and in the safety table.
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-warning" style="margin: 16px;">
+                    <ModuleIcon Type="warning" Size="small" Style="default" CustomStyle="margin-right: 8px;" />
+                    <div>
+                        Scuffing could not be evaluated.
+                        @foreach (var n in engine.Scuffing?.Notes ?? new List<string>())
+                        {
+                            <text>@n</text>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
         <!-- Safety Factors -->
         <div class="card">
             <div class="card-header"><ModuleIcon Type="safety" Size="medium" Style="solid" /><h2>Safety Factors</h2></div>
@@ -1498,12 +1707,24 @@ else
                         <td>&#8805; @GearPairEngine.MinSafetyFactorFlank.ToString("F2")</td>
                         <td>@GetSafetyStatus(engine.MinFlankSafety, GearPairEngine.MinSafetyFactorFlank)</td>
                     </tr>
+                    @if (engine.Scuffing is { Valid: true } scs)
+                    {
+                        <tr class="@GetScuffingRowClass(scs)">
+                            <td>Scuffing Safety (margin @scs.MarginKelvin.ToString("F0") K)</td><td>S<sub>B</sub></td>
+                            <td colspan="2">@scs.SafetyFactor.ToString("F2")</td>
+                            <td>margin &#8805; 50 K</td>
+                            <td>@GetScuffingStatus(scs)</td>
+                        </tr>
+                    }
                 </tbody>
             </table>
             <div class="alert" style="margin: 16px; background: #f8f9fa; padding: 12px; font-size: 13px;">
-                These are true safety factors: S = &#963;<sub>P</sub>/&#963;, with no minimum divided out of the
-                permissible stress. Compare them against the ISO 6336 recommended minima shown in the
-                Required column, not against 1.0.
+                S<sub>F</sub> and S<sub>H</sub> are true safety factors:
+                S = &#963;<sub>P</sub>/&#963;, with no minimum divided out of the permissible stress.
+                Compare them against the ISO 6336 recommended minima shown in the Required column,
+                not against 1.0. S<sub>B</sub> is a different animal &#8212; a ratio of
+                <em>temperatures above the oil</em>, judged on the margin in kelvin rather than on
+                the ratio itself.
             </div>
         </div>
 
@@ -1540,9 +1761,11 @@ else
             <div class="alert" style="margin: 16px 0 0; background: #f8f9fa; padding: 12px; font-size: 13px;">
                 <strong>Scope:</strong> this module covers geometry (ISO 21771), flank tolerances
                 (ISO 1328-1), backlash (ISO/TR 10064-2), tooth root and flank load capacity
-                (ISO 6336-1/2/3) and allowable stress numbers (ISO 6336-5). It does <em>not</em> cover
-                scuffing (ISO/TR 13989), micropitting (ISO/TR 15144), tooth flank fracture, or
-                planetary and internal gear arrangements.
+                (ISO 6336-1/2/3), allowable stress numbers (ISO 6336-5) and scuffing by the flash
+                temperature method (ISO/TR 13989-1). It does <em>not</em> cover the integral
+                temperature method (ISO/TR 13989-2), micropitting (ISO/TR 15144), tooth flank
+                fracture, or planetary and internal gear arrangements. Within scuffing, bevel and
+                hypoid geometry and the profile-modified load sharing branches are not implemented.
             </div>
         </div>
     </div>
@@ -2334,6 +2557,17 @@ else
         }
     }
 
+    /// <summary>
+    /// Scuffing is judged on the temperature margin, not on S_B. Clause 10.5 advises a demanded
+    /// minimum difference "for instance >= 50 K" between the scuffing temperature and the
+    /// estimated maximum contact temperature, and warns that a temperature quotient can mislead.
+    /// </summary>
+    private string GetScuffingRowClass(Iso13989FlashTemperature.Result s)
+        => s.MarginKelvin < 0 ? "danger" : s.MarginKelvin < 50 ? "warning" : "success";
+
+    private string GetScuffingStatus(Iso13989FlashTemperature.Result s)
+        => s.MarginKelvin < 0 ? "❌ FAIL" : s.MarginKelvin < 50 ? "⚠️ Marginal" : "✓ OK";
+
     private string GetSafetyRowClass(double sf, double minRequired)
     {
         if (sf < minRequired * 0.8) return "danger";
@@ -2499,7 +2733,17 @@ else
         .Set("rz1", engine.FlankRoughnessRz1)
         .Set("rz2", engine.FlankRoughnessRz2)
         .Set("rr1", engine.RootRoughnessRz1)
-        .Set("rr2", engine.RootRoughnessRz2);
+        .Set("rr2", engine.RootRoughnessRz2)
+        // scuffing, ISO/TR 13989-1
+        .Set("ot", engine.OilType.ToString())
+        .Set("lm", engine.LubricationMethod.ToString())
+        .Set("ofa", engine.OilTemperatureFromAmbient)
+        .Set("amb", engine.AmbientTemperature)
+        .Set("rise", engine.OilTemperatureRise)
+        .Set("otd", engine.OilTemperatureDirect)
+        .Set("nu100", engine.LubricantViscosity100)
+        .Set("fzg", engine.FzgLoadStage)
+        .Set("ep", engine.AntiScuffAdditives);
 
     /// <summary>
     /// Restores state produced by <see cref="BuildShareState"/>, then recalculates so the
@@ -2639,6 +2883,18 @@ else
         engine.FlankRoughnessRz2 = state.GetDouble("rz2", engine.FlankRoughnessRz2);
         engine.RootRoughnessRz1 = state.GetDouble("rr1", engine.RootRoughnessRz1);
         engine.RootRoughnessRz2 = state.GetDouble("rr2", engine.RootRoughnessRz2);
+
+        engine.OilType = Enum.TryParse<LubricantType>(state.GetString("ot"), out var ot)
+            ? ot : LubricantType.Mineral;
+        engine.LubricationMethod = Enum.TryParse<LubricationMethod>(state.GetString("lm"), out var lm)
+            ? lm : LubricationMethod.Dip;
+        engine.OilTemperatureFromAmbient = state.GetBool("ofa", engine.OilTemperatureFromAmbient);
+        engine.AmbientTemperature = state.GetDouble("amb", engine.AmbientTemperature);
+        engine.OilTemperatureRise = state.GetDouble("rise", engine.OilTemperatureRise);
+        engine.OilTemperatureDirect = state.GetDouble("otd", engine.OilTemperatureDirect);
+        engine.LubricantViscosity100 = state.GetDouble("nu100", engine.LubricantViscosity100);
+        engine.FzgLoadStage = state.GetDouble("fzg", engine.FzgLoadStage);
+        engine.AntiScuffAdditives = state.GetBool("ep", engine.AntiScuffAdditives);
 
         // Derives the wheel's profile shift x2 from the restored geometry.
         OnGeometryChanged();
