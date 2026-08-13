@@ -508,112 +508,6 @@ select:focus {
 }
 
 /* ============================================================
-   Collapsible advanced input groups — Shared/AdvancedSection.razor
-   ============================================================ */
-
-.advanced-section {
-    background: white;
-    border: 1px solid #e4e7eb;
-    border-radius: 12px;
-    margin-bottom: 12px;
-    overflow: hidden;
-}
-
-.advanced-section.is-open {
-    border-color: #cfe0f2;
-    box-shadow: 0 2px 10px rgba(44, 111, 181, 0.07);
-}
-
-.advanced-head {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    background: none;
-    border: none;
-    cursor: pointer;
-    font: inherit;
-    padding: 16px 20px;
-    text-align: left;
-}
-
-.advanced-head:hover {
-    background: #f8fafc;
-}
-
-.advanced-chevron {
-    color: #8a94a0;
-    flex-shrink: 0;
-    font-size: 13px;
-    transition: transform 0.15s;
-}
-
-.advanced-section.is-open .advanced-chevron {
-    transform: rotate(90deg);
-}
-
-.advanced-heading {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-}
-
-.advanced-title {
-    color: #2c3e50;
-    font-size: 15px;
-    font-weight: 600;
-}
-
-.advanced-summary {
-    color: #6c757d;
-    font-size: 12px;
-    line-height: 1.4;
-}
-
-/* The live digest of what a collapsed section is currently doing. Pushed to the far
-   right so the column of them reads as a settings summary. */
-.advanced-state {
-    margin-left: auto;
-    padding-left: 16px;
-    color: #2c6fb5;
-    font-size: 12px;
-    text-align: right;
-    flex-shrink: 0;
-}
-
-.advanced-body {
-    border-top: 1px solid #eef1f4;
-    padding: 20px;
-    background: #fbfcfd;
-}
-
-/* Cards inside a section are already grouped by the section itself, so they drop the
-   outer card chrome and become plain columns. */
-.advanced-body .form-grid {
-    margin: 0;
-}
-
-.advanced-body .card {
-    box-shadow: none;
-    border: 1px solid #e9edf1;
-}
-
-@media (max-width: 640px) {
-    .advanced-state {
-        display: none;
-    }
-
-    .advanced-head {
-        padding: 14px 16px;
-    }
-
-    .advanced-body {
-        padding: 16px;
-    }
-}
-
-/* ============================================================
    Two-box fields — the "/" in a label is not an operator
    ============================================================
    "D_M1 / D_M2", "A_sne1 / A_sni1", "min / max", "d_sh / bore": the same slash
@@ -859,11 +753,10 @@ select:focus {
 }
 
 /* ============================================================
-   Field dialogs — Shared/SchematicHelp.razor and Shared/StandardPicker.razor
-   The small button that sits next to an input label and the modal it
-   opens. The .schematic-overlay/-dialog/-head/-close/-body/-note shell
-   is shared by both components; the .picker-* rules below are the
-   table StandardPicker puts inside it.
+   Field dialogs — Shared/SchematicHelp.razor and Shared/DialogButton.razor
+   The small button that sits next to an input label or card header and
+   the modal it opens. Both components share the
+   .schematic-overlay/-dialog/-head/-close/-body/-note shell.
    Global rather than page-scoped so the styles are present on first
    paint when a user deep-links into a calculator.
    ============================================================ */
@@ -1019,118 +912,99 @@ select:focus {
     line-height: 1.5;
 }
 
-/* --- StandardPicker: the button and the table of standard values --- */
+/* --- DialogButton: reference tables and settings panels --- */
 
-/* Deliberately louder than .schematic-btn. That button is optional help; this one
-   is the shortest route to a correct value, so it should read as an action. */
-.picker-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    background: #eef5fc;
-    border: 1px solid #cfe0f2;
-    border-radius: 6px;
-    color: #2c6fb5;
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: 500;
-    line-height: 1;
-    margin-left: 6px;
-    padding: 4px 9px;
-    transition: background 0.15s, border-color 0.15s;
-    vertical-align: middle;
-}
-
-.picker-btn:hover:not(:disabled) {
-    background: #dceaf7;
-    border-color: #b3d1ec;
-}
-
-.picker-btn:disabled {
-    opacity: 0.45;
+.schematic-btn:disabled {
+    opacity: 0.4;
     cursor: not-allowed;
 }
 
-.card-header .picker-btn {
-    margin-left: auto;
-}
-
-.picker-intro {
+.dialog-intro {
     font-size: 13px;
     color: #495057;
     line-height: 1.55;
     margin-bottom: 14px;
 }
 
-/* Standard tables are wide (the K_A matrix, the eight ISO 1328 tolerances).
-   Scroll the table, never the page — same rule the results tables follow. */
-.picker-scroll {
-    overflow-x: auto;
-}
-
-.picker-table {
+/* Reference tables inside a dialog. Same look CompressionSpring established for its
+   end-condition table, but global: a page <style> block only reaches the DOM after
+   that page has rendered once, so a deep link would land on an unstyled table. */
+.info-table {
     width: 100%;
     border-collapse: collapse;
     font-size: 13px;
-    white-space: nowrap;
 }
 
-.picker-table th {
+.info-table th {
     background: #f8f9fa;
     padding: 9px 12px;
-    text-align: right;
+    text-align: left;
     font-weight: 600;
     color: #2c3e50;
     border-bottom: 2px solid #dee2e6;
-    position: sticky;
-    top: 0;
 }
 
-.picker-table th:first-child {
-    text-align: left;
-}
-
-.picker-table td {
+.info-table td {
     padding: 8px 12px;
     border-bottom: 1px solid #eee;
+    vertical-align: top;
+}
+
+.info-table tbody tr:hover {
+    background: #f8f9fa;
+}
+
+/* Numeric columns: right-aligned and monospaced, matching the results tables. */
+.info-table td.num,
+.info-table th.num {
     text-align: right;
     font-family: 'Consolas', monospace;
 }
 
-.picker-table td:first-child {
-    text-align: left;
+.info-table th.num {
     font-family: inherit;
 }
 
-.picker-table tbody tr {
-    cursor: pointer;
-    transition: background 0.12s;
-}
-
-.picker-table tbody tr:hover,
-.picker-table tbody tr:focus {
-    background: #e3f2fd;
-    outline: none;
-}
-
-.picker-table tbody tr:focus-visible {
-    box-shadow: inset 0 0 0 2px #2c6fb5;
-}
-
-/* Where the form currently sits, so picking is a comparison and not a guess. */
-.picker-table tbody tr.is-current {
+/* The row matching the form's current value, so the table reads as a comparison
+   rather than a list. */
+.info-table tbody tr.is-current {
     background: #e8f5e9;
     font-weight: 500;
 }
 
-.picker-table tbody tr.is-current:hover {
+.info-table tbody tr.is-current:hover {
     background: #d8ecda;
 }
 
-/* A row the standard does not define for this size, kept in place so the gap in
-   the table is visible rather than silently closed up. */
-.picker-table td.na {
+/* A value the standard does not define for this size, left visible rather than blank. */
+.info-table td.na {
     color: #adb5bd;
+}
+
+/* Wide tables (the K_A matrix, the eight ISO 1328 tolerances) scroll inside their own
+   box — the dialog must never scroll horizontally. */
+.dialog-scroll {
+    overflow-x: auto;
+}
+
+.dialog-scroll .info-table {
+    white-space: nowrap;
+}
+
+/* A panel of further inputs rather than a reference table: the form-groups inside a
+   settings dialog sit in one or two columns depending on the width available. */
+.dialog-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 4px 20px;
+}
+
+.dialog-form .form-group {
+    margin-bottom: 18px;
+}
+
+.dialog-form .form-group.full {
+    grid-column: 1 / -1;
 }
 
 @media (max-width: 640px) {
@@ -1142,12 +1016,12 @@ select:focus {
         padding: 14px 16px;
     }
 
-    .picker-table {
+    .info-table {
         font-size: 12px;
     }
 
-    .picker-table th,
-    .picker-table td {
+    .info-table th,
+    .info-table td {
         padding: 7px 9px;
     }
 }
