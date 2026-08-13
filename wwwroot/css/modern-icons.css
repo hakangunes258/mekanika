@@ -405,6 +405,18 @@
     margin-top: 2px;
 }
 
+/* Alerts carry inline formulae, and a run like
+   "2·A_a·sin(α_wt)·cos(β_b)" is a single unbreakable word. As a flex item its
+   min-content width became a floor the card could not go below, and the page scrolled
+   sideways on a narrow window. Let the text box shrink, and break the formula. */
+.alert > * {
+    min-width: 0;
+}
+
+.alert {
+    overflow-wrap: anywhere;
+}
+
 .alert-success {
     background: #d4edda;
     border: 1px solid #c3e6cb;
@@ -482,6 +494,15 @@ select {
     background: white;
     cursor: pointer;
     transition: all 0.2s ease;
+
+    /* A <select> takes its min-content width from its LONGEST option, and a grid item
+       cannot shrink below its own min-content. Options like "Figure 13 a) — K' = 0,48
+       stiffened / 0,8 unstiffened" therefore pushed the whole card grid wider than the
+       page and the layout overflowed sideways. Let the box shrink and truncate the label
+       instead; the full text is still there when the list is open. */
+    min-width: 0;
+    max-width: 100%;
+    text-overflow: ellipsis;
 }
 
 select:focus {
@@ -644,6 +665,35 @@ select:focus {
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 20px;
     margin-bottom: 24px;
+}
+
+/* A results table has a floor width of its own (four to five columns of numbers) and
+   sits directly in a .card with no scroll wrapper, so on a narrow window it pushed the
+   page sideways. Scroll the table, never the body — the same rule the dialog tables
+   follow. display:block is what gives the table its own scroll box. */
+@media (max-width: 760px) {
+    .results-table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+}
+
+/* Grid and flex items default to min-width:auto, so a single wide child (a <select>
+   sized by its longest option, a two-box field, a long unbroken symbol) sets a floor
+   the column cannot go below and the row overflows the page. Release the floor
+   everywhere the gear form nests boxes. */
+.form-grid > *,
+.form-group,
+.input-group > *,
+.dual-field > * {
+    min-width: 0;
+}
+
+.input-group input,
+.form-group input {
+    min-width: 0;
+    max-width: 100%;
 }
 
 @media (min-width: 1600px) {

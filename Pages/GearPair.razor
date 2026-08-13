@@ -18,114 +18,6 @@
 {
     <!-- INPUT FORM -->
     <div class="form-grid">
-        <!-- Power Data Card -->
-        <div class="card">
-            <div class="card-header">
-                <ModuleIcon Type="force" Size="medium" Style="solid" />
-                <h2>Power Data</h2>
-            </div>
-
-            <div class="form-group">
-                <label>Power (P)</label>
-                <div class="input-group">
-                    <input type="number" step="0.1" @bind="engine.Power" placeholder="e.g. 3.5" />
-                    <span class="unit">kW</span>
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label>Pinion Speed (n<sub>1</sub>)</label>
-                <div class="input-group">
-                    <input type="number" step="1" @bind="engine.Speed1" placeholder="e.g. 2500" />
-                    <span class="unit">rpm</span>
-                </div>
-            </div>
-
-            <div class="form-group">
-                <div class="label-row">
-                    <label>Application Factor (K<sub>A</sub>)</label>
-                    @* Title is rendered as escaped text and Unicode has no subscript A, so the
-                       heading says K_A rather than an entity that would show up verbatim.
-                       Keep Razor comments OUT of a component's attribute list: one placed
-                       between two attributes here compiled cleanly and then rendered nothing
-                       at all - no button, no dialog. *@
-                    <DialogButton Title="Application Factor K_A &#8212; ISO 6336-1 Table A.1" MaxWidth="720">
-                        <Intro>
-                            K<sub>A</sub> covers the load increase from the working characteristics of the
-                            driving and the driven machine. Read the value off the row and column that
-                            describe your drive, then select it in the field.
-                        </Intro>
-                        <ChildContent>
-                            <div class="dialog-scroll">
-                                <table class="info-table">
-                                    <thead>
-                                        <tr>
-                                            <th rowspan="2">Driving machine</th>
-                                            <th colspan="4" class="num" style="text-align: center;">Driven machine</th>
-                                        </tr>
-                                        <tr>
-                                            @foreach (var driven in ApplicationFactorHeadings)
-                                            {
-                                                <th class="num">@driven</th>
-                                            }
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @for (int i = 0; i < ApplicationFactorHeadings.Length; i++)
-                                        {
-                                            <tr>
-                                                <td><strong>@ApplicationFactorHeadings[i]</strong></td>
-                                                @for (int j = 0; j < ApplicationFactorHeadings.Length; j++)
-                                                {
-                                                    var cell = ApplicationFactorMatrix[i, j];
-                                                    <td class="num @(IsSelectedKa(cell) ? "is-current" : null)">@cell.ToString("F2")</td>
-                                                }
-                                            </tr>
-                                        }
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            <table class="info-table" style="margin-top: 18px;">
-                                <thead>
-                                    <tr><th>Working characteristic</th><th>Typical machine</th></tr>
-                                </thead>
-                                <tbody>
-                                    <tr><td>Uniform</td><td>Electric motor, steady steam or gas turbine</td></tr>
-                                    <tr><td>Light shocks</td><td>Steam or gas turbine with varying load; large, frequently started electric motor</td></tr>
-                                    <tr><td>Moderate shocks</td><td>Multi-cylinder combustion engine</td></tr>
-                                    <tr><td>Heavy shocks</td><td>Single-cylinder combustion engine</td></tr>
-                                </tbody>
-                            </table>
-                        </ChildContent>
-                        <Footer>
-                            Values apply to gears working away from a resonant speed and under reasonably
-                            uniform load. Where the driven machine can stall or the drive reverses,
-                            ISO 6336-1 requires the peak torque to be checked separately &#8212;
-                            K<sub>A</sub> does not cover it. The bottom-right case may need more than 2.25.
-                        </Footer>
-                    </DialogButton>
-                </div>
-                <select @bind="selectedApplicationFactor" @bind:after="OnApplicationFactorChanged">
-                    @foreach (var (value, label) in ApplicationFactorChoices)
-                    {
-                        <option value="@value">@label</option>
-                    }
-                </select>
-                <small style="color: #6c757d; font-size: 12px;">
-                    The named cases are the row for a uniform prime mover.
-                </small>
-            </div>
-
-            <div class="form-group">
-                <label>Required Service Life (H)</label>
-                <div class="input-group">
-                    <input type="number" step="100" @bind="engine.RequiredServiceLife" placeholder="e.g. 10000" />
-                    <span class="unit">h</span>
-                </div>
-            </div>
-        </div>
-
         <!-- Basic Geometry Card -->
         <div class="card">
             <div class="card-header">
@@ -621,8 +513,9 @@
                         <span class="unit">mm</span>
                     </div>
                     <small style="color: #6c757d; font-size: 12px;">
-                        Measured with the ball diameter set below. Both sit below the theoretical
-                        M<sub>d</sub>.
+                        Both sit below the theoretical M<sub>d</sub>. Measured with
+                        @BallDiameterCaption(1) on gear 1 and @BallDiameterCaption(2) on gear 2
+                        &#8212; set the ball in that gear's <em>Advanced Gear Geometry</em> dialog.
                     </small>
                 </div>
             }
@@ -694,32 +587,12 @@
                 </small>
             </div>
 
-            <div class="form-group">
-                <label>Ball / Pin Diameter for M<sub>d</sub></label>
-                <div class="dual-field">
-                    <div class="dual-box">
-                        <span class="dual-cap">Gear 1 (D<sub>M1</sub>)</span>
-                        <input type="number" step="0.1" min="0" @bind="engine.BallDiameter1" />
-                    </div>
-                    <div class="dual-box">
-                        <span class="dual-cap">Gear 2 (D<sub>M2</sub>)</span>
-                        <input type="number" step="0.1" min="0" @bind="engine.BallDiameter2" />
-                    </div>
-                    <span class="unit">mm</span>
-                </div>
-                <small style="color: #6c757d; font-size: 12px;">
-                    Two separate gears, not a ratio. The ball is what the dimension over balls
-                    M<sub>d</sub> is measured with, so use the size you actually have &#8212; a bigger
-                    ball sits higher on the flank and reads larger. 0 lets the calculator pick a
-                    best size and it reports both.
-                </small>
-            </div>
         </div>
         <!-- Load Factor Detail Card -->
         <div class="card">
             <div class="card-header">
                 <ModuleIcon Type="settings" Size="medium" Style="solid" />
-                <h2>Load Factor Detail</h2>
+                <h2>Dynamic Factor (K<sub>V</sub>)</h2>
             </div>
 
             <div class="form-group">
@@ -760,11 +633,24 @@
                 </div>
             }
 
+        </div>
+
+        <!-- Face Load Factor Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="loading" Size="medium" Style="solid" />
+                <h2>Face Load Factor (K<sub>H&#946;</sub>)</h2>
+            </div>
+
             <div class="form-group">
                 <label class="checkbox-label">
                     <input type="checkbox" @bind="engine.UseDirectFaceLoadFactor" />
                     <span>Enter K<sub>H&#946;</sub> directly</span>
                 </label>
+                <small style="color: #6c757d; font-size: 12px;">
+                    Otherwise it follows ISO 6336-1 Clause 7.5, Method C, from the mesh
+                    misalignment and the shaft deflection below.
+                </small>
             </div>
 
             @if (engine.UseDirectFaceLoadFactor)
@@ -882,6 +768,117 @@
                 }
             }
 
+        </div>
+
+        <!-- Power Data Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="force" Size="medium" Style="solid" />
+                <h2>Power Data</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Power (P)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="engine.Power" placeholder="e.g. 3.5" />
+                    <span class="unit">kW</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Pinion Speed (n<sub>1</sub>)</label>
+                <div class="input-group">
+                    <input type="number" step="1" @bind="engine.Speed1" placeholder="e.g. 2500" />
+                    <span class="unit">rpm</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <div class="label-row">
+                    <label>Application Factor (K<sub>A</sub>)</label>
+                    @* Title is rendered as escaped text and Unicode has no subscript A, so the
+                       heading says K_A rather than an entity that would show up verbatim.
+                       Keep Razor comments OUT of a component's attribute list: one placed
+                       between two attributes here compiled cleanly and then rendered nothing
+                       at all - no button, no dialog. *@
+                    <DialogButton Title="Application Factor K_A &#8212; ISO 6336-1 Table A.1" MaxWidth="720">
+                        <Intro>
+                            K<sub>A</sub> covers the load increase from the working characteristics of the
+                            driving and the driven machine. Read the value off the row and column that
+                            describe your drive, then select it in the field.
+                        </Intro>
+                        <ChildContent>
+                            <div class="dialog-scroll">
+                                <table class="info-table">
+                                    <thead>
+                                        <tr>
+                                            <th rowspan="2">Driving machine</th>
+                                            <th colspan="4" class="num" style="text-align: center;">Driven machine</th>
+                                        </tr>
+                                        <tr>
+                                            @foreach (var driven in ApplicationFactorHeadings)
+                                            {
+                                                <th class="num">@driven</th>
+                                            }
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @for (int i = 0; i < ApplicationFactorHeadings.Length; i++)
+                                        {
+                                            <tr>
+                                                <td><strong>@ApplicationFactorHeadings[i]</strong></td>
+                                                @for (int j = 0; j < ApplicationFactorHeadings.Length; j++)
+                                                {
+                                                    var cell = ApplicationFactorMatrix[i, j];
+                                                    <td class="num @(IsSelectedKa(cell) ? "is-current" : null)">@cell.ToString("F2")</td>
+                                                }
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <table class="info-table" style="margin-top: 18px;">
+                                <thead>
+                                    <tr><th>Working characteristic</th><th>Typical machine</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Uniform</td><td>Electric motor, steady steam or gas turbine</td></tr>
+                                    <tr><td>Light shocks</td><td>Steam or gas turbine with varying load; large, frequently started electric motor</td></tr>
+                                    <tr><td>Moderate shocks</td><td>Multi-cylinder combustion engine</td></tr>
+                                    <tr><td>Heavy shocks</td><td>Single-cylinder combustion engine</td></tr>
+                                </tbody>
+                            </table>
+                        </ChildContent>
+                        <Footer>
+                            Values apply to gears working away from a resonant speed and under reasonably
+                            uniform load. Where the driven machine can stall or the drive reverses,
+                            ISO 6336-1 requires the peak torque to be checked separately &#8212;
+                            K<sub>A</sub> does not cover it. The bottom-right case may need more than 2.25.
+                        </Footer>
+                    </DialogButton>
+                </div>
+                <select @bind="selectedApplicationFactor" @bind:after="OnApplicationFactorChanged">
+                    @foreach (var (value, label) in ApplicationFactorChoices)
+                    {
+                        <option value="@value">@label</option>
+                    }
+                </select>
+                <small style="color: #6c757d; font-size: 12px;">
+                    The named cases are the row for a uniform prime mover.
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label>Required Service Life (H)</label>
+                <div class="input-group">
+                    <input type="number" step="100" @bind="engine.RequiredServiceLife" placeholder="e.g. 10000" />
+                    <span class="unit">h</span>
+                </div>
+            </div>
+
+            @* Sits with the service life rather than with the load factors: it is a statement
+               about the life curve, not about how the load is shared. *@
             <div class="form-group">
                 <label class="checkbox-label">
                     <input type="checkbox" @bind="engine.OptimumLifeConditions" />
@@ -1930,6 +1927,23 @@ else
                         Drives Y<sub>RrelT</sub>. 10 &#956;m is the ISO 6336-3 reference test gear.
                     </small>
                 </div>
+
+                <div class="form-group full">
+                    <label>Ball / Pin Diameter for M<sub>d</sub> (D<sub>M</sub>)</label>
+                    <div class="input-group">
+                        <input type="number" step="0.1" min="0"
+                               value="@(gear == 1 ? engine.BallDiameter1 : engine.BallDiameter2)"
+                               @onchange="e => SetBallDiameter(gear, e.Value?.ToString())" />
+                        <span class="unit">mm</span>
+                    </div>
+                    <small style="color: #6c757d; font-size: 12px;">
+                        The ball this gear's dimension over balls is measured with &#8212; a bigger ball
+                        sits higher on the flank and reads larger, so use the size you actually have.
+                        <strong>0</strong> lets the calculator pick a best size; the results report both
+                        the size used and the best size. It belongs to the gear, not to the tolerance,
+                        which is why it lives here.
+                    </small>
+                </div>
             </div>
 
             <h4 style="margin: 18px 0 12px; font-size: 14px; color: #2c3e50;">Rim and hub</h4>
@@ -2045,6 +2059,19 @@ else
     {
         if (gear == 1) engine.RootRoughnessRz1 = ParseOr(v, engine.RootRoughnessRz1);
         else engine.RootRoughnessRz2 = ParseOr(v, engine.RootRoughnessRz2);
+    }
+
+    /// <summary>What the M_d limits will actually be measured with, for the caption.</summary>
+    private string BallDiameterCaption(int gear)
+    {
+        double set = gear == 1 ? engine.BallDiameter1 : engine.BallDiameter2;
+        return set > 0 ? "Ø" + set.ToString("0.###") + " mm" : "the best size";
+    }
+
+    private void SetBallDiameter(int gear, string? v)
+    {
+        if (gear == 1) engine.BallDiameter1 = ParseOr(v, engine.BallDiameter1);
+        else engine.BallDiameter2 = ParseOr(v, engine.BallDiameter2);
     }
 
     private void SetBore(int gear, string? v)
