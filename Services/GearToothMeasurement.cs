@@ -80,6 +80,13 @@ public static class GearToothMeasurement
 
         /// <summary>Ball / pin diameter for the over-pins measurement (mm). 0 = use the best size.</summary>
         public double BallDiameter { get; set; }
+
+        /// <summary>
+        /// Number of teeth to span for W_k. 0 lets the calculator pick the value that puts the
+        /// contact at mid-flank; a drawing that already states k must override it, because a
+        /// span dimension only means anything against the k it was measured over.
+        /// </summary>
+        public int SpanTeeth { get; set; }
     }
 
     public class Result
@@ -101,6 +108,7 @@ public static class GearToothMeasurement
 
         // --- span measurement (base tangent length) ---
         public int k { get; set; }                // number of teeth spanned
+        public int kPreferred { get; set; }       // what the calculator would choose on its own
         public double Wk { get; set; }            // nominal base tangent length (mm)
         public double WkUpper { get; set; }       // with A_sne (mm)
         public double WkLower { get; set; }       // with A_sni (mm)
@@ -237,10 +245,24 @@ public static class GearToothMeasurement
         double tanAlphaY = Math.Sqrt(Math.Max(0, (dTarget / g.db) * (dTarget / g.db) - 1.0));
         double kExact = 0.5 + (g.z * (tanAlphaY - invAlphaT) - 2.0 * g.x * Math.Tan(alphaNRad)) / Math.PI;
 
-        int k = (int)Math.Round(kExact, MidpointRounding.AwayFromZero);
+        // A drawing may already state the number of teeth to span, and W_k only means anything
+        // against the k it was measured over. An explicit value therefore wins; the derived one
+        // is what the calculator would choose on its own.
+        int k = g.SpanTeeth > 0
+            ? g.SpanTeeth
+            : (int)Math.Round(kExact, MidpointRounding.AwayFromZero);
+
         if (k < 1) k = 1;
         if (k > g.z - 1) k = Math.Max(1, g.z - 1);
         r.k = k;
+        r.kPreferred = Math.Min(Math.Max((int)Math.Round(kExact, MidpointRounding.AwayFromZero), 1),
+                                Math.Max(1, g.z - 1));
+
+        if (g.SpanTeeth > 0 && k != g.SpanTeeth)
+        {
+            r.Notes.Add($"The requested span of {g.SpanTeeth} teeth is outside 1..{g.z - 1} for this "
+                      + $"gear; {k} was used instead.");
+        }
 
         double cosAlphaN = Math.Cos(alphaNRad);
         r.Wk = g.mn * cosAlphaN * (Math.PI * (k - 0.5) + g.z * invAlphaT)
@@ -637,6 +659,9 @@ public static class GearToothMeasurement
     {
         z = g.z, mn = g.mn, alphaN = g.alphaN, beta = g.beta, x = g.x,
         d = g.d, db = g.db, da = g.da, df = g.df, b = g.b,
-        Asne = asne, Asni = asni, BallDiameter = g.BallDiameter
+        Asne = asne, Asni = asni, BallDiameter = g.BallDiameter,
+        // Carry the span across, or inverting a W_k limit would solve against a different k
+        // from the one the user measured over.
+        SpanTeeth = g.SpanTeeth
     };
 }

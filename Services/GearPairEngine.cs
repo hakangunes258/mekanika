@@ -280,6 +280,24 @@ public class GearPairEngine
     public double BallDiameter1 { get; set; }
     public double BallDiameter2 { get; set; }
 
+    /// <summary>
+    /// Number of teeth to span for W_k. 0 lets the calculator choose. A span dimension only
+    /// means anything against the k it was measured over, so a drawing that states k must be
+    /// able to say so — especially when W_k limits are the tolerance input.
+    /// </summary>
+    public int SpanTeeth1 { get; set; }
+    public int SpanTeeth2 { get; set; }
+
+    /// <summary>
+    /// Tip and root diameter deviations (mm). Nominal is 0/0 — these are blank-turning
+    /// tolerances, not tooth thickness ones, and they do not enter the load capacity. They are
+    /// carried so the drawing dimensions the results print are complete.
+    /// </summary>
+    public double TipDiameterUpperDev { get; set; }
+    public double TipDiameterLowerDev { get; set; }
+    public double RootDiameterUpperDev { get; set; }
+    public double RootDiameterLowerDev { get; set; }
+
     /// <summary>How a pair-level backlash target is shared between the two gears.</summary>
     public BacklashSplit SplitRule { get; set; } = BacklashSplit.Even;
 
@@ -1481,7 +1499,8 @@ public class GearPairEngine
             b = gear == 1 ? FaceWidth1 : FaceWidth2,
             Asne = asne,
             Asni = asni,
-            BallDiameter = gear == 1 ? BallDiameter1 : BallDiameter2
+            BallDiameter = gear == 1 ? BallDiameter1 : BallDiameter2,
+            SpanTeeth = gear == 1 ? SpanTeeth1 : SpanTeeth2
         };
 
     /// <summary>

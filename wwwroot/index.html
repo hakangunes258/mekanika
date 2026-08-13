@@ -139,7 +139,10 @@
          Bump ?v= when it changes - same reason as the stylesheets above. Without it
          a returning visitor keeps running the cached copy; that matters here because
          a stale viewer draws a WRONG model rather than failing visibly. -->
-    <script src="js/viewer3d.js?v=2" defer></script>
+    <!-- viewer3d.js carries its OWN cache version, separate from the two stylesheets above.
+         Bump it whenever the viewer changes, or the browser keeps the old builders and the
+         fix looks like it did nothing. -->
+    <script src="js/viewer3d.js?v=3" defer></script>
 
     <!-- PDF Generator - Load Last (only needed for export feature) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>

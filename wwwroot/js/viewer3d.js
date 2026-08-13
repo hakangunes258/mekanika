@@ -565,9 +565,11 @@ window.mekanika3d = (function () {
         const rimIn1 = num(p.rim1, 0), rimIn2 = num(p.rim2, 0);
         const web1 = num(p.web1, 0), web2 = num(p.web2, 0);
 
-        const mPinion = H.mat(0x9EA3AB, { metalness: 0.85, roughness: 0.3 });
+        // Keep the pinion's metalness near the wheel's. At 0,85 it mirrored the dark scene and
+        // read as a black disc next to the wheel - legible on a light background, not on this one.
+        const mPinion = H.mat(0xB9C0C9, { metalness: 0.5, roughness: 0.42 });
         const mWheel = H.mat(0x4CB38C, { metalness: 0.5, roughness: 0.45 });
-        const mHub = H.mat(0xD4AE4D, { metalness: 0.8, roughness: 0.35 });
+        const mHub = H.mat(0xD4AE4D, { metalness: 0.55, roughness: 0.4 });
 
         /*
          * One tooth flank is a true involute, sampled from the root to the tip.
@@ -848,6 +850,11 @@ window.mekanika3d = (function () {
         const layers = spec.layers || {};
         Object.keys(layers).forEach(k => root.add(layers[k]));
 
+        // Where each layer sits before any explode offset. Captured once, here, because the
+        // explode animation runs every frame and would otherwise overwrite it - see applyExplode.
+        const layerHome = {};
+        Object.keys(layers).forEach(k => layerHome[k] = layers[k].position.clone());
+
         // ---- edge overlays (legibility + snap targets)
         //
         // Metallic faces blend into one another, so without outlines the user
@@ -895,9 +902,49 @@ window.mekanika3d = (function () {
         buildEdges();
 
         const cam = spec.camera || {};
-        const baseRadius = cam.radius || 300;
         const tgt = cam.target || [0, 0, 0];
         const target = new THREE.Vector3(tgt[0], tgt[1], tgt[2]);
+
+        /*
+         * Frame what was actually built, instead of trusting the builder's hand-tuned radius.
+         *
+         * The perspective camera's 45 degrees is the VERTICAL field of view; the horizontal
+         * half-angle is scaled by the aspect ratio. In a narrow pane (the side panel runs about
+         * 0,64) the horizontal angle is far tighter, and a radius tuned on a wide screen puts
+         * part of the model off the sides. The gear pair showed this plainly: the pinion sat
+         * fully in frame while the wheel was 41 % past the right edge, so the viewer looked
+         * like it was drawing a single gear.
+         *
+         * So: measure the real vertices, take the radius that encloses them about the
+         * builder's target, and back off far enough for the TIGHTER of the two half-angles.
+         * cam.radius stays as a floor, which keeps a small part from filling the screen.
+         */
+        let baseRadius = cam.radius || 300;
+        (function fitCamera() {
+            const v = new THREE.Vector3();
+            let far2 = 0, found = false;
+
+            root.updateWorldMatrix(true, true);
+            root.traverse(node => {
+                const pos = node.geometry && node.geometry.attributes && node.geometry.attributes.position;
+                if (!pos || (node.userData && node.userData.isEdgeOverlay)) return;
+                for (let i = 0; i < pos.count; i++) {
+                    v.fromBufferAttribute(pos, i).applyMatrix4(node.matrixWorld);
+                    const d2 = v.distanceToSquared(target);
+                    if (d2 > far2) far2 = d2;
+                    found = true;
+                }
+            });
+            if (!found || far2 <= 0) return;
+
+            const vFov = 45 * Math.PI / 180;
+            const aspect = Math.max(W() / Hh(), 0.2);
+            const hFov = 2 * Math.atan(Math.tan(vFov / 2) * aspect);
+            const half = Math.min(vFov, hFov) / 2;
+
+            const fit = Math.sqrt(far2) / Math.sin(half) * 1.06;   // 6 % breathing room
+            baseRadius = Math.max(baseRadius, fit);
+        })();
 
         const grid = new THREE.GridHelper(baseRadius * 4, 24, 0x3a4150, 0x2a2f38);
         grid.position.y = -baseRadius * 0.55;
@@ -1237,10 +1284,23 @@ window.mekanika3d = (function () {
         ov.querySelector('.mek3d-title').textContent = spec.title || '';
 
         // ---- loop
+        /*
+         * The explode offset is ADDED to wherever the builder put the layer.
+         *
+         * This used to be a bare position.set(), which silently destroyed any position a
+         * builder had assigned - and it ran every frame, so there was no way to see it in the
+         * code that set the position. The first four builders bake their offsets into the
+         * geometry and never position a layer, so nothing showed. The gear pair positions the
+         * wheel at the centre distance, and the explode loop pulled it back onto the pinion
+         * every frame: the two gears rendered concentrically and it looked like the viewer was
+         * drawing a single gear.
+         */
         function applyExplode(f) {
             Object.keys(explode).forEach(k => {
                 const g = layers[k], o = explode[k];
-                if (g && o) g.position.set(o[0] * f, o[1] * f, o[2] * f);
+                if (!g || !o) return;
+                const base = layerHome[k];
+                g.position.set(base.x + o[0] * f, base.y + o[1] * f, base.z + o[2] * f);
             });
         }
         function frame() {

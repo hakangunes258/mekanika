@@ -31,10 +31,6 @@
                     <input type="number" step="0.1" @bind="engine.NormalModule" @bind:after="OnGeometryChanged" placeholder="e.g. 1.5" />
                     <span class="unit">mm</span>
                 </div>
-                <small style="color: #6c757d; font-size: 12px;">
-                    Any value is accepted &#8212; an intermediate module, or one converted from a
-                    diametral pitch (m<sub>n</sub> = 25.4 / DP).
-                </small>
             </div>
 
             <div class="form-group">
@@ -425,12 +421,6 @@
                     <option value="@TipAlterationSource.Calculated">Calculated &#8212; k = y &#8722; &#931;x, keeps the tip clearance</option>
                     <option value="@TipAlterationSource.Manual">Manual &#8212; enter k</option>
                 </select>
-                <small style="color: #6c757d; font-size: 12px;">
-                    Profile shift moves the teeth out but the centre distance does not follow,
-                    so the tip clearance shrinks. k turns both tips down by k&#183;m<sub>n</sub>
-                    to put it back. It changes d<sub>a</sub>, and through it
-                    &#949;<sub>&#945;</sub> and the tooth form factors.
-                </small>
             </div>
 
             @if (engine.TipAlterationMode == TipAlterationSource.Manual)
@@ -622,6 +612,26 @@
             else if (engine.AllowanceMode == ToothThicknessAllowanceMode.SpanLimits)
             {
                 <div class="form-group">
+                    <label>Teeth Spanned (k)</label>
+                    <div class="dual-field">
+                        <div class="dual-box">
+                            <span class="dual-cap">Gear 1</span>
+                            <input type="number" step="1" min="0" @bind="engine.SpanTeeth1" />
+                        </div>
+                        <div class="dual-box">
+                            <span class="dual-cap">Gear 2</span>
+                            <input type="number" step="1" min="0" @bind="engine.SpanTeeth2" />
+                        </div>
+                    </div>
+                    <small style="color: #6c757d; font-size: 12px;">
+                        0 lets the calculator choose the k that puts the contact at mid-flank.
+                        A W<sub>k</sub> dimension only means anything against the k it was measured
+                        over, so enter the k from the drawing if it states one. The results show
+                        both the k used and the one this calculator would pick.
+                    </small>
+                </div>
+
+                <div class="form-group">
                     <label>Gear 1 W<sub>k</sub> (largest / smallest permitted)</label>
                     <div class="input-group">
                         <input type="number" step="0.001" min="0" @bind="engine.SpanLimitUpper1" />
@@ -717,23 +727,75 @@
                         </Footer>
                     </DialogButton>
                 </div>
-                <select @bind="engine.CentreDistanceToleranceField">
+                <select @bind="engine.CentreDistanceToleranceField" @bind:after="OnCentreDistanceFieldChanged">
                     @foreach (var field in CentreDistanceFieldOptions)
                     {
                         <option value="@field">@field</option>
                     }
+                    <option value="custom">Custom &#8212; enter the deviations</option>
                 </select>
             </div>
 
             <div class="form-group">
-                <label>Center Distance Deviation (A<sub>a</sub>) &#8212; override</label>
-                <div class="input-group">
-                    <input type="number" step="1" @bind="aaUpperMicron" />
-                    <input type="number" step="1" @bind="aaLowerMicron" style="margin-left:8px;" />
+                <label>Center Distance Deviation (A<sub>a</sub>)</label>
+                <div class="dual-field">
+                    <div class="dual-box">
+                        <span class="dual-cap">Upper</span>
+                        <input type="number" step="1" @bind="aaUpperMicron"
+                               readonly="@(engine.CentreDistanceToleranceField != "custom")" />
+                    </div>
+                    <div class="dual-box">
+                        <span class="dual-cap">Lower</span>
+                        <input type="number" step="1" @bind="aaLowerMicron"
+                               readonly="@(engine.CentreDistanceToleranceField != "custom")" />
+                    </div>
                     <span class="unit">&#956;m</span>
                 </div>
                 <small style="color: #6c757d; font-size: 12px;">
-                    Upper / lower. Leave both 0 to use the ISO 286 field selected above.
+                    @if (engine.CentreDistanceToleranceField == "custom")
+                    {
+                        <text>Entered directly &#8212; for a housing drawing that is not a plain ISO field.</text>
+                    }
+                    else
+                    {
+                        <text>Filled from ISO 286 @engine.CentreDistanceToleranceField at the centre
+                              distance above. Choose <em>Custom</em> to type your own.</text>
+                    }
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label>Tip Diameter Deviation (d<sub>a</sub>)</label>
+                <div class="dual-field">
+                    <div class="dual-box">
+                        <span class="dual-cap">Upper</span>
+                        <input type="number" step="1" @bind="daUpperMicron" />
+                    </div>
+                    <div class="dual-box">
+                        <span class="dual-cap">Lower</span>
+                        <input type="number" step="1" @bind="daLowerMicron" />
+                    </div>
+                    <span class="unit">&#956;m</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Root Diameter Deviation (d<sub>f</sub>)</label>
+                <div class="dual-field">
+                    <div class="dual-box">
+                        <span class="dual-cap">Upper</span>
+                        <input type="number" step="1" @bind="dfUpperMicron" />
+                    </div>
+                    <div class="dual-box">
+                        <span class="dual-cap">Lower</span>
+                        <input type="number" step="1" @bind="dfLowerMicron" />
+                    </div>
+                    <span class="unit">&#956;m</span>
+                </div>
+                <small style="color: #6c757d; font-size: 12px;">
+                    Blank-turning tolerances, nominal 0/0. They are carried onto the drawing
+                    dimensions in the results; ISO 6336 has no term for them, so they do not move
+                    a safety factor.
                 </small>
             </div>
 
@@ -1020,6 +1082,20 @@
             </div>
 
             <div class="form-group">
+                <label>Driving Gear</label>
+                <select @bind="engine.PinionDrives">
+                    <option value="true">Gear 1 (pinion) drives &#8212; speed reducing</option>
+                    <option value="false">Gear 2 (wheel) drives &#8212; speed increasing</option>
+                </select>
+                <small style="color: #6c757d; font-size: 12px;">
+                    Which gear the torque goes into. It decides the direction of sliding, and so
+                    which end of the path of contact the scuffing approach factor X<sub>J</sub>
+                    applies to (ISO/TR 13989-1, Eq. 45&#8211;48). The power and speed above are
+                    always the pinion's.
+                </small>
+            </div>
+
+            <div class="form-group">
                 <label>Required Service Life (H)</label>
                 <div class="input-group">
                     <input type="number" step="100" @bind="engine.RequiredServiceLife" placeholder="e.g. 10000" />
@@ -1146,7 +1222,19 @@ else
                     <tr><td>Reference Diameter</td><td>d</td><td>@engine.ReferenceDiameter1.ToString("F3")</td><td>@engine.ReferenceDiameter2.ToString("F3")</td><td>mm</td></tr>
                     <tr><td>Base Diameter</td><td>d<sub>b</sub></td><td>@engine.BaseDiameter1.ToString("F3")</td><td>@engine.BaseDiameter2.ToString("F3")</td><td>mm</td></tr>
                     <tr class="highlight"><td>Tip Diameter</td><td>d<sub>a</sub></td><td>@engine.TipDiameter1.ToString("F3")</td><td>@engine.TipDiameter2.ToString("F3")</td><td>mm</td></tr>
+                    @if (engine.TipDiameterUpperDev != 0 || engine.TipDiameterLowerDev != 0)
+                    {
+                        <tr><td>Tip Diameter Deviation</td><td>A<sub>da</sub></td>
+                            <td colspan="2">@((engine.TipDiameterUpperDev * 1000).ToString("F0")) / @((engine.TipDiameterLowerDev * 1000).ToString("F0"))</td>
+                            <td>&#956;m</td></tr>
+                    }
                     <tr class="highlight"><td>Root Diameter</td><td>d<sub>f</sub></td><td>@engine.RootDiameter1.ToString("F3")</td><td>@engine.RootDiameter2.ToString("F3")</td><td>mm</td></tr>
+                    @if (engine.RootDiameterUpperDev != 0 || engine.RootDiameterLowerDev != 0)
+                    {
+                        <tr><td>Root Diameter Deviation</td><td>A<sub>df</sub></td>
+                            <td colspan="2">@((engine.RootDiameterUpperDev * 1000).ToString("F0")) / @((engine.RootDiameterLowerDev * 1000).ToString("F0"))</td>
+                            <td>&#956;m</td></tr>
+                    }
                     <tr><td>Working Pitch Diameter</td><td>d<sub>w</sub></td><td>@engine.WorkingPitchDiameter1.ToString("F3")</td><td>@engine.WorkingPitchDiameter2.ToString("F3")</td><td>mm</td></tr>
                     <tr><td>Addendum</td><td>h<sub>a</sub></td><td>@engine.Addendum1.ToString("F3")</td><td>@engine.Addendum2.ToString("F3")</td><td>mm</td></tr>
                     <tr><td>Dedendum</td><td>h<sub>f</sub></td><td>@engine.Dedendum1.ToString("F3")</td><td>@engine.Dedendum2.ToString("F3")</td><td>mm</td></tr>
@@ -1403,6 +1491,11 @@ else
                     <thead><tr><th>Description</th><th>Symbol</th><th>Gear 1</th><th>Gear 2</th><th>Unit</th></tr></thead>
                     <tbody>
                         <tr><td>Number of Teeth Spanned</td><td>k</td><td>@m1.k</td><td>@m2.k</td><td>-</td></tr>
+                        @if (m1.k != m1.kPreferred || m2.k != m2.kPreferred)
+                        {
+                            <tr><td>k this calculator would choose</td><td>k<sub>pref</sub></td>
+                                <td>@m1.kPreferred</td><td>@m2.kPreferred</td><td>-</td></tr>
+                        }
                         <tr><td>Theoretical (zero allowance)</td><td>W<sub>k</sub></td><td>@m1.Wk.ToString("F4")</td><td>@m2.Wk.ToString("F4")</td><td>mm</td></tr>
                         <tr><td>Allowances</td><td>A<sub>We</sub>/A<sub>Wi</sub></td><td>@((m1.AWe * 1000).ToString("F1")) / @((m1.AWi * 1000).ToString("F1"))</td><td>@((m2.AWe * 1000).ToString("F1")) / @((m2.AWi * 1000).ToString("F1"))</td><td>&#956;m</td></tr>
                         <tr class="highlight"><td>Largest Permitted (at A<sub>sne</sub>)</td><td>W<sub>k,max</sub></td><td>@m1.WkUpper.ToString("F4")</td><td>@m2.WkUpper.ToString("F4")</td><td>mm</td></tr>
@@ -1879,6 +1972,7 @@ else
     // (that is how they appear on a drawing) but held in millimetres on the engine.
     private double asne1Micron, asni1Micron, asne2Micron, asni2Micron;
     private double aaUpperMicron, aaLowerMicron;
+    private double daUpperMicron, daLowerMicron, dfUpperMicron, dfLowerMicron;
 
     /// <summary>Target backlash, in whichever quantity the allowance mode selects (µm).</summary>
     private double jMinMicron, jMaxMicron;
@@ -2501,6 +2595,7 @@ else
         selectedViscosityGrade = "VG 220";
         asne1Micron = asni1Micron = asne2Micron = asni2Micron = 0;
         aaUpperMicron = aaLowerMicron = 0;
+        daUpperMicron = daLowerMicron = dfUpperMicron = dfLowerMicron = 0;
         jMinMicron = jMaxMicron = 0;
         blankType1 = blankType2 = "Solid";
         finishingRoute1 = finishingRoute2 = "custom";
@@ -2527,6 +2622,9 @@ else
 
     private void OnGeometryChanged()
     {
+        // The displayed A_a follows the centre distance when a standard field is selected.
+        OnCentreDistanceFieldChanged();
+
         // Auto-calculate profile shift coefficient for gear 2
         if (engine.NumberOfTeeth1 > 0 && engine.NumberOfTeeth2 > 0 &&
             engine.NormalModule > 0 && engine.CenterDistance > 0)
@@ -2545,6 +2643,20 @@ else
         double ad = engine.ReferenceCentreDistance();
         if (ad <= 0 || engine.NormalModule <= 0 || engine.CenterDistance <= 0) return null;
         return (engine.CenterDistance - ad) / engine.NormalModule - engine.SumProfileShift;
+    }
+
+    /// <summary>
+    /// Shows what the chosen ISO 286 field actually gives, in micrometres. Without this the two
+    /// boxes sat at 0 whatever field was selected, so the field looked as if it did nothing.
+    /// Custom leaves whatever is there for the user to edit.
+    /// </summary>
+    private void OnCentreDistanceFieldChanged()
+    {
+        if (engine.CentreDistanceToleranceField == "custom") return;
+
+        var dev = Iso286.TryGetDeviations(engine.CentreDistanceToleranceField, engine.CenterDistance);
+        aaUpperMicron = dev?.upper ?? 0;
+        aaLowerMicron = dev?.lower ?? 0;
     }
 
     private void UseReferenceCentreDistance()
@@ -2609,8 +2721,17 @@ else
         engine.Asni1 = asni1Micron / 1000.0;
         engine.Asne2 = asne2Micron / 1000.0;
         engine.Asni2 = asni2Micron / 1000.0;
-        engine.CentreDistanceUpperDev = aaUpperMicron / 1000.0;
-        engine.CentreDistanceLowerDev = aaLowerMicron / 1000.0;
+        // Only a Custom field is an override. With a standard field selected the boxes are a
+        // read-only display of what that field gives, so passing them on would freeze the
+        // deviations at whatever centre distance was in force when the field was picked.
+        bool customAa = engine.CentreDistanceToleranceField == "custom";
+        engine.CentreDistanceUpperDev = customAa ? aaUpperMicron / 1000.0 : 0;
+        engine.CentreDistanceLowerDev = customAa ? aaLowerMicron / 1000.0 : 0;
+
+        engine.TipDiameterUpperDev = daUpperMicron / 1000.0;
+        engine.TipDiameterLowerDev = daLowerMicron / 1000.0;
+        engine.RootDiameterUpperDev = dfUpperMicron / 1000.0;
+        engine.RootDiameterLowerDev = dfLowerMicron / 1000.0;
         engine.TargetBacklashMin = jMinMicron / 1000.0;
         engine.TargetBacklashMax = jMaxMicron / 1000.0;
 
@@ -2743,7 +2864,14 @@ else
         .Set("otd", engine.OilTemperatureDirect)
         .Set("nu100", engine.LubricantViscosity100)
         .Set("fzg", engine.FzgLoadStage)
-        .Set("ep", engine.AntiScuffAdditives);
+        .Set("ep", engine.AntiScuffAdditives)
+        .Set("drv", engine.PinionDrives)
+        .Set("wk1", engine.SpanTeeth1)
+        .Set("wk2", engine.SpanTeeth2)
+        .Set("dau", daUpperMicron)
+        .Set("dal", daLowerMicron)
+        .Set("dfu", dfUpperMicron)
+        .Set("dfl", dfLowerMicron);
 
     /// <summary>
     /// Restores state produced by <see cref="BuildShareState"/>, then recalculates so the
@@ -2841,7 +2969,7 @@ else
 
         var aaField = state.GetString("aaf", engine.CentreDistanceToleranceField);
         engine.CentreDistanceToleranceField =
-            CentreDistanceFieldOptions.Contains(aaField) ? aaField : "js7";
+            (CentreDistanceFieldOptions.Contains(aaField) || aaField == "custom") ? aaField : "js7";
         aaUpperMicron = state.GetDouble("aau", aaUpperMicron);
         aaLowerMicron = state.GetDouble("aal", aaLowerMicron);
         engine.BallDiameter1 = state.GetDouble("bd1", engine.BallDiameter1);
@@ -2895,6 +3023,13 @@ else
         engine.LubricantViscosity100 = state.GetDouble("nu100", engine.LubricantViscosity100);
         engine.FzgLoadStage = state.GetDouble("fzg", engine.FzgLoadStage);
         engine.AntiScuffAdditives = state.GetBool("ep", engine.AntiScuffAdditives);
+        engine.PinionDrives = state.GetBool("drv", engine.PinionDrives);
+        engine.SpanTeeth1 = state.GetInt("wk1", engine.SpanTeeth1);
+        engine.SpanTeeth2 = state.GetInt("wk2", engine.SpanTeeth2);
+        daUpperMicron = state.GetDouble("dau", daUpperMicron);
+        daLowerMicron = state.GetDouble("dal", daLowerMicron);
+        dfUpperMicron = state.GetDouble("dfu", dfUpperMicron);
+        dfLowerMicron = state.GetDouble("dfl", dfLowerMicron);
 
         // Derives the wheel's profile shift x2 from the restored geometry.
         OnGeometryChanged();
