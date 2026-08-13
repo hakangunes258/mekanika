@@ -13,13 +13,56 @@ public enum ShaftDeflectionSource
     Neglected
 }
 
-/// <summary>How the tooth thickness allowances are obtained.</summary>
+/// <summary>Where the tip alteration (tip shortening) coefficient k comes from.</summary>
+public enum TipAlterationSource
+{
+    /// <summary>k = 0. Full-depth teeth, whatever that does to the tip clearance.</summary>
+    None,
+    /// <summary>k = y - Σx, the value that restores the reference profile's tip clearance.</summary>
+    Calculated,
+    /// <summary>Entered directly, e.g. to match an existing drawing.</summary>
+    Manual
+}
+
+/// <summary>
+/// What the user specifies to fix the tooth thickness. Everything downstream is derived
+/// from the allowances A_sne/A_sni, so each mode is converted to those on the way in.
+///
+/// New members are appended, never reordered: the mode rides in shared links by name and
+/// an older link must keep meaning what it meant.
+/// </summary>
 public enum ToothThicknessAllowanceMode
 {
     /// <summary>Derived from the ISO/TR 10064-2 recommended minimum backlash.</summary>
     Automatic,
-    /// <summary>Entered directly (e.g. from a DIN 3967 deviation series).</summary>
-    Manual
+    /// <summary>The allowances A_sne/A_sni entered directly.</summary>
+    Manual,
+    /// <summary>Normal backlash j_bn, minimum and maximum.</summary>
+    NormalBacklash,
+    /// <summary>Circumferential backlash j_wt at the working pitch circle.</summary>
+    CircumferentialBacklash,
+    /// <summary>Radial backlash j_r.</summary>
+    RadialBacklash,
+    /// <summary>Base tangent length W_k limits, per gear.</summary>
+    SpanLimits,
+    /// <summary>Dimension over balls / pins M_d limits, per gear.</summary>
+    BallLimits,
+    /// <summary>A DIN 3967 tolerance zone, e.g. 27cd.</summary>
+    Din3967
+}
+
+/// <summary>
+/// How a backlash target, which constrains only the SUM of the two gears' allowances, is
+/// shared between them. W_k and M_d are measured per gear and need no such rule.
+/// </summary>
+public enum BacklashSplit
+{
+    /// <summary>Half the thinning on each gear. The usual choice.</summary>
+    Even,
+    /// <summary>All of it on the pinion — keeps the wheel at nominal thickness.</summary>
+    PinionOnly,
+    /// <summary>All of it on the wheel.</summary>
+    WheelOnly
 }
 
 /// <summary>
@@ -73,6 +116,23 @@ public class GearPairEngine
     public double DedendumCoeff { get; set; } = 1.25;    // h*fP
     public double RootRadiusCoeff { get; set; } = 0.3;   // ρ*fP
     public double AddendumCoeff { get; set; } = 1.0;     // h*aP
+
+    /// <summary>
+    /// Where the tip alteration coefficient k comes from. Defaults to None (k = 0), which is
+    /// what this module did before k existed — so a shared link written by an older build
+    /// still reproduces its own results.
+    /// </summary>
+    public TipAlterationSource TipAlterationMode { get; set; } = TipAlterationSource.None;
+
+    /// <summary>
+    /// Tip alteration coefficient k. An input when <see cref="TipAlterationMode"/> is Manual,
+    /// written by the engine when it is Calculated. Applied to both gears:
+    /// h_a = m_n (h*_aP + x + k).
+    /// </summary>
+    public double TipAlterationCoeff { get; set; }
+
+    /// <summary>How k was obtained, for the results card. Null when k is simply 0.</summary>
+    public string? TipAlterationNote { get; set; }
 
     // Quality - ISO 1328-1 flank tolerance class
     public int QualityGrade1 { get; set; } = 6;
@@ -153,12 +213,67 @@ public class GearPairEngine
     public double Asni1 { get; set; }                    // lower allowance, gear 1 (mm, negative)
     public double Asne2 { get; set; }
     public double Asni2 { get; set; }
-    /// <summary>Upper centre distance deviation A_a (mm). 0 means "derive from ISO 286 js7".</summary>
+    /// <summary>
+    /// Upper centre distance deviation A_a (mm). Leaving both deviations at 0 means
+    /// "derive them from <see cref="CentreDistanceToleranceField"/>".
+    /// </summary>
     public double CentreDistanceUpperDev { get; set; }
+
+    /// <inheritdoc cref="CentreDistanceUpperDev"/>
     public double CentreDistanceLowerDev { get; set; }
+
+    /// <summary>
+    /// ISO 286 field applied to the centre distance when no deviations are entered.
+    /// js7 is the usual machined housing bore centre; coarser housings run to js8/js9.
+    /// </summary>
+    public string CentreDistanceToleranceField { get; set; } = "js7";
+
+    /// <summary>Where the centre distance deviations came from, for the results card.</summary>
+    public string? CentreDistanceNote { get; set; }
     /// <summary>Ball / pin diameter for the over-pins measurement (mm). 0 = best size.</summary>
     public double BallDiameter1 { get; set; }
     public double BallDiameter2 { get; set; }
+
+    /// <summary>How a pair-level backlash target is shared between the two gears.</summary>
+    public BacklashSplit SplitRule { get; set; } = BacklashSplit.Even;
+
+    /// <summary>
+    /// DIN 3967 allowance series letter, shared by both gears. Clause 3.1 says a single
+    /// series for pinion and wheel is the rule, though different ones are permitted; the
+    /// standard's own example uses one letter with a different tolerance series per gear,
+    /// which is what these three fields express.
+    /// </summary>
+    public string Din3967AllowanceSeries { get; set; } = "cd";
+
+    /// <summary>DIN 3967 tolerance series (21-30) of the pinion. 24-27 are preferred.</summary>
+    public int Din3967ToleranceSeries1 { get; set; } = 26;
+
+    /// <inheritdoc cref="Din3967ToleranceSeries1"/>
+    public int Din3967ToleranceSeries2 { get; set; } = 26;
+
+    /// <summary>
+    /// Target backlash, minimum and maximum (mm). Read in whichever quantity
+    /// <see cref="AllowanceMode"/> selects — j_bn, j_wt or j_r.
+    /// </summary>
+    public double TargetBacklashMin { get; set; }
+
+    /// <inheritdoc cref="TargetBacklashMin"/>
+    public double TargetBacklashMax { get; set; }
+
+    /// <summary>
+    /// Base tangent length limits (mm), largest and smallest permitted, per gear.
+    /// Both sit BELOW the nominal W_k, because the allowances are negative.
+    /// </summary>
+    public double SpanLimitUpper1 { get; set; }
+    public double SpanLimitLower1 { get; set; }
+    public double SpanLimitUpper2 { get; set; }
+    public double SpanLimitLower2 { get; set; }
+
+    /// <summary>Dimension over balls limits (mm), largest and smallest permitted, per gear.</summary>
+    public double BallLimitUpper1 { get; set; }
+    public double BallLimitLower1 { get; set; }
+    public double BallLimitUpper2 { get; set; }
+    public double BallLimitLower2 { get; set; }
 
     // Materials
     public GearMaterial Material1 { get; set; } = new();
@@ -449,11 +564,10 @@ public class GearPairEngine
         WorkingPitchDiameter1 = 2.0 * CenterDistance / (1.0 + GearRatio);
         WorkingPitchDiameter2 = 2.0 * CenterDistance * GearRatio / (1.0 + GearRatio);
 
-        // Tip alteration coefficient (k*mn = 0 for standard design)
-        double tipAlteration = 0.0;
+        CalculateTipAlteration();
 
-        Addendum1 = NormalModule * (AddendumCoeff + ProfileShiftCoeff1 + tipAlteration);
-        Addendum2 = NormalModule * (AddendumCoeff + ProfileShiftCoeff2 + tipAlteration);
+        Addendum1 = NormalModule * (AddendumCoeff + ProfileShiftCoeff1 + TipAlterationCoeff);
+        Addendum2 = NormalModule * (AddendumCoeff + ProfileShiftCoeff2 + TipAlterationCoeff);
 
         Dedendum1 = NormalModule * (DedendumCoeff - ProfileShiftCoeff1);
         Dedendum2 = NormalModule * (DedendumCoeff - ProfileShiftCoeff2);
@@ -476,6 +590,66 @@ public class GearPairEngine
             - NumberOfTeeth1 * Math.Pow(Math.Sin(alphatRad), 2) / (2.0 * Math.Cos(betaRad));
         MinProfileShift2 = AddendumCoeff
             - NumberOfTeeth2 * Math.Pow(Math.Sin(alphatRad), 2) / (2.0 * Math.Cos(betaRad));
+    }
+
+    /// <summary>
+    /// Tip alteration (tip shortening) coefficient k, applied equally to both gears.
+    ///
+    /// Profile shift moves the teeth outwards but the centre distance does not follow by the
+    /// same amount, so the working tip clearance shrinks. k is the classical remedy: the tips
+    /// of both gears are turned down by k·m_n.
+    ///
+    ///     y = (a - a_d) / m_n        centre distance modification coefficient
+    ///     k = y - Σx                 ISO 21771 / DIN 3960
+    ///
+    /// Substituting that k into c = a - d_a1/2 - d_f2/2 collapses the whole expression to
+    /// c = m_n(h*_fP - h*_aP) — the reference profile's own clearance, 0.25·m_n for ISO 53
+    /// profile A. That identity is what <see cref="TipAlterationSource.Calculated"/> targets,
+    /// and it is the anchor to re-check if this method is ever touched.
+    ///
+    /// k is normally negative (Σx &gt; y). A positive k lengthens the teeth instead, which is
+    /// legitimate but pushes towards a pointed tip, so it is reported rather than applied
+    /// silently.
+    /// </summary>
+    private void CalculateTipAlteration()
+    {
+        TipAlterationNote = null;
+
+        switch (TipAlterationMode)
+        {
+            case TipAlterationSource.None:
+                TipAlterationCoeff = 0.0;
+                break;
+
+            case TipAlterationSource.Manual:
+                // Held as entered; nothing to derive.
+                break;
+
+            case TipAlterationSource.Calculated:
+                double ad = ReferenceCentreDistance();
+                if (ad <= 0 || NormalModule <= 0)
+                {
+                    TipAlterationCoeff = 0.0;
+                    TipAlterationNote = "k could not be derived (module or tooth counts missing); 0 was used.";
+                    break;
+                }
+
+                double y = (CenterDistance - ad) / NormalModule;
+                TipAlterationCoeff = y - SumProfileShift;
+
+                TipAlterationNote =
+                    $"k = y - Σx = {y:F4} - {SumProfileShift:F4} = {TipAlterationCoeff:F4}, which restores the "
+                  + $"reference profile's tip clearance of {(DedendumCoeff - AddendumCoeff):F2}·mn "
+                  + $"= {NormalModule * (DedendumCoeff - AddendumCoeff):F3} mm.";
+
+                if (TipAlterationCoeff > 0)
+                {
+                    TipAlterationNote +=
+                        " k is positive here, so the teeth are lengthened rather than shortened — check the "
+                      + "tip tooth thickness s_an before adopting it.";
+                }
+                break;
+        }
     }
 
     private void CalculateContactRatios()
@@ -1069,52 +1243,64 @@ public class GearPairEngine
     private void CalculateMeasurements()
     {
         // --- Centre distance deviation ---
-        // Default is js7 on the centre distance, the usual housing tolerance for an
-        // industrial gearbox. Anything the caller supplies wins.
+        // Anything the caller supplies explicitly wins; otherwise the deviations come from
+        // the chosen ISO 286 field on the centre distance. js7 is the usual housing bore
+        // tolerance for an industrial gearbox and stays the default.
         if (Math.Abs(CentreDistanceUpperDev) > 0 || Math.Abs(CentreDistanceLowerDev) > 0)
         {
             UsedCentreDistanceUpperDev = CentreDistanceUpperDev;
             UsedCentreDistanceLowerDev = CentreDistanceLowerDev;
+            CentreDistanceNote = "Centre distance deviations as entered.";
         }
         else
         {
-            int it7 = Iso286.GetItValue(7, CenterDistance);
-            double half = it7 > 0 ? it7 / 2000.0 : 0.030;   // µm → mm, or a 30 µm fallback
-            UsedCentreDistanceUpperDev = half;
-            UsedCentreDistanceLowerDev = -half;
+            var field = Iso286.TryGetDeviations(CentreDistanceToleranceField, CenterDistance);
+            if (field is { } dev)
+            {
+                UsedCentreDistanceUpperDev = dev.upper / 1000.0;   // µm → mm
+                UsedCentreDistanceLowerDev = dev.lower / 1000.0;
+                CentreDistanceNote =
+                    $"Centre distance deviations from ISO 286 {CentreDistanceToleranceField} at "
+                  + $"a = {CenterDistance:F3} mm: {dev.upper:+0;-0;0} / {dev.lower:+0;-0;0} µm.";
+            }
+            else
+            {
+                UsedCentreDistanceUpperDev = 0.030;
+                UsedCentreDistanceLowerDev = -0.030;
+                CentreDistanceNote =
+                    $"ISO 286 {CentreDistanceToleranceField} is not covered at a = {CenterDistance:F3} mm "
+                  + "(the tables run to 500 mm); ±30 µm was assumed. Enter the deviations from the "
+                  + "housing drawing instead.";
+            }
         }
 
         // --- Tooth thickness allowances ---
         double asne1 = Asne1, asni1 = Asni1, asne2 = Asne2, asni2 = Asni2;
 
-        if (AllowanceMode == ToothThicknessAllowanceMode.Automatic)
+        switch (AllowanceMode)
         {
-            double target = GearToothMeasurement.RecommendedMinimumBacklash(CenterDistance, NormalModule);
+            case ToothThicknessAllowanceMode.Automatic:
+                ResolveAutomaticAllowances(ref asne1, ref asni1, ref asne2, ref asni2);
+                break;
 
-            // The tolerance width has to come from somewhere; the cumulative pitch
-            // tolerance F_p of each gear is a common practical choice and keeps the
-            // allowance tied to the tolerance class the user already selected.
-            double tsn1 = (Tolerance1?.CumulativePitch ?? 0) / 1000.0;
-            double tsn2 = (Tolerance2?.CumulativePitch ?? 0) / 1000.0;
+            case ToothThicknessAllowanceMode.Manual:
+                AllowanceNote = "Tooth thickness allowances were entered directly.";
+                break;
 
-            var (upper, _) = GearToothMeasurement.AllowancesForTargetBacklash(
-                target, 0, UsedCentreDistanceLowerDev,
-                PressureAngle, WorkingPressureAngle, BaseHelixAngle);
+            case ToothThicknessAllowanceMode.NormalBacklash:
+            case ToothThicknessAllowanceMode.CircumferentialBacklash:
+            case ToothThicknessAllowanceMode.RadialBacklash:
+                ResolveAllowancesFromBacklash(ref asne1, ref asni1, ref asne2, ref asni2);
+                break;
 
-            asne1 = asne2 = upper;
-            asni1 = upper - tsn1;
-            asni2 = upper - tsn2;
+            case ToothThicknessAllowanceMode.SpanLimits:
+            case ToothThicknessAllowanceMode.BallLimits:
+                ResolveAllowancesFromMeasurement(ref asne1, ref asni1, ref asne2, ref asni2);
+                break;
 
-            AllowanceNote =
-                $"Allowances derived from the ISO/TR 10064-2 recommended minimum normal backlash " +
-                $"({target * 1000:F0} µm), split evenly between the two gears, with the tolerance width " +
-                $"T_sn taken as each gear's ISO 1328-1 cumulative pitch tolerance F_p " +
-                $"({Tolerance1?.CumulativePitch ?? 0:F0} / {Tolerance2?.CumulativePitch ?? 0:F0} µm). " +
-                "Switch to manual allowances to enter a specific deviation series (e.g. DIN 3967).";
-        }
-        else
-        {
-            AllowanceNote = "Tooth thickness allowances were entered directly.";
+            case ToothThicknessAllowanceMode.Din3967:
+                ResolveAllowancesFromDin3967(ref asne1, ref asni1, ref asne2, ref asni2);
+                break;
         }
 
         // Keep the resolved values on the engine so the UI and share state agree with
@@ -1122,21 +1308,8 @@ public class GearPairEngine
         Asne1 = asne1; Asni1 = asni1;
         Asne2 = asne2; Asni2 = asni2;
 
-        Measurement1 = GearToothMeasurement.Calculate(new GearToothMeasurement.GearInput
-        {
-            z = NumberOfTeeth1, mn = NormalModule, alphaN = PressureAngle, beta = HelixAngle,
-            x = ProfileShiftCoeff1, d = ReferenceDiameter1, db = BaseDiameter1,
-            da = TipDiameter1, df = RootDiameter1, b = FaceWidth1,
-            Asne = asne1, Asni = asni1, BallDiameter = BallDiameter1
-        });
-
-        Measurement2 = GearToothMeasurement.Calculate(new GearToothMeasurement.GearInput
-        {
-            z = NumberOfTeeth2, mn = NormalModule, alphaN = PressureAngle, beta = HelixAngle,
-            x = ProfileShiftCoeff2, d = ReferenceDiameter2, db = BaseDiameter2,
-            da = TipDiameter2, df = RootDiameter2, b = FaceWidth2,
-            Asne = asne2, Asni = asni2, BallDiameter = BallDiameter2
-        });
+        Measurement1 = GearToothMeasurement.Calculate(MeasurementInput(1, asne1, asni1));
+        Measurement2 = GearToothMeasurement.Calculate(MeasurementInput(2, asne2, asni2));
 
         Backlash = GearToothMeasurement.CalculateBacklash(
             asne1, asni1, asne2, asni2,
@@ -1144,6 +1317,256 @@ public class GearPairEngine
             PressureAngle, WorkingPressureAngle, BaseHelixAngle,
             CenterDistance, NormalModule);
     }
+
+    /// <summary>The measurement input for one gear at a given pair of allowances.</summary>
+    private GearToothMeasurement.GearInput MeasurementInput(int gear, double asne, double asni)
+        => new()
+        {
+            z = gear == 1 ? NumberOfTeeth1 : NumberOfTeeth2,
+            mn = NormalModule,
+            alphaN = PressureAngle,
+            beta = HelixAngle,
+            x = gear == 1 ? ProfileShiftCoeff1 : ProfileShiftCoeff2,
+            d = gear == 1 ? ReferenceDiameter1 : ReferenceDiameter2,
+            db = gear == 1 ? BaseDiameter1 : BaseDiameter2,
+            da = gear == 1 ? TipDiameter1 : TipDiameter2,
+            df = gear == 1 ? RootDiameter1 : RootDiameter2,
+            b = gear == 1 ? FaceWidth1 : FaceWidth2,
+            Asne = asne,
+            Asni = asni,
+            BallDiameter = gear == 1 ? BallDiameter1 : BallDiameter2
+        };
+
+    /// <summary>
+    /// The default: allowances that just reach the ISO/TR 10064-2 recommended minimum backlash.
+    /// </summary>
+    private void ResolveAutomaticAllowances(ref double asne1, ref double asni1,
+                                            ref double asne2, ref double asni2)
+    {
+        double target = GearToothMeasurement.RecommendedMinimumBacklash(CenterDistance, NormalModule);
+
+        // The tolerance width has to come from somewhere; the cumulative pitch tolerance F_p
+        // of each gear is a common practical choice and keeps the allowance tied to the
+        // tolerance class the user already selected.
+        double tsn1 = (Tolerance1?.CumulativePitch ?? 0) / 1000.0;
+        double tsn2 = (Tolerance2?.CumulativePitch ?? 0) / 1000.0;
+
+        var (upper, _) = GearToothMeasurement.AllowancesForTargetBacklash(
+            target, 0, UsedCentreDistanceLowerDev,
+            PressureAngle, WorkingPressureAngle, BaseHelixAngle);
+
+        asne1 = asne2 = upper;
+        asni1 = upper - tsn1;
+        asni2 = upper - tsn2;
+
+        AllowanceNote =
+            $"Allowances derived from the ISO/TR 10064-2 recommended minimum normal backlash " +
+            $"({target * 1000:F0} µm), split evenly between the two gears, with the tolerance width " +
+            $"T_sn taken as each gear's ISO 1328-1 cumulative pitch tolerance F_p " +
+            $"({Tolerance1?.CumulativePitch ?? 0:F0} / {Tolerance2?.CumulativePitch ?? 0:F0} µm).";
+    }
+
+    /// <summary>
+    /// Backlash target → allowances.
+    ///
+    /// Backlash belongs to the pair, so each limit fixes only the SUM A_sn1 + A_sn2 and
+    /// <see cref="SplitRule"/> decides how it is shared. The minimum backlash happens with
+    /// the thickest teeth (A_sne) at the smallest centre distance, the maximum with the
+    /// thinnest teeth (A_sni) at the largest — so the two limits pair with opposite centre
+    /// distance deviations, which is easy to get backwards.
+    /// </summary>
+    private void ResolveAllowancesFromBacklash(ref double asne1, ref double asni1,
+                                               ref double asne2, ref double asni2)
+    {
+        string quantity;
+        double jbnMin, jbnMax;
+
+        switch (AllowanceMode)
+        {
+            case ToothThicknessAllowanceMode.CircumferentialBacklash:
+                quantity = "circumferential backlash j_wt";
+                jbnMin = GearToothMeasurement.NormalBacklashFromCircumferential(
+                    TargetBacklashMin, WorkingPressureAngle, BaseHelixAngle);
+                jbnMax = GearToothMeasurement.NormalBacklashFromCircumferential(
+                    TargetBacklashMax, WorkingPressureAngle, BaseHelixAngle);
+                break;
+
+            case ToothThicknessAllowanceMode.RadialBacklash:
+                quantity = "radial backlash j_r";
+                jbnMin = GearToothMeasurement.NormalBacklashFromRadial(
+                    TargetBacklashMin, WorkingPressureAngle, BaseHelixAngle);
+                jbnMax = GearToothMeasurement.NormalBacklashFromRadial(
+                    TargetBacklashMax, WorkingPressureAngle, BaseHelixAngle);
+                break;
+
+            default:
+                quantity = "normal backlash j_bn";
+                jbnMin = TargetBacklashMin;
+                jbnMax = TargetBacklashMax;
+                break;
+        }
+
+        var extraNotes = new List<string>();
+
+        // Without a usable upper limit there is no tolerance width, only a single target.
+        // Fall back to the same F_p width the automatic mode uses rather than collapsing
+        // the tolerance to zero, which no gear can be made to.
+        if (jbnMax <= jbnMin)
+        {
+            double tsn = ((Tolerance1?.CumulativePitch ?? 0) + (Tolerance2?.CumulativePitch ?? 0)) / 1000.0;
+            double cosAlphaN = Math.Cos(PressureAngle * Math.PI / 180.0);
+            jbnMax = jbnMin + tsn * cosAlphaN
+                   + (UsedCentreDistanceUpperDev - UsedCentreDistanceLowerDev)
+                     * 2.0 * Math.Sin(WorkingPressureAngle * Math.PI / 180.0)
+                     * Math.Cos(BaseHelixAngle * Math.PI / 180.0);
+            extraNotes.Add(
+                "No maximum was given, so the tolerance width was taken from the two gears' "
+              + "ISO 1328-1 cumulative pitch tolerances F_p.");
+        }
+
+        double sumUpper = GearToothMeasurement.AllowanceSumForNormalBacklash(
+            jbnMin, UsedCentreDistanceLowerDev, PressureAngle, WorkingPressureAngle, BaseHelixAngle);
+        double sumLower = GearToothMeasurement.AllowanceSumForNormalBacklash(
+            jbnMax, UsedCentreDistanceUpperDev, PressureAngle, WorkingPressureAngle, BaseHelixAngle);
+
+        (asne1, asne2) = SplitAllowance(sumUpper);
+        (asni1, asni2) = SplitAllowance(sumLower);
+
+        if (sumUpper > 0)
+        {
+            extraNotes.Add(
+                $"The requested minimum backlash needs teeth THICKER than nominal "
+              + $"(ΣA_sne = {sumUpper * 1000:+0.0} µm). Either the target is too large for this "
+              + "centre distance tolerance, or the nominal tooth thickness should be raised.");
+        }
+
+        string split = SplitRule switch
+        {
+            BacklashSplit.PinionOnly => "all of it taken on the pinion",
+            BacklashSplit.WheelOnly => "all of it taken on the wheel",
+            _ => "split evenly between the two gears"
+        };
+
+        AllowanceNote =
+            $"Allowances derived from the requested {quantity} of "
+          + $"{TargetBacklashMin * 1000:F0}–{TargetBacklashMax * 1000:F0} µm "
+          + $"(j_bn {jbnMin * 1000:F1}–{jbnMax * 1000:F1} µm), {split}."
+          + (extraNotes.Count > 0 ? " " + string.Join(" ", extraNotes) : "");
+    }
+
+    /// <summary>
+    /// W_k or M_d limits → allowances. Both are measured on a single gear, so each gear is
+    /// inverted independently and no split rule applies.
+    /// </summary>
+    private void ResolveAllowancesFromMeasurement(ref double asne1, ref double asni1,
+                                                  ref double asne2, ref double asni2)
+    {
+        bool span = AllowanceMode == ToothThicknessAllowanceMode.SpanLimits;
+        var failed = new List<string>();
+
+        double? Invert(int gear, double target)
+        {
+            var g = MeasurementInput(gear, 0, 0);
+            return span
+                ? GearToothMeasurement.AllowanceForSpan(g, target)
+                : GearToothMeasurement.AllowanceForBallDimension(g, target);
+        }
+
+        void Apply(int gear, double upperTarget, double lowerTarget,
+                   ref double asne, ref double asni)
+        {
+            double? e = Invert(gear, upperTarget);
+            double? i = Invert(gear, lowerTarget);
+
+            if (e is { } ev) asne = ev; else failed.Add($"gear {gear} upper limit");
+            if (i is { } iv) asni = iv; else failed.Add($"gear {gear} lower limit");
+
+            // The largest permitted dimension must give the least thinning. If the two are
+            // the wrong way round the drawing was read upside down; swapping silently would
+            // hide that, so it is reported.
+            if (asni > asne) failed.Add($"gear {gear}: the upper limit is smaller than the lower one");
+        }
+
+        Apply(1, SpanOrBall(1, true), SpanOrBall(1, false), ref asne1, ref asni1);
+        Apply(2, SpanOrBall(2, true), SpanOrBall(2, false), ref asne2, ref asni2);
+
+        AllowanceNote =
+            (span
+                ? "Allowances back-calculated from the base tangent length limits (A_sn = A_W / cos α_n)."
+                : "Allowances back-calculated from the dimension over balls limits, by re-solving the "
+                + "involute for the thinned tooth rather than through a sensitivity factor.")
+          + (failed.Count > 0
+                ? " Could not be resolved for: " + string.Join(", ", failed)
+                + ". Those allowances were left unchanged — check the entered limits against the "
+                + "nominal value shown in the control dimensions table."
+                : "");
+    }
+
+    /// <summary>
+    /// A DIN 3967 tolerance zone → allowances. Straight table lookup on each gear's own
+    /// reference diameter, with A_sni = A_sne − T_sn (Clause 3.2).
+    ///
+    /// The allowances are what the standard tabulates; the backlash that follows is the
+    /// theoretical one. DIN 3967 Clause A.1.2 is explicit that acceptance backlash also
+    /// depends on temperature, housing tolerance, bore parallelism, tooth deviations and
+    /// elasticity — so the number this produces is a starting point, not an acceptance limit.
+    /// </summary>
+    private void ResolveAllowancesFromDin3967(ref double asne1, ref double asni1,
+                                              ref double asne2, ref double asni2)
+    {
+        var zone1 = Din3967.Allowances(Din3967ToleranceSeries1, Din3967AllowanceSeries, ReferenceDiameter1);
+        var zone2 = Din3967.Allowances(Din3967ToleranceSeries2, Din3967AllowanceSeries, ReferenceDiameter2);
+
+        var notes = new List<string>();
+
+        if (zone1 is { } z1) { asne1 = z1.AsneMm; asni1 = z1.AsniMm; }
+        else notes.Add($"gear 1 (d = {ReferenceDiameter1:F1} mm)");
+
+        if (zone2 is { } z2) { asne2 = z2.AsneMm; asni2 = z2.AsniMm; }
+        else notes.Add($"gear 2 (d = {ReferenceDiameter2:F1} mm)");
+
+        if (notes.Count > 0)
+        {
+            AllowanceNote =
+                "DIN 3967 does not cover " + string.Join(" or ", notes)
+              + " — the tables run from 0 to 10000 mm reference diameter. Those allowances were "
+              + "left unchanged.";
+            return;
+        }
+
+        string preferred =
+            Din3967.IsPreferredToleranceSeries(Din3967ToleranceSeries1) &&
+            Din3967.IsPreferredToleranceSeries(Din3967ToleranceSeries2)
+                ? ""
+                : " Clause 3.3 names series 24 to 27 as the preferred ones.";
+
+        AllowanceNote =
+            $"Allowances from DIN 3967 tolerance zones {zone1!.Value.Designation} (gear 1) and "
+          + $"{zone2!.Value.Designation} (gear 2): "
+          + $"A_sne = {zone1.Value.AsneMicron:F0} / {zone2.Value.AsneMicron:F0} µm, "
+          + $"T_sn = {zone1.Value.TsnMicron:F0} / {zone2.Value.TsnMicron:F0} µm."
+          + preferred
+          + " DIN 3962 Part 1 additionally requires T_sn to be at least twice the permissible "
+          + "tooth thickness fluctuation R_s — check that against the manufacturing route.";
+    }
+
+    private double SpanOrBall(int gear, bool upper)
+    {
+        if (AllowanceMode == ToothThicknessAllowanceMode.SpanLimits)
+            return gear == 1 ? (upper ? SpanLimitUpper1 : SpanLimitLower1)
+                             : (upper ? SpanLimitUpper2 : SpanLimitLower2);
+
+        return gear == 1 ? (upper ? BallLimitUpper1 : BallLimitLower1)
+                         : (upper ? BallLimitUpper2 : BallLimitLower2);
+    }
+
+    /// <summary>Shares a total allowance between the two gears per <see cref="SplitRule"/>.</summary>
+    private (double gear1, double gear2) SplitAllowance(double total) => SplitRule switch
+    {
+        BacklashSplit.PinionOnly => (total, 0.0),
+        BacklashSplit.WheelOnly => (0.0, total),
+        _ => (total / 2.0, total / 2.0)
+    };
 
     // ============ HELPER METHODS ============
 

@@ -525,4 +525,118 @@ public static class GearToothMeasurement
 
         return (asne, asne - Math.Abs(Tsn));
     }
+
+    // ===================== Inverses: a measured quantity back to A_sn =====================
+    //
+    // Everything downstream of the tooth thickness allowance is derived from it, so the
+    // engine only ever needs A_sne/A_sni. These four helpers let the *user* work in the
+    // quantity they actually have on a drawing or a gauge, and convert.
+    //
+    // Note the asymmetry, because it decides what the UI has to ask for:
+    //   - backlash is a property of the PAIR, so one number constrains the SUM of the two
+    //     gears' allowances and a split rule is needed;
+    //   - W_k and M_d are measured on ONE gear, so they invert per gear with no split.
+
+    /// <summary>
+    /// The sum A_sn1 + A_sn2 that produces a given normal backlash at a given centre
+    /// distance deviation. Straight rearrangement of the j_bn relation in
+    /// <see cref="CalculateBacklash"/> — keep the two in step.
+    /// </summary>
+    public static double AllowanceSumForNormalBacklash(
+        double jbn, double Aa, double alphaN, double alphaWt, double betaB)
+    {
+        double cosAlphaN = Math.Cos(alphaN * Math.PI / 180.0);
+        if (cosAlphaN <= 0) return 0;
+
+        double cosBetaB = Math.Cos(betaB * Math.PI / 180.0);
+        double sinAlphaWt = Math.Sin(alphaWt * Math.PI / 180.0);
+
+        return (2.0 * Aa * sinAlphaWt * cosBetaB - jbn) / cosAlphaN;
+    }
+
+    /// <summary>Circumferential backlash at the working pitch circle → normal backlash.</summary>
+    public static double NormalBacklashFromCircumferential(double jwt, double alphaWt, double betaB)
+        => jwt * Math.Cos(alphaWt * Math.PI / 180.0) * Math.Cos(betaB * Math.PI / 180.0);
+
+    /// <summary>
+    /// Radial backlash → normal backlash. j_wt = 2 j_r tan(alpha_wt), and substituting into
+    /// the line above leaves j_bn = 2 j_r sin(alpha_wt) cos(beta_b).
+    /// </summary>
+    public static double NormalBacklashFromRadial(double jr, double alphaWt, double betaB)
+        => 2.0 * jr * Math.Sin(alphaWt * Math.PI / 180.0) * Math.Cos(betaB * Math.PI / 180.0);
+
+    /// <summary>
+    /// The allowance A_sn that puts the base tangent length at <paramref name="targetWk"/>.
+    /// A normal thickness deviation shortens the span by A_sn cos(alpha_n), so this is exact
+    /// and needs no iteration. Returns null when the nominal span cannot be evaluated.
+    /// </summary>
+    public static double? AllowanceForSpan(GearInput g, double targetWk)
+    {
+        if (targetWk <= 0) return null;
+
+        var nominal = Calculate(Probe(g, 0, 0));
+        if (nominal.Wk <= 0) return null;
+
+        double cosAlphaN = Math.Cos(g.alphaN * Math.PI / 180.0);
+        if (cosAlphaN <= 0) return null;
+
+        return (targetWk - nominal.Wk) / cosAlphaN;
+    }
+
+    /// <summary>
+    /// The allowance A_sn that puts the dimension over balls at <paramref name="targetMd"/>.
+    ///
+    /// Inverted with a secant iteration over the same <c>MdForThicknessDeviation</c> the
+    /// results table uses, rather than through a sensitivity factor. M_d is very nearly
+    /// linear in A_sn over any realistic allowance so this converges in two or three steps,
+    /// and re-using the forward solve means the inverse cannot disagree with the number the
+    /// user sees printed next to it. Returns null when it does not converge.
+    /// </summary>
+    public static double? AllowanceForBallDimension(GearInput g, double targetMd)
+    {
+        if (targetMd <= 0) return null;
+
+        var probe = Probe(g, 0, 0);
+        var nominal = Calculate(probe);
+        if (nominal.DM <= 0 || nominal.Md <= 0) return null;
+
+        double alphaNRad = g.alphaN * Math.PI / 180.0;
+        double betaRad = g.beta * Math.PI / 180.0;
+        double alphaTRad = Math.Atan(Math.Tan(alphaNRad) / Math.Cos(betaRad));
+        double cosBetaB = Math.Cos(Math.Asin(Math.Sin(betaRad) * Math.Cos(alphaNRad)));
+        double invAlphaT = Inv(alphaTRad);
+
+        double Residual(double asn)
+        {
+            double md = MdForThicknessDeviation(probe, nominal.DM, alphaNRad, alphaTRad,
+                                                cosBetaB, invAlphaT, asn);
+            return md <= 0 ? double.NaN : md - targetMd;
+        }
+
+        double a0 = 0.0, a1 = -0.02 * g.mn;
+        double f0 = Residual(a0), f1 = Residual(a1);
+
+        for (int i = 0; i < 40; i++)
+        {
+            if (double.IsNaN(f0) || double.IsNaN(f1)) return null;
+            if (Math.Abs(f1) < 1e-9) break;
+
+            double slope = f1 - f0;
+            if (Math.Abs(slope) < 1e-15) break;
+
+            double a2 = a1 - f1 * (a1 - a0) / slope;
+            a0 = a1; f0 = f1;
+            a1 = a2; f1 = Residual(a1);
+        }
+
+        return !double.IsNaN(f1) && Math.Abs(f1) <= 1e-6 ? a1 : null;
+    }
+
+    /// <summary>A copy of the gear with different allowances; GearInput is a class, not a record.</summary>
+    private static GearInput Probe(GearInput g, double asne, double asni) => new()
+    {
+        z = g.z, mn = g.mn, alphaN = g.alphaN, beta = g.beta, x = g.x,
+        d = g.d, db = g.db, da = g.da, df = g.df, b = g.b,
+        Asne = asne, Asni = asni, BallDiameter = g.BallDiameter
+    };
 }

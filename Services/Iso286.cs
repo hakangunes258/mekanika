@@ -8,9 +8,10 @@ namespace MechanicalCalculatorWeb.Services;
 /// ISO 286 limits and fits.
 ///
 /// Covers nominal sizes from 1 mm up to 500 mm for:
-///   - Standard tolerance grades IT5 - IT8 (ISO 286-1:2010, Table 1)
+///   - Standard tolerance grades IT5 - IT11 (ISO 286-1:2010, Table 1)
 ///   - Shaft fundamental deviations h, n, p, r, s, t, u (ISO 286-2:2010)
 ///   - Hole fundamental deviation H (ISO 286-2:2010)
+///   - The symmetrical field js / JS, which is defined rather than tabulated
 ///
 /// All deviation values are in micrometers (um).
 ///
@@ -46,7 +47,13 @@ public static class Iso286
         { 5, new[] {        4,  5,  6,  8,  9, 11, 13, 15, 18, 20, 23, 25, 27 } },
         { 6, new[] {        6,  8,  9, 11, 13, 16, 19, 22, 25, 29, 32, 36, 40 } },
         { 7, new[] {       10, 12, 15, 18, 21, 25, 30, 35, 40, 46, 52, 57, 63 } },
-        { 8, new[] {       14, 18, 22, 27, 33, 39, 46, 54, 63, 72, 81, 89, 97 } }
+        { 8, new[] {       14, 18, 22, 27, 33, 39, 46, 54, 63, 72, 81, 89, 97 } },
+        // IT9 - IT11 are here for the centre distance of a gear pair, which is a much
+        // coarser feature than a press fit: a gearbox housing bore centre is commonly
+        // js7, but cast or fabricated housings run to js8 and beyond.
+        { 9, new[] {       25, 30, 36, 43, 52, 62, 74, 87,100,115,130,140,155 } },
+        { 10, new[] {      40, 48, 58, 70, 84,100,120,140,160,185,210,230,250 } },
+        { 11, new[] {      60, 75, 90,110,130,160,190,220,250,290,320,360,400 } }
     };
 
     // ---------------------------------------------------------------------
@@ -129,11 +136,28 @@ public static class Iso286
     {
         if (string.IsNullOrWhiteSpace(tolerance) || tolerance.Length < 2) return null;
 
+        // "js"/"JS" is the only two-letter code handled here, so it has to be peeled off
+        // before the single-letter path - "js7" would otherwise parse its grade as "s7".
+        bool symmetric = tolerance.Length > 2
+                      && (tolerance[0] == 'j' || tolerance[0] == 'J')
+                      && (tolerance[1] == 's' || tolerance[1] == 'S');
+
         char letter = tolerance[0];
-        if (!int.TryParse(tolerance.Substring(1), out int grade)) return null;
+        string gradeText = symmetric ? tolerance.Substring(2) : tolerance.Substring(1);
+        if (!int.TryParse(gradeText, out int grade)) return null;
 
         int it = GetItValue(grade, diameter);
         if (it == 0) return null;
+
+        // ----- js / JS: symmetrical about nominal, es = -ei = IT/2 -----
+        // Definitional rather than tabulated, and identical for shafts and holes.
+        // ISO 286-1 notes that for an odd IT value in micrometres the two deviations are
+        // taken as +/-(IT-1)/2 so they stay whole micrometres; that is the rounding below.
+        if (symmetric)
+        {
+            double half = it % 2 == 0 ? it / 2.0 : (it - 1) / 2.0;
+            return (half, -half);
+        }
 
         // ----- Shaft (lowercase letter) -----
         if (char.IsLower(letter))
