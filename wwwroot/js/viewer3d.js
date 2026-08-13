@@ -174,10 +174,10 @@ window.mekanika3d = (function () {
          * Extrude a Shape along the X axis (the shaft axis in every module here)
          * and centre it on the origin.
          */
-        H.prism = function (shape, length, material, curveSegments) {
+        H.prism = function (shape, length, material, curveSegments, steps) {
             const g = new THREE.ExtrudeGeometry(shape, {
                 depth: length, bevelEnabled: false,
-                curveSegments: curveSegments || 64, steps: 1
+                curveSegments: curveSegments || 64, steps: steps || 1
             });
             g.translate(0, 0, -length / 2);
             g.rotateY(Math.PI / 2);                    // extrusion axis Z -> X
@@ -529,6 +529,191 @@ window.mekanika3d = (function () {
                 states: states.map(s => s.label),
                 apply: i => rebuild(states[Math.min(i, states.length - 1)].len)
             }
+        };
+    };
+
+    /* ----------------------------------------------------------- gear pair */
+    BUILDERS['gear-pair'] = function (THREE, p, H) {
+        /*
+         * num() rejects anything <= 0 and substitutes its default, which is right for a
+         * diameter and wrong for a profile shift or a helix angle - x = -0.2 would silently
+         * become 0 and draw a different gear. Signed inputs go through snum instead.
+         */
+        const snum = (v, d) => {
+            const n = typeof v === 'number' ? v : parseFloat(v);
+            return isFinite(n) ? n : d;
+        };
+
+        const mn = num(p.mn, 2);
+        const alphaN = num(p.alphaN, 20);
+        const beta = snum(p.beta, 0);
+        const z1 = Math.max(4, Math.round(num(p.z1, 20)));
+        const z2 = Math.max(4, Math.round(num(p.z2, 40)));
+        const x1 = snum(p.x1, 0), x2 = snum(p.x2, 0);
+        const b1 = num(p.b1, 20), b2 = num(p.b2, 20);
+        const a = num(p.a, mn * (z1 + z2) / 2);
+
+        const d1 = num(p.d1, mn * z1 / Math.cos(beta * Math.PI / 180));
+        const d2 = num(p.d2, mn * z2 / Math.cos(beta * Math.PI / 180));
+        const da1 = num(p.da1, d1 + 2 * mn), da2 = num(p.da2, d2 + 2 * mn);
+        const df1 = num(p.df1, d1 - 2.5 * mn), df2 = num(p.df2, d2 - 2.5 * mn);
+
+        const bore1 = num(p.di1, 0), bore2 = num(p.di2, 0);
+        const webbed1 = String(p.blank1 || '') === 'Webbed';
+        const webbed2 = String(p.blank2 || '') === 'Webbed';
+        const hub1 = num(p.hub1, 0), hub2 = num(p.hub2, 0);
+        const rimIn1 = num(p.rim1, 0), rimIn2 = num(p.rim2, 0);
+        const web1 = num(p.web1, 0), web2 = num(p.web2, 0);
+
+        const mPinion = H.mat(0x9EA3AB, { metalness: 0.85, roughness: 0.3 });
+        const mWheel = H.mat(0x4CB38C, { metalness: 0.5, roughness: 0.45 });
+        const mHub = H.mat(0xD4AE4D, { metalness: 0.8, roughness: 0.35 });
+
+        /*
+         * One tooth flank is a true involute, sampled from the root to the tip.
+         *
+         *   half tooth angle at radius r:  psi(r) = s_t/d + inv(alpha_t) - inv(alpha_r)
+         *
+         * Below the base circle inv(alpha_r) is undefined and the generating rack leaves a
+         * fillet, not an involute; psi is held at its base-circle value there, which draws a
+         * radial flank down to the root. That is the standard schematic simplification and
+         * the only place this outline departs from the real cut profile.
+         */
+        function gearShape(z, x, d, da, df, holeR) {
+            const betaR = beta * Math.PI / 180, alphaNr = alphaN * Math.PI / 180;
+            const alphaT = Math.atan(Math.tan(alphaNr) / Math.cos(betaR));
+            const rb = d / 2 * Math.cos(alphaT);
+            const ra = da / 2, rf = df / 2;
+
+            const st = mn * (Math.PI / 2 + 2 * x * Math.tan(alphaNr)) / Math.cos(betaR);
+            const psiRef = st / d;                       // half tooth angle at the reference circle
+            const invT = Math.tan(alphaT) - alphaT;
+
+            const psi = r => {
+                if (r <= rb) return psiRef + invT;
+                const ar = Math.acos(Math.min(1, rb / r));
+                return psiRef + invT - (Math.tan(ar) - ar);
+            };
+
+            const N = 8;                                  // samples per flank
+            const shape = new THREE.Shape();
+            const step = Math.PI * 2 / z;
+            const at = (r, ang) => [Math.cos(ang) * r, Math.sin(ang) * r];
+
+            let started = false;
+            const go = (r, ang) => {
+                const pt = at(r, ang);
+                if (!started) { shape.moveTo(pt[0], pt[1]); started = true; }
+                else shape.lineTo(pt[0], pt[1]);
+            };
+
+            for (let i = 0; i < z; i++) {
+                const c = i * step;
+
+                // Rising flank, root -> tip.
+                for (let k = 0; k <= N; k++) {
+                    const r = rf + (ra - rf) * (k / N);
+                    go(r, c - Math.max(psi(r), 0));
+                }
+                // Across the tip. A pointed tooth collapses to a single point rather than
+                // crossing over itself.
+                const psiA = Math.max(psi(ra), 0);
+                if (psiA > 1e-6) go(ra, c + psiA);
+
+                // Falling flank, tip -> root.
+                for (let k = N; k >= 0; k--) {
+                    const r = rf + (ra - rf) * (k / N);
+                    go(r, c + Math.max(psi(r), 0));
+                }
+                // Root land across to the next tooth.
+                go(rf, c + step - Math.max(psi(rf), 0));
+            }
+            shape.closePath();
+
+            if (holeR > 1e-4) {
+                const hole = new THREE.Path();
+                hole.absarc(0, 0, holeR, 0, Math.PI * 2, true);
+                shape.holes.push(hole);
+            }
+            return shape;
+        }
+
+        /*
+         * A helical gear is the same transverse section rotated linearly along the axis:
+         * the twist rate is tan(beta)/r_pitch. Applied to the extruded geometry rather than
+         * faked, so the face advance the calculation reports is the one you can see.
+         */
+        function twistAboutX(geometry, radPerMm) {
+            if (Math.abs(radPerMm) < 1e-12) return;
+            const pos = geometry.attributes.position;
+            for (let i = 0; i < pos.count; i++) {
+                const px = pos.getX(i), py = pos.getY(i), pz = pos.getZ(i);
+                const t = px * radPerMm, ct = Math.cos(t), stt = Math.sin(t);
+                pos.setXYZ(i, px, py * ct - pz * stt, py * stt + pz * ct);
+            }
+            pos.needsUpdate = true;
+            geometry.computeVertexNormals();
+        }
+
+        function buildGear(z, x, d, da, df, b, bore, webbed, hubD, rimInD, webT, mat, hand) {
+            const g = new THREE.Group();
+            const rBore = bore / 2;
+            const twist = hand * Math.tan(beta * Math.PI / 180) / (d / 2);
+            const steps = Math.abs(beta) > 0.01 ? Math.max(8, Math.round(b / 2)) : 1;
+
+            const useWeb = webbed && rimInD > 0 && webT > 0 && webT < b;
+            const rimInner = useWeb ? rimInD / 2 : rBore;
+
+            // Toothed rim. Everything else hangs off it.
+            const rim = H.prism(gearShape(z, x, d, da, df, rimInner), b, mat, 1, steps);
+            twistAboutX(rim.geometry, twist);
+            g.add(rim);
+
+            if (useWeb) {
+                const rHub = Math.max(hubD / 2, rBore * 1.15);
+                // Web: a thin disc from the hub out to the rim bore, centred on the face.
+                g.add(H.prism(H.annulus(rHub, rimInner + 0.01), webT, mat, 64));
+                // Hub: full face width, so the blank has something to clamp on.
+                g.add(H.prism(H.annulus(rBore, rHub), b, mHub, 64));
+            }
+            return g;
+        }
+
+        const gPinion = new THREE.Group(), gWheel = new THREE.Group();
+        gPinion.add(buildGear(z1, x1, d1, da1, df1, b1, bore1, webbed1, hub1, rimIn1, web1, mPinion, +1));
+        gWheel.add(buildGear(z2, x2, d2, da2, df2, b2, bore2, webbed2, hub2, rimIn2, web2, mWheel, -1));
+
+        /*
+         * Meshing phase. Put a pinion TOOTH centre on the line of centres and a wheel SPACE
+         * centre facing it. A tooth is symmetric about its own centre, so its neighbouring
+         * space centre sits exactly half a pitch away at every radius - which makes this
+         * correct for a profile-shifted pair too, where the reference circles are not the
+         * ones in contact.
+         */
+        gPinion.rotation.x = Math.PI / 2;
+        gWheel.rotation.x = -Math.PI / 2 - Math.PI / z2;
+        gWheel.position.y = a;
+
+        const span = da1 / 2 + a + da2 / 2;
+        const hel = Math.abs(beta) > 0.01 ? ` · β=${fmt(beta)}°` : ' · spur';
+
+        const legend = [
+            { color: '#9EA3AB', label: `Pinion z₁=${z1}, Ø${fmt(da1)} tip` },
+            { color: '#4CB38C', label: `Wheel z₂=${z2}, Ø${fmt(da2)} tip` }
+        ];
+        if ((webbed1 && rimIn1 > 0) || (webbed2 && rimIn2 > 0)) {
+            legend.push({ color: '#D4AE4D', label: 'Hub' });
+        }
+        legend.push({ color: '#6c757d', label: 'Root fillets are drawn as radial flanks below the base circle' });
+
+        return {
+            title: `mₙ=${fmt(mn)} · z=${z1}/${z2} · a=${fmt(a)} mm${hel} · ` +
+                   `x=${fmt(x1)}/${fmt(x2)} (ISO 21771)`,
+            legend: legend,
+            layers: { pinion: gPinion, wheel: gWheel },
+            explode: { wheel: [0, a * 0.55, 0] },
+            ghosts: [mWheel],
+            camera: { radius: Math.max(span * 1.5, 180), target: [0, a / 2, 0] }
         };
     };
 
@@ -1103,5 +1288,49 @@ window.mekanika3d = (function () {
         session = null;
     }
 
-    return { open, close, supports: k => !!BUILDERS[k] };
+    /*
+     * Builds a module's geometry without opening the overlay and returns the bounding box of
+     * every layer, in millimetres. A builder cannot be eyeballed from a terminal, so this is
+     * how a new one gets checked against its inputs: the boxes must match the diameters and
+     * face widths that went in. Needs three.js, so it lazy-loads exactly like open() does.
+     */
+    async function inspect(moduleKey, params) {
+        const THREE = await loadThree();
+        const build = BUILDERS[moduleKey];
+        if (!build) throw new Error('no builder for ' + moduleKey);
+
+        const spec = build(THREE, caseInsensitiveParams(params), makeHelpers(THREE));
+        const out = { title: spec.title, layers: {} };
+
+        /*
+         * Box3.setFromObject is NOT usable here. It takes each mesh's LOCAL bounding box and
+         * transforms its eight corners, so any rotated part reports the axis-aligned box of a
+         * rotated box - larger than the part. The wheel, phased by -90 deg - 180/z, came out
+         * 7% oversize and looked like a geometry bug. Walk the real vertices instead.
+         */
+        const v = new THREE.Vector3();
+        Object.keys(spec.layers).forEach(name => {
+            const root = spec.layers[name];
+            root.updateWorldMatrix(true, true);
+
+            const min = [Infinity, Infinity, Infinity];
+            const max = [-Infinity, -Infinity, -Infinity];
+
+            root.traverse(node => {
+                const pos = node.geometry && node.geometry.attributes && node.geometry.attributes.position;
+                if (!pos) return;
+                for (let i = 0; i < pos.count; i++) {
+                    v.fromBufferAttribute(pos, i).applyMatrix4(node.matrixWorld);
+                    ['x', 'y', 'z'].forEach((axis, k) => {
+                        if (v[axis] < min[k]) min[k] = v[axis];
+                        if (v[axis] > max[k]) max[k] = v[axis];
+                    });
+                }
+            });
+            out.layers[name] = { min: min, max: max };
+        });
+        return out;
+    }
+
+    return { open, close, inspect, supports: k => !!BUILDERS[k] };
 })();
