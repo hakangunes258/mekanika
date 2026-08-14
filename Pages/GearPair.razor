@@ -1711,7 +1711,8 @@ else
 
         <!-- Scuffing -->
         <div class="card">
-            <div class="card-header"><ModuleIcon Type="surface" Size="medium" Style="solid" /><h2>Scuffing (ISO/TR 13989-1, Flash Temperature)</h2></div>
+            <div class="card-header"><ModuleIcon Type="surface" Size="medium" Style="solid" /><h2>Scuffing (ISO/TR 13989)</h2></div>
+            <h3 style="margin: 0 16px 8px; font-size: 15px; color: #2c3e50;">Flash Temperature Method (Part 1)</h3>
             @if (engine.Scuffing is { Valid: true } sc)
             {
                 <table class="results-table">
@@ -1741,6 +1742,50 @@ else
                 @foreach (var n in sc.Notes)
                 {
                     <div class="alert alert-warning" style="margin: 12px 16px; font-size: 13px;">@n</div>
+                }
+
+                @if (engine.ScuffingIntegral is { Valid: true } si)
+                {
+                    <h3 style="margin: 24px 16px 8px; font-size: 15px; color: #2c3e50;">
+                        Cross-check &#8212; Integral Temperature Method (ISO/TR 13989-2)
+                    </h3>
+                    <table class="results-table">
+                        <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                        <tbody>
+                            <tr><td>Mean Coefficient of Friction</td><td>&#956;<sub>mC</sub></td><td>@si.MuMc.ToString("F4")</td><td>-</td></tr>
+                            <tr><td>Geometry Factor at Pinion Tip</td><td>X<sub>BE</sub></td><td>@si.XBE.ToString("F4")</td><td>-</td></tr>
+                            <tr><td>Contact Ratio Factor</td><td>X<sub>&#949;</sub></td><td>@si.XEps.ToString("F4")</td><td>-</td></tr>
+                            <tr><td>Approach / Tip Relief Factors</td><td>X<sub>Q</sub> / X<sub>Ca</sub></td><td>@si.XQ.ToString("F3") / @si.XCa.ToString("F3")</td><td>-</td></tr>
+                            <tr><td>Flash Temperature at Pinion Tip</td><td>&#920;<sub>flaE</sub></td><td>@si.FlashAtTip.ToString("F1")</td><td>K</td></tr>
+                            <tr class="highlight"><td>Mean Flash Temperature</td><td>&#920;<sub>flaint</sub></td><td>@si.FlashIntegral.ToString("F1")</td><td>K</td></tr>
+                            <tr><td>Bulk Temperature</td><td>&#920;<sub>M</sub></td><td>@si.BulkTemperature.ToString("F1")</td><td>&#176;C</td></tr>
+                            <tr class="highlight"><td>Integral Temperature</td><td>&#920;<sub>int</sub></td><td>@si.IntegralTemperature.ToString("F1")</td><td>&#176;C</td></tr>
+                            <tr><td>Scuffing Integral Temperature</td><td>&#920;<sub>intS</sub></td><td>@si.ScuffingIntegralTemperature.ToString("F0")</td><td>&#176;C</td></tr>
+                            <tr class="@(si.SafetyFactor < 1 ? "danger" : si.SafetyFactor <= 2 ? "warning" : "success")">
+                                <td>Scuffing Safety (integral)</td><td>S<sub>intS</sub></td>
+                                <td>@si.SafetyFactor.ToString("F2")</td><td>@si.RiskBand</td>
+                            </tr>
+                            <tr><td>Load Safety Factor</td><td>S<sub>Sl</sub></td><td>@si.LoadSafetyFactor.ToString("F2")</td><td>-</td></tr>
+                        </tbody>
+                    </table>
+
+                    @foreach (var n in si.Notes)
+                    {
+                        <div class="alert alert-warning" style="margin: 12px 16px; font-size: 13px;">@n</div>
+                    }
+
+                    <div class="alert" style="margin: 16px; background: #f8f9fa; padding: 12px; font-size: 13px;">
+                        The two methods answer the same question differently: the flash method sweeps the
+                        whole path of contact and takes the peak, the integral method takes the tip value
+                        and weights it into a mean. The standard's introduction says they give about the
+                        same assessment of risk, and that the integral method is the <em>less</em>
+                        sensitive of the two where the flash temperature has a local peak &#8212; a low
+                        contact ratio, or contact near the base circle. <strong>The two safety factors are
+                        not on the same scale:</strong> S<sub>B</sub> is a ratio of temperatures above the
+                        oil, S<sub>intS</sub> a ratio of absolute temperatures. Compare the verdicts, not
+                        the numbers. Clause 6.1.1 reads S<sub>intS</sub> as: below 1 high risk, 1 to 2
+                        critical, above 2 low risk.
+                    </div>
                 }
 
                 <div class="alert" style="margin: 16px; background: #f8f9fa; padding: 12px; font-size: 13px;">
@@ -1854,11 +1899,12 @@ else
             <div class="alert" style="margin: 16px 0 0; background: #f8f9fa; padding: 12px; font-size: 13px;">
                 <strong>Scope:</strong> this module covers geometry (ISO 21771), flank tolerances
                 (ISO 1328-1), backlash (ISO/TR 10064-2), tooth root and flank load capacity
-                (ISO 6336-1/2/3), allowable stress numbers (ISO 6336-5) and scuffing by the flash
-                temperature method (ISO/TR 13989-1). It does <em>not</em> cover the integral
-                temperature method (ISO/TR 13989-2), micropitting (ISO/TR 15144), tooth flank
+                (ISO 6336-1/2/3), allowable stress numbers (ISO 6336-5) and scuffing by both the
+                flash temperature (ISO/TR 13989-1) and integral temperature (ISO/TR 13989-2)
+                methods. It does <em>not</em> cover micropitting (ISO/TR 15144), tooth flank
                 fracture, or planetary and internal gear arrangements. Within scuffing, bevel and
-                hypoid geometry and the profile-modified load sharing branches are not implemented.
+                hypoid geometry and the profile-modified load sharing branches of Part 1 are not
+                implemented.
             </div>
         </div>
     </div>

@@ -544,6 +544,9 @@ public class GearPairEngine
     /// <summary>Scuffing result, ISO/TR 13989-1 flash temperature method.</summary>
     public Iso13989FlashTemperature.Result? Scuffing { get; set; }
 
+    /// <summary>Scuffing result, ISO/TR 13989-2 integral temperature method.</summary>
+    public Iso13989IntegralTemperature.Result? ScuffingIntegral { get; set; }
+
     /// <summary>Oil temperature actually used (°C), whether entered or derived from ambient.</summary>
     public double OilTemperatureUsed { get; set; }
 
@@ -1481,6 +1484,64 @@ public class GearPairEngine
 
         ScuffingViscosityAtOil = nuAtOil;
         MinScuffingSafety = Scuffing is { Valid: true } s ? s.SafetyFactor : 0;
+
+        // The second route. ISO/TR 13989's introduction says the two methods give about the
+        // same assessment of scuffing risk, so running both is a cross-check rather than
+        // duplication - and the integral method is the less sensitive of the two where the
+        // flash temperature has a local peak.
+        ScuffingIntegral = Iso13989IntegralTemperature.Calculate(new Iso13989IntegralTemperature.Input
+        {
+            alphaN = PressureAngle,
+            alphaT = TransversePressureAngle,
+            alphaWt = WorkingPressureAngle,
+            beta = HelixAngle,
+            betaB = BaseHelixAngle,
+            a = CenterDistance,
+            u = GearRatio,
+            z1 = NumberOfTeeth1,
+            z2 = NumberOfTeeth2,
+            da1 = TipDiameter1,
+            da2 = TipDiameter2,
+            db1 = BaseDiameter1,
+            db2 = BaseDiameter2,
+            b = Math.Min(FaceWidth1, FaceWidth2),
+            epsilonGamma = TotalContactRatio,
+
+            Ft = TangentialForce,
+            v = PitchLineVelocity,
+            KA = ApplicationFactor,
+            KV = DynamicFactor,
+            KBbeta = FaceLoadFactorFlank,
+            KBalpha = TransverseLoadFactorFlank,
+            PinionDrives = PinionDrives,
+
+            E1 = Material1.ElasticModulus * 1000.0,
+            E2 = Material2.ElasticModulus * 1000.0,
+            nu1 = Material1.PoissonRatio,
+            nu2 = Material2.PoissonRatio,
+            XW = StructuralFactorOverride > 0
+                ? StructuralFactorOverride
+                : Iso13989IntegralTemperature.WeldingFactor(Material1.Iso6336Type),
+
+            // Part 2 asks for the roughness of the flanks AS MANUFACTURED, and carries the
+            // run-in state separately in X_E. Part 1 asks for the run-in roughness. The form
+            // collects the run-in value, so it is scaled back up by the standard's own
+            // Ra_run-in ~ 0,6 Ra_new and the gear is then declared fully run in.
+            Ra1 = FlankRoughnessRz1 / 6.0 / 0.6,
+            Ra2 = FlankRoughnessRz2 / 6.0 / 0.6,
+            PhiE = 1.0,
+
+            cGamma = DynamicResult?.cGammaAlpha ?? 20.0,
+            cPrime = DynamicResult?.cPrime ?? 14.0,
+            QualityGrade = Math.Max(QualityGrade1, QualityGrade2),
+
+            OilTemperature = OilTemperatureUsed,
+            EtaOil = etaOil,
+            Nu40 = LubricantViscosity40,
+            Lubricant = OilType,
+            Method = LubricationMethod,
+            FzgLoadStage = FzgLoadStage
+        });
     }
 
     /// <summary>The measurement input for one gear at a given pair of allowances.</summary>

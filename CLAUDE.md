@@ -1661,6 +1661,7 @@ file can be read against the clause it implements.
 | `Iso1328Tolerance.cs` | flank tolerances, ISO 1328-1:2013 |
 | `Din3967.cs` | tooth thickness allowance / tolerance series, DIN 3967:1978 Tables 1 & 2 |
 | `Iso13989FlashTemperature.cs` | scuffing, ISO/TR 13989-1 flash temperature method |
+| `Iso13989IntegralTemperature.cs` | scuffing, ISO/TR 13989-2 integral temperature method |
 | `GearToothMeasurement.cs` | tooth thickness, span W_k, over-balls M_d, chordal, backlash |
 
 **The tooth thickness can be specified seven ways** (`ToothThicknessAllowanceMode`), all
@@ -1739,11 +1740,11 @@ name.
   B_M = 435 must give X_M = 50.0. Without the 1000 the flash temperature comes out at 0.03 K
   instead of 27 K, which is how it was caught — a result three orders of magnitude out still
   produced a plausible-looking safety factor.
-- **X_αβ is 1.6 % (spur) to 3.1 % (β = 20°) below Table A.1 and that is left alone.** The annex
-  is informative, footnote 5 says the 0.51/1.22 split exists only to simplify Eq. (A.8), and
-  the standard states the factor "can be approximated by the value 1,00". The binding check is
-  that Eq. (A.5) and the independent Eq. (5) give the same flash temperature (they agree to
-  1 %). Do not tune a constant to chase that table.
+- **X_αβ comes from Part 2 Eq. (13), not from Part 1 Eq. (A.8).** Part 1 prints an abbreviated
+  form that drops cos^0.25(α_n) and cos^0.5(α_t) and lands 1.6 % (spur) to 3.1 % (β = 20°)
+  below its own Table A.1. Part 2's full expression reproduces both parts' tables to 5·10⁻⁴.
+  This was found only by implementing the second method and comparing — which is the whole
+  argument for carrying both.
 - **Lubrication method reaches scuffing and nothing else.** ISO 6336-2's film factors Z_L, Z_v
   and Z_R see only viscosity, velocity and roughness; the method enters solely through X_S in
   Eq. (22), which sets the bulk temperature. The flash temperature itself is unchanged by it —

@@ -244,7 +244,6 @@ public static class Iso13989FlashTemperature
 
         double alphaTr = i.alphaT * Math.PI / 180.0;
         double alphaWtr = i.alphaWt * Math.PI / 180.0;
-        double betaBr = i.betaB * Math.PI / 180.0;
 
         // --- Transverse unit load, Eq. (11) ---
         r.wBt = i.KA * i.KV * i.KHbeta * i.KHalpha * i.Kmp * i.Ft / i.b;
@@ -281,15 +280,17 @@ public static class Iso13989FlashTemperature
         double Er = 2.0 / ((1 - i.nu1 * i.nu1) / i.E1 + (1 - i.nu2 * i.nu2) / i.E2);               // (A.10)
         r.XM = 1000.0 * Math.Pow(Er, 0.25) / i.BM;                                                 // (A.13)
 
-        // --- Angle factor, Eq. (A.8) ---
+        // --- Angle factor ---
         //
-        // Reproduces Table A.1 to within 1,6 %: the table appears to have been computed with
-        // 1,24 where Eq. (A.8) prints 1,22. The split does not matter on its own — footnote 5
-        // says the constant was introduced "with no other purpose than to simplify (A.8)",
-        // as 0,51 = 0,62/1,22 — so only the product 0,51 · X_alpha_beta in Eq. (A.6) is real,
-        // and that is checked against the independent Eq. (5) route instead.
-        r.XalphaBeta = 1.22 * Math.Pow(Math.Sin(alphaWtr), 0.25)
-                     / Math.Sqrt(Math.Cos(alphaWtr)) * Math.Sqrt(Math.Cos(betaBr));
+        // Taken from ISO/TR 13989-2 Eq. (13), NOT from Part 1's Eq. (A.8).
+        //
+        // The two parts describe the same physical factor, but Eq. (A.8) prints an abbreviated
+        // form that drops cos^0,25(alpha_n) and cos^0,5(alpha_t); it lands 1,6 % below Part 1's
+        // own Table A.1 for spur gears and 3,1 % below for beta = 20 deg. Part 2's Eq. (13)
+        // reproduces both tables exactly — 0,978 and 0,966 — so it is the one used here.
+        // Finding this is what running the two methods against each other was for.
+        r.XalphaBeta = Iso13989IntegralTemperature.PressureAngleFactor(
+            i.alphaWt, i.alphaN, i.alphaT, i.beta);
 
         // --- Coefficient of friction, method C, Eq. (25)-(28) ---
         double vSigmaC = 2.0 * Math.Min(i.vt, 50.0) * Math.Sin(alphaWtr);                          // (26)
