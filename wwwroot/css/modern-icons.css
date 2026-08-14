@@ -1064,6 +1064,25 @@ select:focus {
     white-space: nowrap;
 }
 
+/* The commit action of a settings dialog. A dialog that CALCULATES a value needs an
+   explicit "use it" - the field on the card behind is the manual entry, and nothing
+   should switch the card out from under the user just because a dialog was opened. */
+.dialog-action {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid #eef1f4;
+}
+
+.dialog-action-note {
+    color: #6c757d;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
 /* A panel of further inputs rather than a reference table: the form-groups inside a
    settings dialog sit in one or two columns depending on the width available. */
 .dialog-form {

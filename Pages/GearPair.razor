@@ -479,48 +479,39 @@
             </div>
 
             <div class="form-group">
-                <label>Specify the Tooth Thickness By</label>
-                <select @bind="engine.AllowanceMode">
-                    <option value="@ToothThicknessAllowanceMode.Automatic">Automatic &#8212; ISO/TR 10064-2 minimum backlash</option>
-                    <option value="@ToothThicknessAllowanceMode.Din3967">DIN 3967 tolerance zone (e.g. 27cd)</option>
-                    <option value="@ToothThicknessAllowanceMode.Manual">Tooth thickness allowance A<sub>sne</sub> / A<sub>sni</sub></option>
-                    <option value="@ToothThicknessAllowanceMode.NormalBacklash">Normal backlash j<sub>bn</sub></option>
-                    <option value="@ToothThicknessAllowanceMode.CircumferentialBacklash">Circumferential backlash j<sub>wt</sub></option>
-                    <option value="@ToothThicknessAllowanceMode.RadialBacklash">Radial backlash j<sub>r</sub></option>
-                    <option value="@ToothThicknessAllowanceMode.SpanLimits">Base tangent length W<sub>k</sub> limits</option>
-                    <option value="@ToothThicknessAllowanceMode.BallLimits">Dimension over balls M<sub>d</sub> limits</option>
+                <div class="label-row">
+                    <label>Tooth Thickness Tolerance</label>
+                    @if (ToleranceSource == "manual")
+                    {
+                        @ToleranceDialog()
+                    }
+                </div>
+                <select @bind="ToleranceSource">
+                    <option value="auto">Automatic &#8212; ISO/TR 10064-2 minimum backlash</option>
+                    <option value="din3967">DIN 3967 tolerance zone (e.g. 27cd)</option>
+                    <option value="manual">From a measurement or a required backlash&#8230;</option>
                 </select>
                 <small style="color: #6c757d; font-size: 12px;">
-                    All of these end up as the allowances A<sub>sne</sub> / A<sub>sni</sub>; pick whichever
-                    one you actually have. Backlash belongs to the <em>pair</em>, so it also needs a split
-                    rule; W<sub>k</sub> and M<sub>d</sub> are measured on one gear and do not.
+                    @if (ToleranceSource == "manual")
+                    {
+                        <text>
+                            Currently: <strong>@ManualToleranceSummary</strong>. Open the dialog beside
+                            the label to change what you are specifying and enter it.
+                        </text>
+                    }
+                    else
+                    {
+                        <text>
+                            Whatever you choose ends up as the allowances
+                            A<sub>sne</sub> / A<sub>sni</sub>. The first two come straight from a
+                            standard; the third is for when you have a measured W<sub>k</sub> or
+                            M<sub>d</sub>, or a backlash the drive has to meet.
+                        </text>
+                    }
                 </small>
             </div>
 
-            @if (engine.AllowanceMode == ToothThicknessAllowanceMode.Manual)
-            {
-                <div class="form-group">
-                    <label>Gear 1 Allowance (A<sub>sne1</sub> / A<sub>sni1</sub>)</label>
-                    <div class="input-group">
-                        <input type="number" step="1" max="0" @bind="asne1Micron" />
-                        <input type="number" step="1" max="0" @bind="asni1Micron" style="margin-left:8px;" />
-                        <span class="unit">&#956;m</span>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label>Gear 2 Allowance (A<sub>sne2</sub> / A<sub>sni2</sub>)</label>
-                    <div class="input-group">
-                        <input type="number" step="1" max="0" @bind="asne2Micron" />
-                        <input type="number" step="1" max="0" @bind="asni2Micron" style="margin-left:8px;" />
-                        <span class="unit">&#956;m</span>
-                    </div>
-                    <small style="color: #6c757d; font-size: 12px;">
-                        Both negative (teeth are thinned from nominal), upper first.
-                    </small>
-                </div>
-            }
-            else if (engine.AllowanceMode == ToothThicknessAllowanceMode.Din3967)
+            @if (engine.AllowanceMode == ToothThicknessAllowanceMode.Din3967)
             {
                 <div class="form-group">
                     <div class="label-row">
@@ -608,111 +599,6 @@
                         <strong>@engine.Din3967ToleranceSeries1@engine.Din3967AllowanceSeries</strong> and
                         <strong>@engine.Din3967ToleranceSeries2@engine.Din3967AllowanceSeries</strong>.
                         A<sub>sni</sub> = A<sub>sne</sub> &#8722; T<sub>sn</sub>.
-                    </small>
-                </div>
-            }
-            else if (IsBacklashMode(engine.AllowanceMode))
-            {
-                <div class="form-group">
-                    <label>@BacklashModeLabel(engine.AllowanceMode) (min / max)</label>
-                    <div class="input-group">
-                        <input type="number" step="1" min="0" @bind="jMinMicron" />
-                        <input type="number" step="1" min="0" @bind="jMaxMicron" style="margin-left:8px;" />
-                        <span class="unit">&#956;m</span>
-                    </div>
-                    <small style="color: #6c757d; font-size: 12px;">
-                        Leave the maximum at 0 to let the tolerance width come from the two gears'
-                        ISO 1328-1 cumulative pitch tolerances F<sub>p</sub>.
-                    </small>
-                </div>
-
-                <div class="form-group">
-                    <label>Share the Thinning</label>
-                    <select @bind="engine.SplitRule">
-                        <option value="@BacklashSplit.Even">Evenly between both gears</option>
-                        <option value="@BacklashSplit.PinionOnly">All on the pinion</option>
-                        <option value="@BacklashSplit.WheelOnly">All on the wheel</option>
-                    </select>
-                    <small style="color: #6c757d; font-size: 12px;">
-                        A backlash figure fixes only the <em>sum</em> of the two gears' allowances.
-                    </small>
-                </div>
-            }
-            else if (engine.AllowanceMode == ToothThicknessAllowanceMode.SpanLimits)
-            {
-                <div class="form-group">
-                    <label>Teeth Spanned (k)</label>
-                    <div class="dual-field">
-                        <div class="dual-box">
-                            <span class="dual-cap">Gear 1</span>
-                            <input type="number" step="1" min="0" @bind="engine.SpanTeeth1" />
-                        </div>
-                        <div class="dual-box">
-                            <span class="dual-cap">Gear 2</span>
-                            <input type="number" step="1" min="0" @bind="engine.SpanTeeth2" />
-                        </div>
-                    </div>
-                    <small style="color: #6c757d; font-size: 12px;">
-                        0 lets the calculator choose the k that puts the contact at mid-flank.
-                        A W<sub>k</sub> dimension only means anything against the k it was measured
-                        over, so enter the k from the drawing if it states one. The results show
-                        both the k used and the one this calculator would pick.
-                    </small>
-                </div>
-
-                <div class="form-group">
-                    <label>Gear 1 W<sub>k</sub> (largest / smallest permitted)</label>
-                    <div class="input-group">
-                        <input type="number" step="0.001" min="0" @bind="engine.SpanLimitUpper1" />
-                        <input type="number" step="0.001" min="0" @bind="engine.SpanLimitLower1" style="margin-left:8px;" />
-                        <span class="unit">mm</span>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label>Gear 2 W<sub>k</sub> (largest / smallest permitted)</label>
-                    <div class="input-group">
-                        <input type="number" step="0.001" min="0" @bind="engine.SpanLimitUpper2" />
-                        <input type="number" step="0.001" min="0" @bind="engine.SpanLimitLower2" style="margin-left:8px;" />
-                        <span class="unit">mm</span>
-                    </div>
-                    <small style="color: #6c757d; font-size: 12px;">
-                        Both sit <strong>below</strong> the theoretical W<sub>k</sub>, because the teeth are
-                        thinned from nominal.
-                        @if (RecommendedSpanTeeth(1) is { } k1 && RecommendedSpanTeeth(2) is { } k2)
-                        {
-                            <text>
-                                For this pair the micrometer should span <strong>k = @k1</strong> teeth on
-                                gear 1 and <strong>k = @k2</strong> on gear 2 &#8212; the count that puts
-                                the anvils on the flanks near mid-height, which is where the measurement
-                                is least sensitive to the exact contact point.
-                            </text>
-                        }
-                    </small>
-                </div>
-            }
-            else if (engine.AllowanceMode == ToothThicknessAllowanceMode.BallLimits)
-            {
-                <div class="form-group">
-                    <label>Gear 1 M<sub>d</sub> (largest / smallest permitted)</label>
-                    <div class="input-group">
-                        <input type="number" step="0.001" min="0" @bind="engine.BallLimitUpper1" />
-                        <input type="number" step="0.001" min="0" @bind="engine.BallLimitLower1" style="margin-left:8px;" />
-                        <span class="unit">mm</span>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label>Gear 2 M<sub>d</sub> (largest / smallest permitted)</label>
-                    <div class="input-group">
-                        <input type="number" step="0.001" min="0" @bind="engine.BallLimitUpper2" />
-                        <input type="number" step="0.001" min="0" @bind="engine.BallLimitLower2" style="margin-left:8px;" />
-                        <span class="unit">mm</span>
-                    </div>
-                    <small style="color: #6c757d; font-size: 12px;">
-                        Both sit below the theoretical M<sub>d</sub>. Measured with
-                        @BallDiameterCaption(1) on gear 1 and @BallDiameterCaption(2) on gear 2
-                        &#8212; set the ball in that gear's <em>Advanced Gear Geometry</em> dialog.
                     </small>
                 </div>
             }
@@ -850,8 +736,7 @@
                     @DynamicFactorDialog()
                 </div>
                 <div class="input-group">
-                    <input type="number" step="0.01" min="1" @bind="engine.DirectKV"
-                           disabled="@(!engine.UseDirectDynamicFactor)" />
+                    <input type="number" step="0.01" min="1" @bind="KvShown" />
                     <span class="unit">-</span>
                 </div>
                 <small style="color: #6c757d; font-size: 12px;">
@@ -882,8 +767,7 @@
                     @FaceLoadFactorDialog()
                 </div>
                 <div class="input-group">
-                    <input type="number" step="0.01" min="1" @bind="engine.DirectKHbeta"
-                           disabled="@(!engine.UseDirectFaceLoadFactor)" />
+                    <input type="number" step="0.01" min="1" @bind="KhbShown" />
                     <span class="unit">-</span>
                 </div>
                 <small style="color: #6c757d; font-size: 12px;">
@@ -2072,6 +1956,228 @@ else
     }
 
     /// <summary>
+    /// Everything you might specify the tooth thickness BY, other than a standard's own zone.
+    /// The card carries the two standard routes because they need no further input; this
+    /// dialog carries the ones that need a measurement or a required backlash typed in.
+    /// </summary>
+    private RenderFragment ToleranceDialog() => @<DialogButton
+        Icon="settings"
+        Title="Tooth Thickness &#8212; from a measurement or a required backlash"
+        MaxWidth="720"
+        ButtonTitle="Enter a measured dimension or a required backlash">
+        <Intro>
+            All of these end up as the allowances A<sub>sne</sub> / A<sub>sni</sub>; pick whichever
+            one you actually have. Backlash belongs to the <em>pair</em>, so it also needs a split
+            rule; W<sub>k</sub> and M<sub>d</sub> are measured on one gear and do not.
+        </Intro>
+        <ChildContent>
+            <div class="form-group">
+                <label>Specify By</label>
+                <select @bind="engine.AllowanceMode">
+                    <option value="@ToothThicknessAllowanceMode.Manual">Tooth thickness allowance A<sub>sne</sub> / A<sub>sni</sub></option>
+                    <option value="@ToothThicknessAllowanceMode.NormalBacklash">Normal backlash j<sub>bn</sub></option>
+                    <option value="@ToothThicknessAllowanceMode.CircumferentialBacklash">Circumferential backlash j<sub>wt</sub></option>
+                    <option value="@ToothThicknessAllowanceMode.RadialBacklash">Radial backlash j<sub>r</sub></option>
+                    <option value="@ToothThicknessAllowanceMode.SpanLimits">Base tangent length W<sub>k</sub> limits</option>
+                    <option value="@ToothThicknessAllowanceMode.BallLimits">Dimension over balls M<sub>d</sub> limits</option>
+                </select>
+            </div>
+
+            @if (engine.AllowanceMode == ToothThicknessAllowanceMode.Manual)
+            {
+                <div class="form-group">
+                    <label>Gear 1 Allowance (A<sub>sne1</sub> / A<sub>sni1</sub>)</label>
+                    <div class="input-group">
+                        <input type="number" step="1" max="0" @bind="asne1Micron" />
+                        <input type="number" step="1" max="0" @bind="asni1Micron" style="margin-left:8px;" />
+                        <span class="unit">&#956;m</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Gear 2 Allowance (A<sub>sne2</sub> / A<sub>sni2</sub>)</label>
+                    <div class="input-group">
+                        <input type="number" step="1" max="0" @bind="asne2Micron" />
+                        <input type="number" step="1" max="0" @bind="asni2Micron" style="margin-left:8px;" />
+                        <span class="unit">&#956;m</span>
+                    </div>
+                    <small style="color: #6c757d; font-size: 12px;">
+                        Both negative (teeth are thinned from nominal), upper first.
+                    </small>
+                </div>
+            }
+            else if (IsBacklashMode(engine.AllowanceMode))
+            {
+                <div class="form-group">
+                    <label>@BacklashModeLabel(engine.AllowanceMode) (min / max)</label>
+                    <div class="input-group">
+                        <input type="number" step="1" min="0" @bind="jMinMicron" />
+                        <input type="number" step="1" min="0" @bind="jMaxMicron" style="margin-left:8px;" />
+                        <span class="unit">&#956;m</span>
+                    </div>
+                    <small style="color: #6c757d; font-size: 12px;">
+                        Leave the maximum at 0 to let the tolerance width come from the two gears'
+                        ISO 1328-1 cumulative pitch tolerances F<sub>p</sub>.
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label>Share the Thinning</label>
+                    <select @bind="engine.SplitRule">
+                        <option value="@BacklashSplit.Even">Evenly between both gears</option>
+                        <option value="@BacklashSplit.PinionOnly">All on the pinion</option>
+                        <option value="@BacklashSplit.WheelOnly">All on the wheel</option>
+                    </select>
+                    <small style="color: #6c757d; font-size: 12px;">
+                        A backlash figure fixes only the <em>sum</em> of the two gears' allowances.
+                    </small>
+                </div>
+            }
+            else if (engine.AllowanceMode == ToothThicknessAllowanceMode.SpanLimits)
+            {
+                <div class="form-group">
+                    <label>Teeth Spanned (k)</label>
+                    <div class="dual-field">
+                        <div class="dual-box">
+                            <span class="dual-cap">Gear 1</span>
+                            <input type="number" step="1" min="0" @bind="engine.SpanTeeth1" />
+                        </div>
+                        <div class="dual-box">
+                            <span class="dual-cap">Gear 2</span>
+                            <input type="number" step="1" min="0" @bind="engine.SpanTeeth2" />
+                        </div>
+                    </div>
+                    <small style="color: #6c757d; font-size: 12px;">
+                        0 lets the calculator choose the k that puts the contact at mid-flank.
+                        A W<sub>k</sub> dimension only means anything against the k it was measured
+                        over, so enter the k from the drawing if it states one. The results show
+                        both the k used and the one this calculator would pick.
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label>Gear 1 W<sub>k</sub> (largest / smallest permitted)</label>
+                    <div class="input-group">
+                        <input type="number" step="0.001" min="0" @bind="engine.SpanLimitUpper1" />
+                        <input type="number" step="0.001" min="0" @bind="engine.SpanLimitLower1" style="margin-left:8px;" />
+                        <span class="unit">mm</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Gear 2 W<sub>k</sub> (largest / smallest permitted)</label>
+                    <div class="input-group">
+                        <input type="number" step="0.001" min="0" @bind="engine.SpanLimitUpper2" />
+                        <input type="number" step="0.001" min="0" @bind="engine.SpanLimitLower2" style="margin-left:8px;" />
+                        <span class="unit">mm</span>
+                    </div>
+                    <small style="color: #6c757d; font-size: 12px;">
+                        Both sit <strong>below</strong> the theoretical W<sub>k</sub>, because the teeth are
+                        thinned from nominal.
+                        @if (RecommendedSpanTeeth(1) is { } k1 && RecommendedSpanTeeth(2) is { } k2)
+                        {
+                            <text>
+                                For this pair the micrometer should span <strong>k = @k1</strong> teeth on
+                                gear 1 and <strong>k = @k2</strong> on gear 2 &#8212; the count that puts
+                                the anvils on the flanks near mid-height, which is where the measurement
+                                is least sensitive to the exact contact point.
+                            </text>
+                        }
+                    </small>
+                </div>
+            }
+            else if (engine.AllowanceMode == ToothThicknessAllowanceMode.BallLimits)
+            {
+                <div class="form-group">
+                    <label>Gear 1 M<sub>d</sub> (largest / smallest permitted)</label>
+                    <div class="input-group">
+                        <input type="number" step="0.001" min="0" @bind="engine.BallLimitUpper1" />
+                        <input type="number" step="0.001" min="0" @bind="engine.BallLimitLower1" style="margin-left:8px;" />
+                        <span class="unit">mm</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Gear 2 M<sub>d</sub> (largest / smallest permitted)</label>
+                    <div class="input-group">
+                        <input type="number" step="0.001" min="0" @bind="engine.BallLimitUpper2" />
+                        <input type="number" step="0.001" min="0" @bind="engine.BallLimitLower2" style="margin-left:8px;" />
+                        <span class="unit">mm</span>
+                    </div>
+                    <small style="color: #6c757d; font-size: 12px;">
+                        Both sit below the theoretical M<sub>d</sub>. Measured with
+                        @BallDiameterCaption(1) on gear 1 and @BallDiameterCaption(2) on gear 2
+                        &#8212; set the ball in that gear's <em>Advanced Gear Geometry</em> dialog.
+                    </small>
+                </div>
+            }
+        </ChildContent>
+        <Footer>
+            The allowances are negative &#8212; the teeth are thinned from nominal &#8212; so both
+            permitted limits of W<sub>k</sub> and M<sub>d</sub> sit BELOW the theoretical value.
+        </Footer>
+    </DialogButton>;
+
+    /// <summary>
+    /// Which of the three routes the card is on. The engine keeps a single AllowanceMode; this
+    /// maps it onto "a standard, or something you measured", which is the choice the user is
+    /// actually making. Switching to manual lands on the plain allowances and the dialog takes
+    /// it from there.
+    /// </summary>
+    private string ToleranceSource
+    {
+        get => engine.AllowanceMode switch
+        {
+            ToothThicknessAllowanceMode.Automatic => "auto",
+            ToothThicknessAllowanceMode.Din3967 => "din3967",
+            _ => "manual"
+        };
+        set => engine.AllowanceMode = value switch
+        {
+            "auto" => ToothThicknessAllowanceMode.Automatic,
+            "din3967" => ToothThicknessAllowanceMode.Din3967,
+            _ => engine.AllowanceMode is ToothThicknessAllowanceMode.Automatic
+                                      or ToothThicknessAllowanceMode.Din3967
+                 ? ToothThicknessAllowanceMode.Manual
+                 : engine.AllowanceMode
+        };
+    }
+
+    /// <summary>What the manual route is currently set to, for the line under the select.</summary>
+    private string ManualToleranceSummary => engine.AllowanceMode switch
+    {
+        ToothThicknessAllowanceMode.NormalBacklash => "normal backlash j_bn",
+        ToothThicknessAllowanceMode.CircumferentialBacklash => "circumferential backlash j_wt",
+        ToothThicknessAllowanceMode.RadialBacklash => "radial backlash j_r",
+        ToothThicknessAllowanceMode.SpanLimits => "base tangent length W_k limits",
+        ToothThicknessAllowanceMode.BallLimits => "dimension over balls M_d limits",
+        _ => "tooth thickness allowances A_sne / A_sni"
+    };
+
+    /*
+     * The card's number field is the manual entry, and the dialog is only ever opened to have
+     * the value CALCULATED. So there is no "enter directly" checkbox anywhere: typing in the
+     * field puts you back in manual mode, and "Use this value" in the dialog switches to the
+     * standard's result. The mode is a consequence of what you touched last, not a separate
+     * thing to keep in sync.
+     */
+    private double KvShown
+    {
+        get => engine.UseDirectDynamicFactor ? engine.DirectKV : engine.DynamicFactor;
+        set { engine.DirectKV = value; engine.UseDirectDynamicFactor = true; }
+    }
+
+    private double KhbShown
+    {
+        get => engine.UseDirectFaceLoadFactor ? engine.DirectKHbeta : engine.FaceLoadFactorFlank;
+        set { engine.DirectKHbeta = value; engine.UseDirectFaceLoadFactor = true; }
+    }
+
+    private void UseCalculatedKv() => engine.UseDirectDynamicFactor = false;
+
+    private void UseCalculatedKhbeta() => engine.UseDirectFaceLoadFactor = false;
+
+    /// <summary>
     /// The number of teeth the span micrometer should reach over, from the same
     /// GearToothMeasurement solve that produces W_k, so the suggestion and the reported
     /// dimension can never disagree. Null until the geometry is complete.
@@ -2307,19 +2413,17 @@ else
         MaxWidth="720"
         ButtonTitle="Calculate K_V from the tooth deviations">
         <ChildContent>
-            <div class="form-group">
-                <label class="checkbox-label">
-                    <input type="checkbox" @bind="engine.UseDirectDynamicFactor" />
-                    <span>Enter K<sub>V</sub> directly instead of calculating it</span>
-                </label>
-                <small style="color: #6c757d; font-size: 12px;">
-                    Untick to use Method B with the deviations below. Method B carries a resonance
-                    check that a value taken from experience cannot give you, so it is worth doing
-                    for a fast drive.
-                </small>
+            <div class="dialog-intro">
+                Enter what the standard needs and press <strong>Use this value</strong>. Method B
+                carries a resonance check that a figure taken from experience cannot give you, so
+                it is worth doing for a fast drive. To go back to your own number, just type it in
+                the field on the card.
             </div>
 
-            @if (!engine.UseDirectDynamicFactor)
+            @{
+                bool _ = true;
+            }
+            @if (_)
             {
 
             @if (engine.UseMeasuredDeviations)
@@ -2350,16 +2454,24 @@ else
             }
             }
 
-            @if (engine.DynamicResult is { Valid: true } dyn)
-            {
-                <div class="alert alert-info" style="margin-top: 12px;">
-                    <ModuleIcon Type="info" Size="small" Style="default" CustomStyle="margin-right: 8px;" />
-                    <div>
+            <div class="dialog-action">
+                <button type="button" class="btn btn-success" @onclick="UseCalculatedKv">
+                    Use this value
+                </button>
+                @if (engine.DynamicResult is { Valid: true } dyn)
+                {
+                    <span class="dialog-action-note">
                         Method B on the last calculation gives K<sub>V</sub> =
                         <strong>@dyn.KV.ToString("F3")</strong>.
-                    </div>
-                </div>
-            }
+                    </span>
+                }
+                else
+                {
+                    <span class="dialog-action-note">
+                        The value appears after the next calculation.
+                    </span>
+                }
+            </div>
         </ChildContent>
         <Footer>
             K<sub>V</sub> covers the internal dynamic load from the meshing itself. It is not a
@@ -2377,19 +2489,17 @@ else
         MaxWidth="760"
         ButtonTitle="Calculate K_Hbeta from the misalignment and shaft deflection">
         <ChildContent>
-            <div class="form-group">
-                <label class="checkbox-label">
-                    <input type="checkbox" @bind="engine.UseDirectFaceLoadFactor" />
-                    <span>Enter K<sub>H&#946;</sub> directly instead of calculating it</span>
-                </label>
-                <small style="color: #6c757d; font-size: 12px;">
-                    Untick to use Method C with the inputs below.
-                    <strong>Neglecting the shaft deflection is not conservative</strong> &#8212; on a
-                    typical pair it is what takes K<sub>H&#946;</sub> from about 1,8 to 3,0.
-                </small>
+            <div class="dialog-intro">
+                Enter what the standard needs and press <strong>Use this value</strong>.
+                <strong>Neglecting the shaft deflection is not conservative</strong> &#8212; on a
+                typical pair it is what takes K<sub>H&#946;</sub> from about 1,8 to 3,0. To go back
+                to your own number, just type it in the field on the card.
             </div>
 
-            @if (!engine.UseDirectFaceLoadFactor)
+            @{
+                bool __ = true;
+            }
+            @if (__)
             {
                 <div class="form-group">
                     <label>Helix Modification (ISO 6336-1 Table 8)</label>
@@ -2492,6 +2602,15 @@ else
                     </div>
                 }
             }
+            <div class="dialog-action">
+                <button type="button" class="btn btn-success" @onclick="UseCalculatedKhbeta">
+                    Use this value
+                </button>
+                <span class="dialog-action-note">
+                    Method C gave K<sub>H&#946;</sub> =
+                    <strong>@engine.FaceLoadFactorFlank.ToString("F3")</strong> on the last calculation.
+                </span>
+            </div>
         </ChildContent>
         <Footer>
             K<sub>F&#946;</sub> for the tooth root is derived from K<sub>H&#946;</sub> by
