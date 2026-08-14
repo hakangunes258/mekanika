@@ -165,7 +165,7 @@
         <div class="card">
             <div class="card-header">
                 <ModuleIcon Type="material" Size="medium" Style="solid" />
-                <h2>Materials &amp; Lubrication</h2>
+                <h2>Materials</h2>
             </div>
 
             <div class="form-group">
@@ -206,6 +206,15 @@
                     Grades, their ISO 6336-5 classification and your own additions live in the
                     <a href="materials">material database</a>.
                 </small>
+            </div>
+
+        </div>
+
+        <!-- Lubrication Card -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="surface" Size="medium" Style="solid" />
+                <h2>Lubrication</h2>
             </div>
 
             <div class="form-group">
@@ -320,9 +329,9 @@
 
             <div class="form-group">
                 <label>Oil Temperature (&#920;<sub>oil</sub>)</label>
-                <select @bind="engine.OilTemperatureFromAmbient">
-                    <option value="true">From ambient + rise</option>
-                    <option value="false">Entered directly</option>
+                <select @bind="OilTemperatureSource">
+                    <option value="ambient">From ambient + rise</option>
+                    <option value="direct">Entered directly</option>
                 </select>
             </div>
 
@@ -401,6 +410,7 @@
                 </small>
             </div>
         </div>
+
         <!-- Reference Profile Card -->
         <div class="card">
             <div class="card-header">
@@ -668,8 +678,16 @@
                     </div>
                     <small style="color: #6c757d; font-size: 12px;">
                         Both sit <strong>below</strong> the theoretical W<sub>k</sub>, because the teeth are
-                        thinned from nominal. The number of teeth spanned k is chosen by the calculator and
-                        shown in the results.
+                        thinned from nominal.
+                        @if (RecommendedSpanTeeth(1) is { } k1 && RecommendedSpanTeeth(2) is { } k2)
+                        {
+                            <text>
+                                For this pair the micrometer should span <strong>k = @k1</strong> teeth on
+                                gear 1 and <strong>k = @k2</strong> on gear 2 &#8212; the count that puts
+                                the anvils on the flanks near mid-height, which is where the measurement
+                                is least sensitive to the exact contact point.
+                            </text>
+                        }
                     </small>
                 </div>
             }
@@ -819,186 +837,86 @@
             </div>
 
         </div>
-        <!-- Load Factor Detail Card -->
-        <div class="card">
-            <div class="card-header">
-                <ModuleIcon Type="settings" Size="medium" Style="solid" />
-                <h2>Dynamic Factor (K<sub>V</sub>)</h2>
-            </div>
-
-            <div class="form-group">
-                <label class="checkbox-label">
-                    <input type="checkbox" @bind="engine.UseMeasuredDeviations" />
-                    <span>Enter measured deviations instead of deriving from the tolerance class</span>
-                </label>
-                <small style="color: #6c757d; font-size: 12px;">
-                    ISO 6336-1 uses the wheel deviations for K<sub>V</sub>. If unchecked they are
-                    estimated from the wheel tolerance class - see the note in the results.
-                </small>
-            </div>
-
-            @if (engine.UseMeasuredDeviations)
-            {
-                <div class="form-group">
-                    <label>Base Pitch Deviation (f<sub>pb</sub>)</label>
-                    <div class="input-group">
-                        <input type="number" step="0.1" min="0" @bind="engine.BasePitchDeviation" />
-                        <span class="unit">&#956;m</span>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Profile Form Deviation (f<sub>f&#945;</sub>)</label>
-                    <div class="input-group">
-                        <input type="number" step="0.1" min="0" @bind="engine.ProfileFormDeviation" />
-                        <span class="unit">&#956;m</span>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Running-in Allowances (y<sub>p</sub> / y<sub>f</sub>)</label>
-                    <div class="input-group">
-                        <input type="number" step="0.1" min="0" @bind="engine.RunningInAllowanceP" />
-                        <input type="number" step="0.1" min="0" @bind="engine.RunningInAllowanceF" style="margin-left:8px;" />
-                        <span class="unit">&#956;m</span>
-                    </div>
-                    <small style="color: #6c757d; font-size: 12px;">0 is conservative (no running-in benefit)</small>
-                </div>
-            }
-
-        </div>
-
-        <!-- Face Load Factor Card -->
+        <!-- Load Factors Card -->
         <div class="card">
             <div class="card-header">
                 <ModuleIcon Type="loading" Size="medium" Style="solid" />
-                <h2>Face Load Factor (K<sub>H&#946;</sub>)</h2>
+                <h2>Load Factors</h2>
             </div>
 
             <div class="form-group">
-                <label class="checkbox-label">
-                    <input type="checkbox" @bind="engine.UseDirectFaceLoadFactor" />
-                    <span>Enter K<sub>H&#946;</sub> directly</span>
-                </label>
+                <div class="label-row">
+                    <label>Dynamic Factor (K<sub>V</sub>)</label>
+                    @DynamicFactorDialog()
+                </div>
+                <div class="input-group">
+                    <input type="number" step="0.01" min="1" @bind="engine.DirectKV"
+                           disabled="@(!engine.UseDirectDynamicFactor)" />
+                    <span class="unit">-</span>
+                </div>
                 <small style="color: #6c757d; font-size: 12px;">
-                    Otherwise it follows ISO 6336-1 Clause 7.5, Method C, from the mesh
-                    misalignment and the shaft deflection below.
+                    @if (engine.UseDirectDynamicFactor)
+                    {
+                        <text>
+                            Entered directly. Open the dialog to calculate it from the tooth
+                            deviations instead (ISO 6336-1 Clause 6, Method B).
+                        </text>
+                    }
+                    else if (engine.DynamicResult is { Valid: true } kvr)
+                    {
+                        <text>
+                            Calculated from the deviations: K<sub>V</sub> =
+                            <strong>@kvr.KV.ToString("F3")</strong>.
+                        </text>
+                    }
+                    else
+                    {
+                        <text>Calculated from the deviations after the next calculation.</text>
+                    }
                 </small>
             </div>
 
-            @if (engine.UseDirectFaceLoadFactor)
-            {
-                <div class="form-group">
+            <div class="form-group">
+                <div class="label-row">
                     <label>Face Load Factor (K<sub>H&#946;</sub>)</label>
-                    <div class="input-group">
-                        <input type="number" step="0.01" min="1" @bind="engine.DirectKHbeta" />
-                        <span class="unit">-</span>
-                    </div>
-                    <small style="color: #6c757d; font-size: 12px;">K<sub>F&#946;</sub> is derived from it per ISO 6336-1 Eq. (69)</small>
+                    @FaceLoadFactorDialog()
                 </div>
-            }
-            else
-            {
-                <div class="form-group">
-                    <label>Helix Modification (ISO 6336-1 Table 8)</label>
-                    <select @bind="engine.HelixMod">
-                        <option value="@Iso6336FaceLoadFactor.HelixModification.None">None</option>
-                        <option value="@Iso6336FaceLoadFactor.HelixModification.CentralCrowningFma">Central crowning (C&#946; = 0.5 f<sub>ma</sub>)</option>
-                        <option value="@Iso6336FaceLoadFactor.HelixModification.CentralCrowningFmaFsh">Central crowning (C&#946; = 0.5 (f<sub>ma</sub>+f<sub>sh</sub>))</option>
-                        <option value="@Iso6336FaceLoadFactor.HelixModification.HelixCorrectionOnly">Helix correction only</option>
-                        <option value="@Iso6336FaceLoadFactor.HelixModification.HelixCorrectionPlusCrowning">Helix correction + central crowning</option>
-                        <option value="@Iso6336FaceLoadFactor.HelixModification.EndRelief">End relief</option>
-                    </select>
+                <div class="input-group">
+                    <input type="number" step="0.01" min="1" @bind="engine.DirectKHbeta"
+                           disabled="@(!engine.UseDirectFaceLoadFactor)" />
+                    <span class="unit">-</span>
                 </div>
+                <small style="color: #6c757d; font-size: 12px;">
+                    @if (engine.UseDirectFaceLoadFactor)
+                    {
+                        <text>
+                            Entered directly; K<sub>F&#946;</sub> follows from it per ISO 6336-1
+                            Eq. (69). Open the dialog to calculate it from the mesh misalignment
+                            and shaft deflection instead.
+                        </text>
+                    }
+                    else
+                    {
+                        <text>
+                            Calculated per ISO 6336-1 Clause 7.5, Method C:
+                            K<sub>H&#946;</sub> = <strong>@engine.FaceLoadFactorFlank.ToString("F3")</strong>
+                            after the last calculation.
+                        </text>
+                    }
+                </small>
+            </div>
 
-                <div class="form-group">
-                    <label>Shaft Deflection (f<sub>sh</sub>)</label>
-                    <select @bind="engine.FshSource">
-                        <option value="@ShaftDeflectionSource.Calculated">Calculate from the shaft dimensions (ISO 6336-1 Eq. 57)</option>
-                        <option value="@ShaftDeflectionSource.Manual">Enter f_sh directly (from a shaft analysis)</option>
-                        <option value="@ShaftDeflectionSource.Neglected">Neglect &#8212; rigid shaft, f_sh = 0</option>
-                    </select>
-                    <small style="color: #6c757d; font-size: 12px;">
-                        This calculator does not model shafts. Eq. 57 is the standard's approximate
-                        method: it reduces the shaft to a span, an offset and a diameter.
-                        <strong>Neglecting f_sh is not conservative.</strong>
-                    </small>
+            <div class="form-group">
+                <label>Transverse Load Factor (K<sub>H&#945;</sub>)</label>
+                <div class="input-group">
+                    <input type="number" value="@engine.TransverseLoadFactorFlank.ToString("F3")" readonly />
+                    <span class="unit">-</span>
                 </div>
-
-                @if (engine.FshSource == ShaftDeflectionSource.Manual)
-                {
-                    <div class="form-group">
-                        <label>f<sub>sh</sub></label>
-                        <div class="input-group">
-                            <input type="number" step="0.5" min="0" @bind="engine.ShaftDeflectionFsh" />
-                            <span class="unit">&#956;m</span>
-                        </div>
-                    </div>
-                }
-                else if (engine.FshSource == ShaftDeflectionSource.Calculated)
-                {
-                    <div class="form-group">
-                        <label>Bearing Span (l)</label>
-                        <div class="input-group">
-                            <input type="number" step="1" min="0" @bind="engine.ShaftBearingSpan" />
-                            <span class="unit">mm</span>
-                        </div>
-                        <small style="color: #6c757d; font-size: 12px;">
-                            0 = assume 3&#183;b. Distance between the pinion shaft bearings.
-                        </small>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Pinion Offset (s)</label>
-                        <div class="input-group">
-                            <input type="number" step="1" min="0" @bind="engine.PinionOffset" />
-                            <span class="unit">mm</span>
-                        </div>
-                        <small style="color: #6c757d; font-size: 12px;">
-                            From the pinion mid-plane to the middle of the bearing span. 0 = centred.
-                            Eq. 57 is drawn for s/l &#8804; 0.3.
-                        </small>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Shaft Diameter (d<sub>sh</sub> / bore)</label>
-                        <div class="input-group">
-                            <input type="number" step="1" min="0" @bind="engine.ShaftDiameter" />
-                            <input type="number" step="1" min="0" @bind="engine.ShaftBoreDiameter" style="margin-left:8px;" />
-                            <span class="unit">mm</span>
-                        </div>
-                        <small style="color: #6c757d; font-size: 12px;">
-                            Outside diameter for bending, then the bore (0 = solid).
-                            0 = assume d<sub>1</sub>/1.15.
-                        </small>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Mounting Arrangement (ISO 6336-1 Figure 13)</label>
-                        <select @bind="engine.ShaftArrangement">
-                            @foreach (var a in Enum.GetValues<Iso6336ShaftDeflection.Arrangement>())
-                            {
-                                <option value="@a">@Iso6336ShaftDeflection.Description(a)</option>
-                            }
-                        </select>
-                        <small style="color: #6c757d; font-size: 12px;">
-                            Match your layout against Figure 13, which shows where the torqued end sits
-                            relative to the pinion. The sign of K&#8242; decides whether bending and torsion
-                            add or partly cancel.
-                        </small>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="checkbox-label">
-                            <input type="checkbox" @bind="engine.PinionCanStiffenShaft" />
-                            <span>Pinion body can stiffen the shaft span</span>
-                        </label>
-                        <small style="color: #6c757d; font-size: 12px;">
-                            Uncheck for a pinion sliding on a feather key or a normal shrink fit.
-                            Otherwise stiffening is taken when d<sub>1</sub>/d<sub>sh</sub> &#8805; 1.15.
-                        </small>
-                    </div>
-                }
-            }
-
+                <small style="color: #6c757d; font-size: 12px;">
+                    Always from ISO 6336-1 Clause 8 &#8212; it follows from the mesh stiffness,
+                    the tolerance class and the load, with no free choice to make.
+                </small>
+            </div>
         </div>
 
         <!-- Power Data Card -->
@@ -1102,9 +1020,9 @@
 
             <div class="form-group">
                 <label>Driving Gear</label>
-                <select @bind="engine.PinionDrives">
-                    <option value="true">Gear 1 (pinion) drives &#8212; speed reducing</option>
-                    <option value="false">Gear 2 (wheel) drives &#8212; speed increasing</option>
+                <select @bind="DrivingGear">
+                    <option value="pinion">Gear 1 (pinion) drives &#8212; speed reducing</option>
+                    <option value="wheel">Gear 2 (wheel) drives &#8212; speed increasing</option>
                 </select>
                 <small style="color: #6c757d; font-size: 12px;">
                     Which gear the torque goes into. It decides the direction of sliding, and so
@@ -2134,6 +2052,48 @@ else
     /// <summary>Blank types offered by the dropdowns; a link carrying anything else falls back to Solid.</summary>
     private static readonly string[] BlankTypeOptions = { "Solid", "Webbed" };
 
+    /*
+     * Blazor's @bind formats a bool as "True"/"False" with a capital letter, so a <select>
+     * whose options say "true"/"false" matches nothing and renders BLANK - and then never
+     * writes back, which is exactly how the driving gear selector looked broken. Binding
+     * through a string keeps the option set and the bound value in the same alphabet.
+     */
+    private string DrivingGear
+    {
+        get => engine.PinionDrives ? "pinion" : "wheel";
+        set => engine.PinionDrives = value != "wheel";
+    }
+
+    /// <inheritdoc cref="DrivingGear"/>
+    private string OilTemperatureSource
+    {
+        get => engine.OilTemperatureFromAmbient ? "ambient" : "direct";
+        set => engine.OilTemperatureFromAmbient = value != "direct";
+    }
+
+    /// <summary>
+    /// The number of teeth the span micrometer should reach over, from the same
+    /// GearToothMeasurement solve that produces W_k, so the suggestion and the reported
+    /// dimension can never disagree. Null until the geometry is complete.
+    /// </summary>
+    private int? RecommendedSpanTeeth(int gear)
+    {
+        var m = gear == 1 ? engine.Measurement1 : engine.Measurement2;
+        if (m is { k: > 0 }) return m.k;
+
+        // Before the first calculation, fall back to the classical estimate
+        // k = z alpha_t/180 + 0.5, rounded to the nearest whole tooth.
+        if (engine.NumberOfTeeth1 <= 0 || engine.NormalModule <= 0) return null;
+        int z = TeethOf(gear);
+        if (z <= 0) return null;
+
+        double betaRad = engine.HelixAngle * Math.PI / 180.0;
+        double alphaNRad = engine.PressureAngle * Math.PI / 180.0;
+        double alphaT = Math.Atan(Math.Tan(alphaNRad) / Math.Cos(betaRad)) * 180.0 / Math.PI;
+        int k = (int)Math.Round(z * alphaT / 180.0 + 0.5);
+        return Math.Max(k, 2);
+    }
+
     private static bool IsBacklashMode(ToothThicknessAllowanceMode mode)
         => mode is ToothThicknessAllowanceMode.NormalBacklash
                 or ToothThicknessAllowanceMode.CircumferentialBacklash
@@ -2336,6 +2296,208 @@ else
             engine.RootRoughnessRz2 = route.Root;
         }
     }
+
+    /// <summary>
+    /// The ISO 6336-1 Method B inputs behind the dynamic factor. Kept in a dialog because most
+    /// users take K_V from experience; the ones who do not need every deviation.
+    /// </summary>
+    private RenderFragment DynamicFactorDialog() => @<DialogButton
+        Icon="settings"
+        Title="Dynamic Factor K_V &#8212; ISO 6336-1 Clause 6, Method B"
+        MaxWidth="720"
+        ButtonTitle="Calculate K_V from the tooth deviations">
+        <ChildContent>
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" @bind="engine.UseDirectDynamicFactor" />
+                    <span>Enter K<sub>V</sub> directly instead of calculating it</span>
+                </label>
+                <small style="color: #6c757d; font-size: 12px;">
+                    Untick to use Method B with the deviations below. Method B carries a resonance
+                    check that a value taken from experience cannot give you, so it is worth doing
+                    for a fast drive.
+                </small>
+            </div>
+
+            @if (!engine.UseDirectDynamicFactor)
+            {
+
+            @if (engine.UseMeasuredDeviations)
+            {
+                <div class="form-group">
+                    <label>Base Pitch Deviation (f<sub>pb</sub>)</label>
+                    <div class="input-group">
+                        <input type="number" step="0.1" min="0" @bind="engine.BasePitchDeviation" />
+                        <span class="unit">&#956;m</span>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Profile Form Deviation (f<sub>f&#945;</sub>)</label>
+                    <div class="input-group">
+                        <input type="number" step="0.1" min="0" @bind="engine.ProfileFormDeviation" />
+                        <span class="unit">&#956;m</span>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Running-in Allowances (y<sub>p</sub> / y<sub>f</sub>)</label>
+                    <div class="input-group">
+                        <input type="number" step="0.1" min="0" @bind="engine.RunningInAllowanceP" />
+                        <input type="number" step="0.1" min="0" @bind="engine.RunningInAllowanceF" style="margin-left:8px;" />
+                        <span class="unit">&#956;m</span>
+                    </div>
+                    <small style="color: #6c757d; font-size: 12px;">0 is conservative (no running-in benefit)</small>
+                </div>
+            }
+            }
+
+            @if (engine.DynamicResult is { Valid: true } dyn)
+            {
+                <div class="alert alert-info" style="margin-top: 12px;">
+                    <ModuleIcon Type="info" Size="small" Style="default" CustomStyle="margin-right: 8px;" />
+                    <div>
+                        Method B on the last calculation gives K<sub>V</sub> =
+                        <strong>@dyn.KV.ToString("F3")</strong>.
+                    </div>
+                </div>
+            }
+        </ChildContent>
+        <Footer>
+            K<sub>V</sub> covers the internal dynamic load from the meshing itself. It is not a
+            shock factor &#8212; that is K<sub>A</sub>, on the Power Data card.
+        </Footer>
+    </DialogButton>;
+
+    /// <summary>
+    /// The ISO 6336-1 Method C inputs behind the face load factor: mesh misalignment, shaft
+    /// deflection and the mounting arrangement.
+    /// </summary>
+    private RenderFragment FaceLoadFactorDialog() => @<DialogButton
+        Icon="settings"
+        Title="Face Load Factor K_Hbeta &#8212; ISO 6336-1 Clause 7.5, Method C"
+        MaxWidth="760"
+        ButtonTitle="Calculate K_Hbeta from the misalignment and shaft deflection">
+        <ChildContent>
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" @bind="engine.UseDirectFaceLoadFactor" />
+                    <span>Enter K<sub>H&#946;</sub> directly instead of calculating it</span>
+                </label>
+                <small style="color: #6c757d; font-size: 12px;">
+                    Untick to use Method C with the inputs below.
+                    <strong>Neglecting the shaft deflection is not conservative</strong> &#8212; on a
+                    typical pair it is what takes K<sub>H&#946;</sub> from about 1,8 to 3,0.
+                </small>
+            </div>
+
+            @if (!engine.UseDirectFaceLoadFactor)
+            {
+                <div class="form-group">
+                    <label>Helix Modification (ISO 6336-1 Table 8)</label>
+                    <select @bind="engine.HelixMod">
+                        <option value="@Iso6336FaceLoadFactor.HelixModification.None">None</option>
+                        <option value="@Iso6336FaceLoadFactor.HelixModification.CentralCrowningFma">Central crowning (C&#946; = 0.5 f<sub>ma</sub>)</option>
+                        <option value="@Iso6336FaceLoadFactor.HelixModification.CentralCrowningFmaFsh">Central crowning (C&#946; = 0.5 (f<sub>ma</sub>+f<sub>sh</sub>))</option>
+                        <option value="@Iso6336FaceLoadFactor.HelixModification.HelixCorrectionOnly">Helix correction only</option>
+                        <option value="@Iso6336FaceLoadFactor.HelixModification.HelixCorrectionPlusCrowning">Helix correction + central crowning</option>
+                        <option value="@Iso6336FaceLoadFactor.HelixModification.EndRelief">End relief</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Shaft Deflection (f<sub>sh</sub>)</label>
+                    <select @bind="engine.FshSource">
+                        <option value="@ShaftDeflectionSource.Calculated">Calculate from the shaft dimensions (ISO 6336-1 Eq. 57)</option>
+                        <option value="@ShaftDeflectionSource.Manual">Enter f_sh directly (from a shaft analysis)</option>
+                        <option value="@ShaftDeflectionSource.Neglected">Neglect &#8212; rigid shaft, f_sh = 0</option>
+                    </select>
+                    <small style="color: #6c757d; font-size: 12px;">
+                        This calculator does not model shafts. Eq. 57 is the standard's approximate
+                        method: it reduces the shaft to a span, an offset and a diameter.
+                        <strong>Neglecting f_sh is not conservative.</strong>
+                    </small>
+                </div>
+
+                @if (engine.FshSource == ShaftDeflectionSource.Manual)
+                {
+                    <div class="form-group">
+                        <label>f<sub>sh</sub></label>
+                        <div class="input-group">
+                            <input type="number" step="0.5" min="0" @bind="engine.ShaftDeflectionFsh" />
+                            <span class="unit">&#956;m</span>
+                        </div>
+                    </div>
+                }
+                else if (engine.FshSource == ShaftDeflectionSource.Calculated)
+                {
+                    <div class="form-group">
+                        <label>Bearing Span (l)</label>
+                        <div class="input-group">
+                            <input type="number" step="1" min="0" @bind="engine.ShaftBearingSpan" />
+                            <span class="unit">mm</span>
+                        </div>
+                        <small style="color: #6c757d; font-size: 12px;">
+                            0 = assume 3&#183;b. Distance between the pinion shaft bearings.
+                        </small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Pinion Offset (s)</label>
+                        <div class="input-group">
+                            <input type="number" step="1" min="0" @bind="engine.PinionOffset" />
+                            <span class="unit">mm</span>
+                        </div>
+                        <small style="color: #6c757d; font-size: 12px;">
+                            From the pinion mid-plane to the middle of the bearing span. 0 = centred.
+                            Eq. 57 is drawn for s/l &#8804; 0.3.
+                        </small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Shaft Diameter (d<sub>sh</sub> / bore)</label>
+                        <div class="input-group">
+                            <input type="number" step="1" min="0" @bind="engine.ShaftDiameter" />
+                            <input type="number" step="1" min="0" @bind="engine.ShaftBoreDiameter" style="margin-left:8px;" />
+                            <span class="unit">mm</span>
+                        </div>
+                        <small style="color: #6c757d; font-size: 12px;">
+                            Outside diameter for bending, then the bore (0 = solid).
+                            0 = assume d<sub>1</sub>/1.15.
+                        </small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Mounting Arrangement (ISO 6336-1 Figure 13)</label>
+                        <select @bind="engine.ShaftArrangement">
+                            @foreach (var a in Enum.GetValues<Iso6336ShaftDeflection.Arrangement>())
+                            {
+                                <option value="@a">@Iso6336ShaftDeflection.Description(a)</option>
+                            }
+                        </select>
+                        <small style="color: #6c757d; font-size: 12px;">
+                            Match your layout against Figure 13, which shows where the torqued end sits
+                            relative to the pinion. The sign of K&#8242; decides whether bending and torsion
+                            add or partly cancel.
+                        </small>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" @bind="engine.PinionCanStiffenShaft" />
+                            <span>Pinion body can stiffen the shaft span</span>
+                        </label>
+                        <small style="color: #6c757d; font-size: 12px;">
+                            Uncheck for a pinion sliding on a feather key or a normal shrink fit.
+                            Otherwise stiffening is taken when d<sub>1</sub>/d<sub>sh</sub> &#8805; 1.15.
+                        </small>
+                    </div>
+                }
+            }
+        </ChildContent>
+        <Footer>
+            K<sub>F&#946;</sub> for the tooth root is derived from K<sub>H&#946;</sub> by
+            ISO 6336-1 Eq. (69), so it is not asked for separately.
+        </Footer>
+    </DialogButton>;
 
     /// <summary>
     /// Everything about one gear that would crowd its card: how it is finished, the surface
@@ -2547,6 +2709,52 @@ else
     {
         if (v is null || !BlankTypeOptions.Contains(v)) return;
         if (gear == 1) blankType1 = v; else blankType2 = v;
+        if (v == "Webbed") SeedWebbedBlank(gear);
+    }
+
+    /// <summary>
+    /// Fills the rim, hub and web with a proportioned starting set the first time a blank is
+    /// switched to webbed.
+    ///
+    /// Without this the three fields sit at zero, and the 3D builder needs all of them
+    /// positive before it will draw a web at all - so the model silently stayed a solid disc
+    /// and the choice looked like it had done nothing. Values already entered are left alone.
+    /// </summary>
+    private void SeedWebbedBlank(int gear)
+    {
+        double df = gear == 1 ? engine.RootDiameter1 : engine.RootDiameter2;
+        if (df <= 0)
+        {
+            // Before the first calculation the engine has no diameters yet; derive from the form.
+            double d = ReferenceDiameterOf(gear);
+            double x = gear == 1 ? engine.ProfileShiftCoeff1 : engine.ProfileShiftCoeff2;
+            df = d - 2.0 * engine.NormalModule * (engine.DedendumCoeff - x);
+        }
+        if (df <= 0 || engine.NormalModule <= 0) return;
+
+        double bore = gear == 1 ? engine.BoreDiameter1 : engine.BoreDiameter2;
+        if (bore <= 0) bore = Math.Round(df * 0.25);
+
+        double rim = Math.Round(df - 5.0 * engine.NormalModule);
+        double hub = Math.Round(Math.Min(bore * 1.8, rim * 0.7));
+        double web = Math.Round(Math.Max(1.0, (gear == 1 ? engine.FaceWidth1 : engine.FaceWidth2) / 3.0));
+
+        if (rim <= bore) return;   // too small a blank to web sensibly
+
+        if (gear == 1)
+        {
+            if (engine.BoreDiameter1 <= 0) engine.BoreDiameter1 = bore;
+            if (rimInnerDia1 <= 0) rimInnerDia1 = rim;
+            if (hubDia1 <= 0) hubDia1 = hub;
+            if (webThickness1 <= 0) webThickness1 = web;
+        }
+        else
+        {
+            if (engine.BoreDiameter2 <= 0) engine.BoreDiameter2 = bore;
+            if (rimInnerDia2 <= 0) rimInnerDia2 = rim;
+            if (hubDia2 <= 0) hubDia2 = hub;
+            if (webThickness2 <= 0) webThickness2 = web;
+        }
     }
 
     private void SetRimInner(int gear, string? v)

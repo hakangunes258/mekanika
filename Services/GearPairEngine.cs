@@ -191,6 +191,16 @@ public class GearPairEngine
         = Iso6336FaceLoadFactor.HelixModification.None;
     /// <summary>Bypass the Method C calculation and use a directly supplied K_Hbeta.</summary>
     public bool UseDirectFaceLoadFactor { get; set; }
+
+    /// <summary>
+    /// Bypass the ISO 6336-1 Method B calculation and use a directly supplied K_V. The default
+    /// is true because a dynamic factor is usually taken from experience or a system analysis;
+    /// the detail inputs behind Method B live in their own dialog.
+    /// </summary>
+    public bool UseDirectDynamicFactor { get; set; } = true;
+
+    /// <inheritdoc cref="UseDirectDynamicFactor"/>
+    public double DirectKV { get; set; } = 1.10;
     public double DirectKHbeta { get; set; } = 1.15;
 
     // === Lubrication and surface finish (ISO 6336-2 Clause 12, ISO 6336-3 Clause 7) ===
@@ -943,7 +953,11 @@ public class GearPairEngine
         };
 
         DynamicResult = Iso6336DynamicFactor.Calculate(kvInput);
-        DynamicFactor = DynamicResult.Valid ? DynamicResult.KV : 1.0;
+        // The Method B result is always computed so the dialog can show what it would give,
+        // but a directly supplied K_V wins when the user has chosen one.
+        DynamicFactor = UseDirectDynamicFactor
+            ? Math.Max(DirectKV, 1.0)
+            : DynamicResult.Valid ? DynamicResult.KV : 1.0;
 
         // === Face load factors KHβ / KFβ - ISO 6336-1 Clause 7.5 (Method C) and 7.6 ===
         double h1 = Addendum1 + Dedendum1;

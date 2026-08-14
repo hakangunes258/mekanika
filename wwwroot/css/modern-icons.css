@@ -556,9 +556,32 @@ select:focus {
     letter-spacing: 0.01em;
 }
 
+/* Inputs were only ever styled inside .input-group, so a box in a .dual-field fell back
+   to the browser default — visibly smaller with a hard dark border next to every other
+   field on the page. Match the .input-group look, but with all four corners rounded:
+   a dual box has no unit tab welded to its right. */
 .dual-field input,
 .dual-field select {
     width: 100%;
+    padding: 11px 14px;
+    border: 1.5px solid #dee2e6;
+    border-radius: 8px;
+    font-size: 14px;
+    background: white;
+    transition: all 0.2s ease;
+}
+
+.dual-field input:focus,
+.dual-field select:focus {
+    outline: none;
+    border-color: #0077be;
+    box-shadow: 0 0 0 3px rgba(0, 119, 190, 0.1);
+}
+
+.dual-field input:disabled,
+.dual-field select:disabled {
+    background: #f8f9fa;
+    color: #adb5bd;
 }
 
 .dual-field .unit {
