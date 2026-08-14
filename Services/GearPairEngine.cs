@@ -240,6 +240,16 @@ public class GearPairEngine
     /// <summary>Oils with anti-scuff additives gain from a short contact exposure, Clause 10.3.</summary>
     public bool AntiScuffAdditives { get; set; }
 
+    /// <summary>FVA-FZG C-GF/8,3/90 micropitting failure load stage (SKS), ISO/TR 15144-1 Annex A.</summary>
+    public double MicropittingLoadStage { get; set; } = 8;
+
+    /// <summary>
+    /// Permissible specific film thickness λ_GFP entered directly. 0 reads Figure A.1 from the
+    /// load stage instead — that figure is informative and digitised, so a real test result
+    /// for the oil in hand should always win.
+    /// </summary>
+    public double PermissibleFilmThickness { get; set; }
+
     /// <summary>Structural factor X_W, Table 2. 0 = derive from the pinion's material group.</summary>
     public double StructuralFactorOverride { get; set; }
 
@@ -546,6 +556,9 @@ public class GearPairEngine
 
     /// <summary>Scuffing result, ISO/TR 13989-2 integral temperature method.</summary>
     public Iso13989IntegralTemperature.Result? ScuffingIntegral { get; set; }
+
+    /// <summary>Micropitting result, ISO/TR 15144-1 Method B.</summary>
+    public Iso15144Micropitting.Result? Micropitting { get; set; }
 
     /// <summary>Oil temperature actually used (°C), whether entered or derived from ambient.</summary>
     public double OilTemperatureUsed { get; set; }
@@ -1541,6 +1554,63 @@ public class GearPairEngine
             Lubricant = OilType,
             Method = LubricationMethod,
             FzgLoadStage = FzgLoadStage
+        });
+
+        Micropitting = Iso15144Micropitting.Calculate(new Iso15144Micropitting.Input
+        {
+            alphaT = TransversePressureAngle,
+            alphaWt = WorkingPressureAngle,
+            betaB = BaseHelixAngle,
+            a = CenterDistance,
+            u = GearRatio,
+            z1 = NumberOfTeeth1,
+            z2 = NumberOfTeeth2,
+            dw1 = WorkingPitchDiameter1,
+            dw2 = WorkingPitchDiameter2,
+            da1 = TipDiameter1,
+            da2 = TipDiameter2,
+            db1 = BaseDiameter1,
+            db2 = BaseDiameter2,
+            b = Math.Min(FaceWidth1, FaceWidth2),
+            epsilonAlpha = TransverseContactRatio,
+            epsilonGamma = TotalContactRatio,
+
+            Ft = TangentialForce,
+            n1 = Speed1,
+            T1 = Torque1,
+            KA = ApplicationFactor,
+            KV = DynamicFactor,
+            KHalpha = TransverseLoadFactorFlank,
+            KHbeta = FaceLoadFactorFlank,
+            PinionDrives = PinionDrives,
+
+            E1 = Material1.ElasticModulus * 1000.0,
+            E2 = Material2.ElasticModulus * 1000.0,
+            nu1 = Material1.PoissonRatio,
+            nu2 = Material2.PoissonRatio,
+
+            // ISO/TR 15144 asks for Ra directly; the form collects Rz, and ISO 6336-2's
+            // Rz ~ 6 Ra is the conversion used throughout this module.
+            Ra1 = FlankRoughnessRz1 / 6.0,
+            Ra2 = FlankRoughnessRz2 / 6.0,
+            QualityGrade = Math.Max(QualityGrade1, QualityGrade2),
+            cPrime = DynamicResult?.cPrime ?? 14.0,
+            cGammaAlpha = DynamicResult?.cGammaAlpha ?? 20.0,
+
+            OilTemperature = OilTemperatureUsed,
+            Nu40 = LubricantViscosity40,
+            Nu100 = LubricantViscosity100,
+            Lubricant = OilType,
+            Family = OilType switch
+            {
+                LubricantType.Polyalphaolefin => Iso15144Micropitting.OilFamily.PaoSynthetic,
+                LubricantType.PolyglycolWaterSoluble => Iso15144Micropitting.OilFamily.PagSynthetic,
+                LubricantType.PolyglycolNonWaterSoluble => Iso15144Micropitting.OilFamily.PagSynthetic,
+                _ => Iso15144Micropitting.OilFamily.Mineral
+            },
+            Method = LubricationMethod,
+            MicropittingLoadStage = MicropittingLoadStage,
+            LambdaGfpOverride = PermissibleFilmThickness
         });
     }
 

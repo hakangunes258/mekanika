@@ -1662,6 +1662,7 @@ file can be read against the clause it implements.
 | `Din3967.cs` | tooth thickness allowance / tolerance series, DIN 3967:1978 Tables 1 & 2 |
 | `Iso13989FlashTemperature.cs` | scuffing, ISO/TR 13989-1 flash temperature method |
 | `Iso13989IntegralTemperature.cs` | scuffing, ISO/TR 13989-2 integral temperature method |
+| `Iso15144Micropitting.cs` | micropitting, ISO/TR 15144-1 Method B |
 | `GearToothMeasurement.cs` | tooth thickness, span W_k, over-balls M_d, chordal, backlash |
 
 **The tooth thickness can be specified seven ways** (`ToothThicknessAllowanceMode`), all
@@ -1755,9 +1756,24 @@ name.
 - The oil temperature is either entered or built as ambient + rise, with the rise supplied by
   the user. This module does not model a thermal network and must not pretend to.
 
-**Out of scope, stated in the results card:** the integral temperature method
-(ISO/TR 13989-2), micropitting (ISO/TR 15144), tooth flank fracture, planetary and internal
-arrangements. Within scuffing: bevel/hypoid geometry and the profile-modified load sharing
+**Micropitting — ISO/TR 15144-1, Method B.** A lubrication-regime failure, so the criterion
+is a ratio of lengths: λ_GF,Y = h_Y/Ra, evaluated at the seven points A, AB, B, C, D, DE, E
+and minimised. Three things worth knowing:
+
+- **The flash temperature is exactly zero at the pitch point C**, because the contact rolls
+  without sliding there. That falls out of the equations rather than being imposed, so it is
+  the cheapest sanity check on the whole sweep — if C is not zero, the tangential velocities
+  are wrong.
+- **λ_GFP comes from a digitised figure, and that is the weakest number in the module.**
+  Annex A Figure A.1 is informative, drawn for Ra = 0.50 µm, and has to be read off a chart.
+  The engine therefore accepts λ_GFP directly and the results say where the value came from.
+- **The levers are roughness and viscosity, not material.** Halving Rz roughly doubles λ;
+  a stronger steel does nothing. Do not let anyone "fix" a micropitting result by changing
+  the material.
+
+**Out of scope, stated in the results card:** tooth flank fracture, planetary and internal
+arrangements. Within micropitting: the profile-modified load sharing branches and the
+buttressing factor, and ε_α > 2 which the standard restricts to Method A. Within scuffing: bevel/hypoid geometry and the profile-modified load sharing
 branches (Clauses 9.3, 9.5, 9.7) are not implemented — a stated tip relief still reaches the
 approach factor.
 

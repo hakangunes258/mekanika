@@ -372,6 +372,25 @@
             </div>
 
             <div class="form-group">
+                <label>Micropitting Resistance (FVA-FZG C-GF/8,3/90)</label>
+                <div class="dual-field">
+                    <div class="dual-box">
+                        <span class="dual-cap">Load stage SKS</span>
+                        <input type="number" step="1" min="5" max="10" @bind="engine.MicropittingLoadStage" />
+                    </div>
+                    <div class="dual-box">
+                        <span class="dual-cap">or &#955;<sub>GFP</sub> directly</span>
+                        <input type="number" step="0.01" min="0" @bind="engine.PermissibleFilmThickness" />
+                    </div>
+                </div>
+                <small style="color: #6c757d; font-size: 12px;">
+                    Leave &#955;<sub>GFP</sub> at 0 to read it off ISO/TR 15144-1 Annex A Figure A.1 for
+                    this oil's VG grade and load stage. That annex is informative and the figure has to
+                    be digitised, so a test result for the oil in hand always wins.
+                </small>
+            </div>
+
+            <div class="form-group">
                 <label class="checkbox-label">
                     <input type="checkbox" @bind="engine.AntiScuffAdditives" />
                     <span>Oil has anti-scuff (EP) additives</span>
@@ -1813,6 +1832,76 @@ else
             }
         </div>
 
+        <!-- Micropitting -->
+        <div class="card">
+            <div class="card-header"><ModuleIcon Type="surface" Size="medium" Style="solid" /><h2>Micropitting (ISO/TR 15144-1, Method B)</h2></div>
+            @if (engine.Micropitting is { Valid: true } mp)
+            {
+                <table class="results-table">
+                    <thead><tr><th>Point</th><th>g<sub>Y</sub> (mm)</th><th>&#961;<sub>n,Y</sub> (mm)</th><th>X<sub>Y</sub></th><th>&#920;<sub>fl,Y</sub> (K)</th><th>&#955;<sub>GF,Y</sub></th></tr></thead>
+                    <tbody>
+                        @foreach (var p in engine.Micropitting.Points)
+                        {
+                            <tr class="@(p.Name == mp.LambdaMinAt ? "warning" : null)">
+                                <td><strong>@p.Name</strong></td>
+                                <td>@p.gY.ToString("F3")</td>
+                                <td>@p.RhoN.ToString("F3")</td>
+                                <td>@p.XY.ToString("F3")</td>
+                                <td>@p.Flash.ToString("F1")</td>
+                                <td>@p.Lambda.ToString("F4")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+
+                <table class="results-table" style="margin-top: 12px;">
+                    <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                    <tbody>
+                        <tr><td>Mean Coefficient of Friction</td><td>&#956;<sub>m</sub></td><td>@mp.MuM.ToString("F4")</td><td>-</td></tr>
+                        <tr><td>Load Losses Factor</td><td>H<sub>V</sub></td><td>@mp.HV.ToString("F4")</td><td>-</td></tr>
+                        <tr><td>Bulk Temperature</td><td>&#920;<sub>M</sub></td><td>@mp.BulkTemperature.ToString("F1")</td><td>&#176;C</td></tr>
+                        <tr><td>Material Parameter</td><td>G<sub>M</sub></td><td>@mp.GM.ToString("F0")</td><td>-</td></tr>
+                        <tr><td>Effective Roughness</td><td>Ra</td><td>@mp.Ra.ToString("F3")</td><td>&#956;m</td></tr>
+                        <tr class="highlight"><td>Minimum Specific Film Thickness (at @mp.LambdaMinAt)</td><td>&#955;<sub>GF,min</sub></td><td>@mp.LambdaMin.ToString("F4")</td><td>-</td></tr>
+                        <tr><td>Permissible Specific Film Thickness</td><td>&#955;<sub>GFP</sub></td><td>@mp.LambdaGfp.ToString("F3")</td><td>-</td></tr>
+                        <tr class="@(mp.SafetyFactor < 1 ? "danger" : mp.SafetyFactor < 2 ? "warning" : "success")">
+                            <td>Micropitting Safety</td><td>S<sub>&#955;</sub></td>
+                            <td>@mp.SafetyFactor.ToString("F2")</td>
+                            <td>@(mp.SafetyFactor < 1 ? "❌ FAIL" : mp.SafetyFactor < 2 ? "⚠️ Marginal" : "✓ OK")</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                @foreach (var n in mp.Notes)
+                {
+                    <div class="alert alert-warning" style="margin: 12px 16px; font-size: 13px;">@n</div>
+                }
+
+                <div class="alert" style="margin: 16px; background: #f8f9fa; padding: 12px; font-size: 13px;">
+                    Micropitting is a <strong>lubrication-regime</strong> failure, not a stress one: it
+                    starts where the oil film is thin next to the roughness of the flanks. So the
+                    criterion is a ratio of lengths &#8212; film thickness over roughness &#8212; and the
+                    two levers that move it most are <em>smoother flanks</em> and <em>a thicker oil</em>,
+                    not a stronger material. The flash temperature is zero at the pitch point C because
+                    the contact rolls without sliding there; the thinnest film is normally near A, in the
+                    area of negative specific sliding on the driving gear.
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-warning" style="margin: 16px;">
+                    <ModuleIcon Type="warning" Size="small" Style="default" CustomStyle="margin-right: 8px;" />
+                    <div>
+                        Micropitting could not be evaluated.
+                        @foreach (var n in engine.Micropitting?.Notes ?? new List<string>())
+                        {
+                            <text>@n</text>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
         <!-- Safety Factors -->
         <div class="card">
             <div class="card-header"><ModuleIcon Type="safety" Size="medium" Style="solid" /><h2>Safety Factors</h2></div>
@@ -1845,6 +1934,15 @@ else
                         <td>&#8805; @GearPairEngine.MinSafetyFactorFlank.ToString("F2")</td>
                         <td>@GetSafetyStatus(engine.MinFlankSafety, GearPairEngine.MinSafetyFactorFlank)</td>
                     </tr>
+                    @if (engine.Micropitting is { Valid: true } mps)
+                    {
+                        <tr class="@(mps.SafetyFactor < 1 ? "danger" : mps.SafetyFactor < 2 ? "warning" : "success")">
+                            <td>Micropitting Safety</td><td>S<sub>&#955;</sub></td>
+                            <td colspan="2">@mps.SafetyFactor.ToString("F2")</td>
+                            <td>&#8805; 2 preferred</td>
+                            <td>@(mps.SafetyFactor < 1 ? "❌ FAIL" : mps.SafetyFactor < 2 ? "⚠️ Marginal" : "✓ OK")</td>
+                        </tr>
+                    }
                     @if (engine.Scuffing is { Valid: true } scs)
                     {
                         <tr class="@GetScuffingRowClass(scs)">
@@ -1901,10 +1999,12 @@ else
                 (ISO 1328-1), backlash (ISO/TR 10064-2), tooth root and flank load capacity
                 (ISO 6336-1/2/3), allowable stress numbers (ISO 6336-5) and scuffing by both the
                 flash temperature (ISO/TR 13989-1) and integral temperature (ISO/TR 13989-2)
-                methods. It does <em>not</em> cover micropitting (ISO/TR 15144), tooth flank
-                fracture, or planetary and internal gear arrangements. Within scuffing, bevel and
-                hypoid geometry and the profile-modified load sharing branches of Part 1 are not
-                implemented.
+                methods, and micropitting by ISO/TR 15144-1 Method B. It does <em>not</em> cover
+                tooth flank fracture, or planetary and internal gear arrangements. Within scuffing,
+                bevel and hypoid geometry and the profile-modified load sharing branches of Part 1
+                are not implemented; within micropitting, the profile-modified load sharing
+                branches and the buttressing factor are not implemented, and ISO/TR 15144-1 itself
+                restricts &#949;<sub>&#945;</sub> &gt; 2 to Method A.
             </div>
         </div>
     </div>
@@ -3069,6 +3169,8 @@ else
         engine.LubricantViscosity100 = state.GetDouble("nu100", engine.LubricantViscosity100);
         engine.FzgLoadStage = state.GetDouble("fzg", engine.FzgLoadStage);
         engine.AntiScuffAdditives = state.GetBool("ep", engine.AntiScuffAdditives);
+        engine.MicropittingLoadStage = state.GetDouble("mps", engine.MicropittingLoadStage);
+        engine.PermissibleFilmThickness = state.GetDouble("lgfp", engine.PermissibleFilmThickness);
         engine.PinionDrives = state.GetBool("drv", engine.PinionDrives);
         engine.SpanTeeth1 = state.GetInt("wk1", engine.SpanTeeth1);
         engine.SpanTeeth2 = state.GetInt("wk2", engine.SpanTeeth2);
