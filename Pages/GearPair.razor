@@ -242,6 +242,22 @@
             </div>
 
             <div class="form-group">
+                <label>Viscosity at 100&#176;C (&#957;<sub>100</sub>)</label>
+                <div class="input-group">
+                    <input type="number" step="1" min="0" @bind="engine.LubricantViscosity100"
+                           placeholder="leave 0 to estimate" />
+                    <span class="unit">mm&#178;/s</span>
+                </div>
+                <small style="color: #6c757d; font-size: 12px;">
+                    The second datasheet point fixes the viscosity&#8211;temperature slope, which
+                    sets the viscosity at the operating temperature for the scuffing and
+                    micropitting checks. Left at 0 it is estimated for a mineral oil &#8212; a
+                    synthetic, or a grease base oil, has a markedly flatter curve, so entering it
+                    matters there.
+                </small>
+            </div>
+
+            <div class="form-group">
                 <div class="label-row">
                     <label>Base Oil Type</label>
                     <DialogButton Title="Lubricant Factor X_L &#8212; ISO/TR 13989-1 Eq. (27)" MaxWidth="620">
@@ -310,6 +326,13 @@
                                         <td>Submerged in oil</td><td class="num">0.2</td>
                                         <td>Only with sufficient cooling</td>
                                     </tr>
+                                    <tr class="@(engine.LubricationMethod == LubricationMethod.Grease ? "is-current" : null)">
+                                        <td>Grease</td><td class="num">1.2</td>
+                                        <td>
+                                            Outside the standard's scope; taken as a spray because
+                                            grease does not circulate. Use the base oil's viscosity
+                                        </td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </ChildContent>
@@ -320,11 +343,22 @@
                         </Footer>
                     </DialogButton>
                 </div>
-                <select @bind="engine.LubricationMethod">
+                <select @bind="engine.LubricationMethod" @bind:after="OnLubricationMethodChanged">
                     <option value="@LubricationMethod.Spray">Injected spray</option>
                     <option value="@LubricationMethod.Dip">Dip (splash)</option>
                     <option value="@LubricationMethod.Submerged">Submerged in oil</option>
+                    <option value="@LubricationMethod.Grease">Grease</option>
                 </select>
+                @if (engine.LubricationMethod == LubricationMethod.Grease)
+                {
+                    <small style="color: #8a6d3b; font-size: 12px;">
+                        Grease is taken at X<sub>S</sub> = 1.2, as for a spray &#8212; it does not
+                        circulate, so it carries heat away no better. Enter the <strong>base oil's</strong>
+                        viscosities above, not the NLGI consistency. ISO/TR 13989 and ISO/TR 15144
+                        are written for oils, so the scuffing and micropitting results below are a
+                        guide rather than a rating.
+                    </small>
+                }
             </div>
 
             <div class="form-group">
@@ -934,6 +968,19 @@
                 <small style="color: #6c757d; font-size: 12px;">
                     ISO 6336 allows this only with optimum material, manufacturing and lubrication
                     backed by experience. Leave unchecked for the conservative descending curve.
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" @bind="engine.LimitedPittingPermissible" />
+                    <span>A certain amount of pitting is permissible on the flank</span>
+                </label>
+                <small style="color: #6c757d; font-size: 12px;">
+                    Selects the second row of the ISO 6336-2 Table 2 life curve for through- and
+                    surface-hardened steels: the knee of Z<sub>NT</sub> moves from 5&#183;10<sup>7</sup>
+                    to 10<sup>9</sup> cycles, raising the permissible contact stress in the long-life
+                    range. Leave unchecked unless the application really tolerates pitting.
                 </small>
             </div>
         </div>
@@ -2161,15 +2208,21 @@ else
      * standard's result. The mode is a consequence of what you touched last, not a separate
      * thing to keep in sync.
      */
+    /* Calculated is now the default for both, so before the first calculation the underlying
+       value is still 0. Showing a bare 0 in the box invites the user to "correct" it, which
+       silently flips the field into manual mode - exactly the trap the asymmetric default
+       used to spring. Fall back to 1.000 until there is a real number. */
     private double KvShown
     {
-        get => engine.UseDirectDynamicFactor ? engine.DirectKV : engine.DynamicFactor;
+        get => engine.UseDirectDynamicFactor ? engine.DirectKV
+             : engine.DynamicFactor > 0 ? engine.DynamicFactor : 1.0;
         set { engine.DirectKV = value; engine.UseDirectDynamicFactor = true; }
     }
 
     private double KhbShown
     {
-        get => engine.UseDirectFaceLoadFactor ? engine.DirectKHbeta : engine.FaceLoadFactorFlank;
+        get => engine.UseDirectFaceLoadFactor ? engine.DirectKHbeta
+             : engine.FaceLoadFactorFlank > 0 ? engine.FaceLoadFactorFlank : 1.0;
         set { engine.DirectKHbeta = value; engine.UseDirectFaceLoadFactor = true; }
     }
 
@@ -3084,6 +3137,18 @@ else
         }
     }
 
+    /// <summary>
+    /// Picking grease switches the lubricant selector to Custom, because none of the ISO VG
+    /// grades describes one: what the calculation needs is the grease's BASE OIL viscosity,
+    /// and that has to be typed in from the datasheet. Switching back is left to the user —
+    /// their entered viscosity is not thrown away.
+    /// </summary>
+    private void OnLubricationMethodChanged()
+    {
+        if (engine.LubricationMethod == LubricationMethod.Grease)
+            selectedViscosityGrade = "custom";
+    }
+
     private void OnApplicationFactorChanged()
     {
         if (double.TryParse(selectedApplicationFactor, System.Globalization.NumberStyles.Any,
@@ -3321,6 +3386,7 @@ else
         .Set("sa", engine.ShaftArrangement.ToString())
         .Set("sk", engine.PinionCanStiffenShaft)
         .Set("ol", engine.OptimumLifeConditions)
+        .Set("lp", engine.LimitedPittingPermissible)
         // lubrication and surface
         .Set("vg", selectedViscosityGrade)
         .Set("nu", engine.LubricantViscosity40)
@@ -3471,6 +3537,7 @@ else
                 ? sa : Iso6336ShaftDeflection.Arrangement.A;
         engine.PinionCanStiffenShaft = state.GetBool("sk", engine.PinionCanStiffenShaft);
         engine.OptimumLifeConditions = state.GetBool("ol", engine.OptimumLifeConditions);
+        engine.LimitedPittingPermissible = state.GetBool("lp", engine.LimitedPittingPermissible);
 
         // The viscosity grade handler overwrites nu40, so it has to run before the stored
         // nu40 is reapplied - otherwise a custom viscosity would be lost.

@@ -193,11 +193,15 @@ public class GearPairEngine
     public bool UseDirectFaceLoadFactor { get; set; }
 
     /// <summary>
-    /// Bypass the ISO 6336-1 Method B calculation and use a directly supplied K_V. The default
-    /// is true because a dynamic factor is usually taken from experience or a system analysis;
-    /// the detail inputs behind Method B live in their own dialog.
+    /// Bypass the ISO 6336-1 Method B calculation and use a directly supplied K_V.
+    ///
+    /// Defaults to FALSE - K_V is calculated. It shipped as true with DirectKV = 1.10, which
+    /// meant every result on the page used a hard-coded 1.10 no matter what the speed, quality
+    /// or resonance state was, while K_Hbeta right next to it was calculated. In the resonance
+    /// range that stand-in is an order of magnitude low. A directly entered K_V is still
+    /// available, but it has to be asked for.
     /// </summary>
-    public bool UseDirectDynamicFactor { get; set; } = true;
+    public bool UseDirectDynamicFactor { get; set; }
 
     /// <inheritdoc cref="UseDirectDynamicFactor"/>
     public double DirectKV { get; set; } = 1.10;
@@ -272,6 +276,14 @@ public class GearPairEngine
     /// and lubrication backed by experience, so it defaults to false.
     /// </summary>
     public bool OptimumLifeConditions { get; set; }
+
+    /// <summary>
+    /// True when a certain amount of pitting is acceptable on the finished flank. It selects
+    /// the second row of the ISO 6336-2 Table 2 steel/hardened group, moving the knee of Z_NT
+    /// from 5e7 to 1e9 cycles and so raising the permissible contact stress in the long-life
+    /// range. Defaults to false, which is the conservative row and the usual assumption.
+    /// </summary>
+    public bool LimitedPittingPermissible { get; set; }
 
     // === Tooth thickness allowances and backlash ===
     public ToothThicknessAllowanceMode AllowanceMode { get; set; } = ToothThicknessAllowanceMode.Automatic;
@@ -447,6 +459,14 @@ public class GearPairEngine
 
     // ============ CALCULATED VALUES - TOOTH ROOT (BENDING) ============
 
+    /// <summary>
+    /// As-cut profile shift x_E = x + A_sne / (2 m_n tan α_n) — the nominal shift plus the
+    /// tooth thickness allowance. This, not the nominal x, is the tooth the form factors
+    /// Y_F and Y_S describe.
+    /// </summary>
+    public double ManufacturingProfileShift1 { get; set; }
+    public double ManufacturingProfileShift2 { get; set; }
+
     public double ToothFormFactor1 { get; set; }         // YF1
     public double ToothFormFactor2 { get; set; }         // YF2
     public double StressCorrectionFactor1 { get; set; }  // YS1
@@ -606,11 +626,11 @@ public class GearPairEngine
         CalculateKinematics();
         CalculateForces();
         CalculateTolerances();          // needs geometry; feeds the deviations into K_V
+        CalculateMeasurements();        // needs α_wt and the ISO 1328 tolerances, nothing else
         CalculateLoadFactors();
-        CalculateToothRootStrength();
+        CalculateToothRootStrength();   // needs the resolved allowances for x_E
         CalculateToothFlankStrength();
         CalculateSafetyFactors();
-        CalculateMeasurements();        // needs α_wt and the allowances
         CalculateScuffing();            // needs the load factors and the geometry
     }
 
@@ -1074,6 +1094,24 @@ public class GearPairEngine
         TransverseLoadFactorRoot = transverse.KFalpha;
     }
 
+    /// <summary>
+    /// A tooth thickness allowance expressed as the equivalent change in profile shift:
+    /// ΔA_sn = 2 Δx m_n tan(α_n), inverted. Allowances are negative, so this is too.
+    /// </summary>
+    private double ThicknessAllowanceAsProfileShift(double allowance)
+    {
+        double tanAlphaN = Math.Tan(PressureAngle * Math.PI / 180.0);
+        if (NormalModule <= 0 || tanAlphaN <= 0) return 0;
+        return allowance / (2.0 * NormalModule * tanAlphaN);
+    }
+
+    /// <summary>
+    /// The face width ISO 6336-3 lets a gear use for its own root stress: its own width,
+    /// but never more than the mating gear's width plus one module of overhang at each end.
+    /// </summary>
+    private double RootFaceWidth(double own, double mating)
+        => Math.Min(own, mating + 2.0 * NormalModule);
+
     private void CalculateToothRootStrength()
     {
         double effectiveFaceWidth = Math.Min(FaceWidth1, FaceWidth2);
@@ -1084,14 +1122,24 @@ public class GearPairEngine
         double hfP = DedendumCoeff * NormalModule;      // dedendum of the basic rack (mm)
         double rhofP = RootRadiusCoeff * NormalModule;  // root fillet radius of the basic rack (mm)
 
+        // The tooth that is actually cut is thinner than nominal by the tooth thickness
+        // allowance, and it is that tooth the root breaks in. Feeding the nominal x here
+        // reported a thicker tooth than exists: s_Fn came out high, the 30° tangent point sat
+        // too high (small h_Fe) and sigma_F0 landed ~4 % low - on the unsafe side. The as-cut
+        // profile shift is x_E = x + A_sne / (2 m_n tan(alpha_n)); the upper allowance is used
+        // because it is the thickest tooth still permitted, giving the least conservative
+        // geometry the drawing allows. This is why CalculateMeasurements() now runs first.
+        ManufacturingProfileShift1 = ProfileShiftCoeff1 + ThicknessAllowanceAsProfileShift(Asne1);
+        ManufacturingProfileShift2 = ProfileShiftCoeff2 + ThicknessAllowanceAsProfileShift(Asne2);
+
         var form1 = Iso6336ToothForm.Calculate(
             z: NumberOfTeeth1, mn: NormalModule, alphaN: PressureAngle, beta: HelixAngle,
-            x: ProfileShiftCoeff1, da: TipDiameter1, d: ReferenceDiameter1,
+            x: ManufacturingProfileShift1, da: TipDiameter1, d: ReferenceDiameter1,
             epsilonAlpha: TransverseContactRatio, hfP: hfP, rhofP: rhofP);
 
         var form2 = Iso6336ToothForm.Calculate(
             z: NumberOfTeeth2, mn: NormalModule, alphaN: PressureAngle, beta: HelixAngle,
-            x: ProfileShiftCoeff2, da: TipDiameter2, d: ReferenceDiameter2,
+            x: ManufacturingProfileShift2, da: TipDiameter2, d: ReferenceDiameter2,
             epsilonAlpha: TransverseContactRatio, hfP: hfP, rhofP: rhofP);
 
         ToothFormFactor1 = form1.YF;
@@ -1139,10 +1187,19 @@ public class GearPairEngine
         // load is applied at the tooth TIP (YFa, YSa) and Yε corrects for it afterwards.
         // Mixing the two counts the same effect twice: it used to cut σF0 by ~29 %, and
         // therefore inflated every tooth root safety factor by ~40 %.
-        double baseStress = TangentialForce / (effectiveFaceWidth * NormalModule);
-        NominalRootStress1 = baseStress * ToothFormFactor1 * StressCorrectionFactor1
+        // Each gear carries its root stress over its OWN face width, not over the pair's
+        // common width. ISO 6336-3 allows the wider member's b, limited to the mating width
+        // plus one module of overhang at each end - past that the overhanging material is not
+        // considered to help. Using min(b1, b2) for both was conservative but wrong, and it
+        // showed up as a 3 % error on the wider wheel of an otherwise matching pair.
+        double bRoot1 = RootFaceWidth(FaceWidth1, FaceWidth2);
+        double bRoot2 = RootFaceWidth(FaceWidth2, FaceWidth1);
+
+        NominalRootStress1 = TangentialForce / (bRoot1 * NormalModule)
+                           * ToothFormFactor1 * StressCorrectionFactor1
                            * HelixAngleFactorRoot * RimThicknessFactor1 * DeepToothFactor;
-        NominalRootStress2 = baseStress * ToothFormFactor2 * StressCorrectionFactor2
+        NominalRootStress2 = TangentialForce / (bRoot2 * NormalModule)
+                           * ToothFormFactor2 * StressCorrectionFactor2
                            * HelixAngleFactorRoot * RimThicknessFactor2 * DeepToothFactor;
 
         // Actual tooth root stress: σF = σF0 × KA × KV × KFβ × KFα
@@ -1325,8 +1382,10 @@ public class GearPairEngine
 
         LifeFactorRoot1 = Iso6336LifeFactors.YNT(cycles1, group1, OptimumLifeConditions);
         LifeFactorRoot2 = Iso6336LifeFactors.YNT(cycles2, group2, OptimumLifeConditions);
-        LifeFactorFlank1 = Iso6336LifeFactors.ZNT(cycles1, group1, OptimumLifeConditions);
-        LifeFactorFlank2 = Iso6336LifeFactors.ZNT(cycles2, group2, OptimumLifeConditions);
+        LifeFactorFlank1 = Iso6336LifeFactors.ZNT(cycles1, group1, OptimumLifeConditions,
+                                                  LimitedPittingPermissible);
+        LifeFactorFlank2 = Iso6336LifeFactors.ZNT(cycles2, group2, OptimumLifeConditions,
+                                                  LimitedPittingPermissible);
     }
 
     private void CalculateSafetyFactors()

@@ -112,17 +112,43 @@ public static class Iso6336LifeFactors
     ///   SteelAndHardened   : 1.6 at N = 6e5 ((3e8/6e5)^0.0756 = 1.600), 1.0 at N = 1e9
     ///   NitridedAndCastIron: 1.3 at N = 1e5 ((2e6/1e5)^0.0875 = 1.300), 1.0 at N = 2e6
     ///   descending branch reaches 0.85 at N = 1e10 in both cases.
+    ///
+    /// TWO ROWS, NOT ONE. Table 2 splits the steel/hardened group by whether some pitting is
+    /// acceptable on the finished gear:
+    ///   - pitting NOT permissible (the default): 1.6 at 1e5 falling to 1.0 at N = 5e7
+    ///   - a certain amount of pitting permissible: 1.6 at 6e5 falling to 1.0 at N = 1e9
+    /// Only the second was implemented, and it is the optimistic one: at 1.1e8 cycles it gives
+    /// Z_NT = 1.13 where the first gives 1.00, which inflates sigma_HP by 13 % and can turn a
+    /// failing flank into a passing one. The first row is now the default.
+    ///
+    /// Cross-check on the first row: the exponent ln(1,6)/ln(5e7/1e5) = 0,075627 gives
+    /// Z_NT = 1,0135 at N = 4,186e7 - the value KISSsoft reports for the same gear.
     /// </summary>
-    public static double ZNT(double cycles, LifeGroup group, bool optimumConditions = false)
+    /// <param name="limitedPittingPermissible">
+    /// True when a certain amount of pitting is acceptable on the finished flank, which moves
+    /// the knee of the steel/hardened curve from 5e7 to 1e9 cycles. Defaults to false.
+    /// </param>
+    public static double ZNT(double cycles, LifeGroup group, bool optimumConditions = false,
+                             bool limitedPittingPermissible = false)
     {
         if (cycles <= 0) return 1.0;
 
         if (group == LifeGroup.SteelAndHardened)
         {
-            if (cycles <= 6e5) return 1.6;
-            if (cycles <= 1e7) return Math.Pow(3e8 / cycles, 0.0756);
-            if (cycles <= 1e9) return Math.Pow(1e9 / cycles, 0.057);
-            // 1.0 at 1e9 down to 0.85 at 1e10: exponent = ln(0.85)/ln(0.1) = 0.07058
+            if (limitedPittingPermissible)
+            {
+                if (cycles <= 6e5) return 1.6;
+                if (cycles <= 1e7) return Math.Pow(3e8 / cycles, 0.0756);
+                if (cycles <= 1e9) return Math.Pow(1e9 / cycles, 0.057);
+                // 1.0 at 1e9 down to 0.85 at 1e10: exponent = ln(0.85)/ln(0.1) = 0.07058
+                return optimumConditions ? 1.0 : Math.Pow(1e9 / cycles, 0.07058);
+            }
+
+            // Pitting not permissible: 1.6 at 1e5 down to 1.0 at 5e7, then flat to 1e9.
+            // exponent = ln(1.6)/ln(5e7/1e5) = 0.075627
+            if (cycles <= 1e5) return 1.6;
+            if (cycles <= 5e7) return Math.Pow(5e7 / cycles, 0.075627);
+            if (cycles <= 1e9) return 1.0;
             return optimumConditions ? 1.0 : Math.Pow(1e9 / cycles, 0.07058);
         }
 

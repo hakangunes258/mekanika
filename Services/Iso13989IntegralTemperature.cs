@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace MechanicalCalculatorWeb.Services;
@@ -321,6 +321,7 @@ public static class Iso13989IntegralTemperature
         r.XS = i.Method switch
         {
             LubricationMethod.Spray => 1.2,
+            LubricationMethod.Grease => 1.2,
             LubricationMethod.Submerged => 0.2,
             _ => 1.0
         };
@@ -348,6 +349,14 @@ public static class Iso13989IntegralTemperature
         r.RiskBand = r.SafetyFactor < 1 ? "High scuffing risk"
                    : r.SafetyFactor <= 2 ? "Critical range — moderate scuffing risk"
                    : "Low scuffing risk";
+
+        if (i.Method == LubricationMethod.Grease)
+        {
+            r.Notes.Add("ISO/TR 13989 is written for oil-lubricated gears and does not cover grease. "
+                      + "X_S was taken as 1,2 (as for an injected spray, since grease does not circulate) "
+                      + "and the viscosities are the base oil's. Treat the result as a rough guide rather "
+                      + "than a rating, and confirm the FZG load stage with the grease supplier.");
+        }
 
         r.Valid = true;
         return r;

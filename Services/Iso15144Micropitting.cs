@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -264,6 +264,7 @@ public static class Iso15144Micropitting
         r.XS = i.Method switch
         {
             LubricationMethod.Spray => 1.2,
+            LubricationMethod.Grease => 1.2,
             LubricationMethod.Submerged => 0.2,
             _ => 1.0
         };
@@ -367,6 +368,14 @@ public static class Iso15144Micropitting
             r.Notes.Add($"The transverse contact ratio is {epsA:F2}. Clause 8.2 states that gears with "
                       + "ε_α > 2 can only be calculated by Method A; Method B was used anyway and the "
                       + "result should be treated as indicative.");
+
+        if (i.Method == LubricationMethod.Grease)
+        {
+            r.Notes.Add("The lubricant is a grease. ISO/TR 15144-1 is written for oils, and the "
+                      + "micropitting load stage of a grease is rarely published - if it was not supplied "
+                      + "by the manufacturer, the assumed stage behind lambda_GFP is a guess and this "
+                      + "result is not a verdict on the design.");
+        }
 
         r.Valid = true;
         return r;

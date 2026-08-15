@@ -162,8 +162,13 @@ public static class Iso6336DynamicFactor
         }
 
         // Basic rack factor CB - Eq. (86)
+        // The reference basic rack of Eq. (86) has h_fP = 1,2 m_n, not 1,25. With 1,25 in the
+        // bracket the factor collapsed to exactly 1,000 for the ISO 53 profile A rack that
+        // nearly every gear here uses - i.e. the factor did nothing for the common case. The
+        // correct value there is 0,975, which is what commercial software reports for the same
+        // rack. c' and c_gamma were ~2,5 % high as a result, carrying into K_V, K_Hbeta, K_Halpha.
         double hfPOverMn = i.hfP > 0 ? i.hfP / i.mn : 1.25;
-        double CB = (1.0 + 0.5 * (1.25 - hfPOverMn)) * (1.0 - 0.02 * (20.0 - i.alphaPn));
+        double CB = (1.0 + 0.5 * (1.2 - hfPOverMn)) * (1.0 - 0.02 * (20.0 - i.alphaPn));
 
         double cPrime = cth * CM * CR * CB * Math.Cos(betaRad);      // Eq. (80)
 

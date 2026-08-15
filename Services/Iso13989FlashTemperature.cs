@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -12,7 +12,15 @@ public enum LubricationMethod
     /// <summary>Dip (splash) lubrication, and meshes with an additional cooling spray.</summary>
     Dip,
     /// <summary>Gears submerged in oil, provided the cooling is sufficient.</summary>
-    Submerged
+    Submerged,
+    /// <summary>
+    /// Grease. Taken at X_S = 1,2, the same as injected spray: grease does not circulate, so
+    /// it carries heat away no better than a spray does. ISO/TR 13989 is written for oil and
+    /// does not cover grease — the scuffing result under grease is a guide, not a rating, and
+    /// the calculation says so. Enter the BASE OIL's viscosities, not the grease's consistency.
+    /// Appended last: the member rides in shared links by name.
+    /// </summary>
+    Grease
 }
 
 /// <summary>
@@ -134,7 +142,8 @@ public static class Iso13989FlashTemperature
         public double XM { get; set; }              // thermo-elastic factor
         public double XS { get; set; }              // lubrication method factor
         public double XalphaBeta { get; set; }      // angle factor
-        public double wBt { get; set; }             // transverse unit load (N/mm)
+        public double KBgamma { get; set; }         // helical load distribution factor
+        public double wBt { get; set; }             // transverse unit load (N/mm), K_Bgamma included
         public double Ceff { get; set; }            // optimal tip relief (µm)
 
         public double GammaA { get; set; }
@@ -246,7 +255,15 @@ public static class Iso13989FlashTemperature
         double alphaWtr = i.alphaWt * Math.PI / 180.0;
 
         // --- Transverse unit load, Eq. (11) ---
-        r.wBt = i.KA * i.KV * i.KHbeta * i.KHalpha * i.Kmp * i.Ft / i.b;
+        // K_Bgamma, the helical load distribution factor, belongs here too. It was missing
+        // while the integral-temperature method and the micropitting method next door both
+        // applied it, so the same gear was loaded two different ways depending on which
+        // scuffing criterion was being evaluated. On a wide helical pair (eps_gamma > 2) the
+        // omission understates w_Bt by up to 30 %.
+        // Same factor, same definition in both parts - shared rather than copied so the two
+        // scuffing methods cannot drift apart again.
+        r.KBgamma = Iso13989IntegralTemperature.HelicalLoadFactor(i.epsilonGamma);
+        r.wBt = i.KA * i.KV * i.KHbeta * i.KHalpha * i.Kmp * r.KBgamma * i.Ft / i.b;
 
         // --- Parameters on the line of action, Eq. (30)-(35) ---
         double tanAlphaA1 = Math.Sqrt(Math.Max(0, Math.Pow(i.da1 / (i.d1 * Math.Cos(alphaTr)), 2) - 1));
@@ -346,6 +363,7 @@ public static class Iso13989FlashTemperature
         r.XS = i.Method switch
         {
             LubricationMethod.Spray => 1.2,
+            LubricationMethod.Grease => 1.2,
             LubricationMethod.Submerged => 0.2,
             _ => 1.0
         };
@@ -404,6 +422,14 @@ public static class Iso13989FlashTemperature
         {
             r.Notes.Add("No FZG load stage was given, so the scuffing temperature has no basis. "
                       + "Enter the stage from the oil's datasheet.");
+        }
+
+        if (i.Method == LubricationMethod.Grease)
+        {
+            r.Notes.Add("ISO/TR 13989 is written for oil-lubricated gears and does not cover grease. "
+                      + "X_S was taken as 1,2 (as for an injected spray, since grease does not circulate) "
+                      + "and the viscosities are the base oil's. Treat the result as a rough guide rather "
+                      + "than a rating, and confirm the FZG load stage with the grease supplier.");
         }
 
         r.Valid = true;
