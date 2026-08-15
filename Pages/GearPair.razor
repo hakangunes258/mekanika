@@ -1,4 +1,4 @@
-@page "/gear-pair"
+﻿@page "/gear-pair"
 @using MechanicalCalculatorWeb.Services
 @inject AnalyticsService Analytics
 @inject SeoService Seo
@@ -217,57 +217,42 @@
                 <h2>Lubrication</h2>
             </div>
 
-            <div class="form-group">
-                <label>Lubricant</label>
-                <select @bind="selectedViscosityGrade" @bind:after="OnViscosityGradeChanged">
-                    @foreach (var g in Iso6336SurfaceFactors.ViscosityGrades)
-                    {
-                        <option value="@g.Key">@g.Key (&#957;<sub>40</sub> = @g.Value mm&#178;/s)</option>
-                    }
-                    <option value="custom">Custom</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label>Nominal Viscosity at 40&#176;C (&#957;<sub>40</sub>)</label>
-                <div class="input-group">
-                    <input type="number" step="1" min="1" @bind="engine.LubricantViscosity40"
-                           disabled="@(selectedViscosityGrade != "custom")" />
-                    <span class="unit">mm&#178;/s</span>
-                </div>
-                <small style="color: #6c757d; font-size: 12px;">
-                    Viscosity is what ISO 6336-2 uses, through the lubricant film factors
-                    Z<sub>L</sub>, Z<sub>v</sub> and Z<sub>R</sub>.
-                </small>
-            </div>
-
-            <div class="form-group">
-                <label>Viscosity at 100&#176;C (&#957;<sub>100</sub>)</label>
-                <div class="input-group">
-                    <input type="number" step="1" min="0" @bind="engine.LubricantViscosity100"
-                           placeholder="leave 0 to estimate" />
-                    <span class="unit">mm&#178;/s</span>
-                </div>
-                <small style="color: #6c757d; font-size: 12px;">
-                    The second datasheet point fixes the viscosity&#8211;temperature slope, which
-                    sets the viscosity at the operating temperature for the scuffing and
-                    micropitting checks. Left at 0 it is estimated for a mineral oil &#8212; a
-                    synthetic, or a grease base oil, has a markedly flatter curve, so entering it
-                    matters there.
-                </small>
-            </div>
-
+            @* One product select, and every number behind it in a dialog. It used to be six
+               fields on the card - viscosity grade, nu40, nu100, density, base oil type, FZG
+               stage - which is more than the lubricant deserves next to the geometry, and it
+               made "Grease" look like an alternative to "Mineral" rather than something with a
+               mineral base oil of its own. *@
             <div class="form-group">
                 <div class="label-row">
-                    <label>Base Oil Type</label>
-                    <DialogButton Title="Lubricant Factor X_L &#8212; ISO/TR 13989-1 Eq. (27)" MaxWidth="620">
+                    <label>Lubricant</label>
+                    <DialogButton Icon="settings" Title="Lubricant Data" MaxWidth="760"
+                                  ButtonTitle="Lubricant data and custom entry">
                         <Intro>
-                            The base oil enters the scuffing calculation twice: it scales the mean
-                            coefficient of friction, and it scales the scuffing temperature itself.
-                            It does <strong>not</strong> enter the pitting calculation &#8212; ISO 6336-2's
-                            film factors see only viscosity.
+                            Everything the calculation takes from the lubricant. Pick a product on
+                            the card and these are filled from its data sheet; pick <em>Custom</em>
+                            to type them in from your own.
                         </Intro>
                         <ChildContent>
+                            @{ var lp = LubricantPreset.Find(selectedLubricant); }
+
+                            <div class="form-group">
+                                <label>Base Oil Type</label>
+                                <select @bind="engine.OilType" disabled="@(lp is not null)">
+                                    <option value="@LubricantType.Mineral">Mineral</option>
+                                    <option value="@LubricantType.PolyglycolWaterSoluble">Polyglycol, water soluble</option>
+                                    <option value="@LubricantType.PolyglycolNonWaterSoluble">Polyglycol, non water soluble</option>
+                                    <option value="@LubricantType.Polyalphaolefin">Polyalphaolefin (PAO)</option>
+                                    <option value="@LubricantType.PhosphateEster">Phosphate ester</option>
+                                    <option value="@LubricantType.TractionFluid">Traction fluid</option>
+                                </select>
+                                <small style="color: #6c757d; font-size: 12px;">
+                                    A grease has one too &#8212; it is a base oil plus a thickener.
+                                    The base oil scales the friction coefficient and the scuffing
+                                    temperature through X<sub>L</sub>; it does not reach the pitting
+                                    calculation, whose film factors see only viscosity.
+                                </small>
+                            </div>
+
                             <table class="info-table">
                                 <thead>
                                     <tr><th>Base oil</th><th class="num">Coefficient in X<sub>L</sub></th></tr>
@@ -281,21 +266,137 @@
                                     <tr class="@(engine.OilType == LubricantType.TractionFluid ? "is-current" : null)"><td>Traction fluid</td><td class="num">1.5</td></tr>
                                 </tbody>
                             </table>
+
+                            <div class="form-group" style="margin-top: 16px;">
+                                <label>Viscosity at 40&#176;C (&#957;<sub>40</sub>)</label>
+                                <div class="input-group">
+                                    <input type="number" step="1" min="1" @bind="engine.LubricantViscosity40"
+                                           disabled="@(lp is not null)" />
+                                    <span class="unit">mm&#178;/s</span>
+                                </div>
+                                <small style="color: #6c757d; font-size: 12px;">
+                                    What ISO 6336-2 uses, through the film factors Z<sub>L</sub>,
+                                    Z<sub>v</sub> and Z<sub>R</sub>. For a grease this is the
+                                    <strong>base oil's</strong> viscosity, not its NLGI consistency.
+                                </small>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Viscosity at 100&#176;C (&#957;<sub>100</sub>)</label>
+                                <div class="input-group">
+                                    <input type="number" step="1" min="0" @bind="engine.LubricantViscosity100"
+                                           placeholder="leave 0 to estimate" disabled="@(lp is not null)" />
+                                    <span class="unit">mm&#178;/s</span>
+                                </div>
+                                <small style="color: #6c757d; font-size: 12px;">
+                                    The second data sheet point fixes the viscosity&#8211;temperature
+                                    slope, and so the viscosity at the operating temperature. Left at
+                                    0 it is estimated for a mineral oil &#8212; a synthetic has a
+                                    markedly flatter curve, so entering it matters there.
+                                </small>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Density at 15&#176;C (&#961;)</label>
+                                <div class="input-group">
+                                    <input type="number" step="0.005" min="0.5" max="1.5" @bind="engine.OilDensity"
+                                           disabled="@(lp is not null)" />
+                                    <span class="unit">kg/dm&#179;</span>
+                                </div>
+                                <small style="color: #6c757d; font-size: 12px;">
+                                    Turns the kinematic viscosity into the dynamic one the scuffing
+                                    and micropitting equations need (&#951; = &#957;&#183;&#961;).
+                                    ~0.89 for a mineral oil, above 1.0 for a polyglycol.
+                                </small>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Scuffing Resistance (FZG A/8,3/90)</label>
+                                <div class="input-group">
+                                    <input type="number" step="1" min="1" max="14" @bind="engine.FzgLoadStage"
+                                           disabled="@(lp != null && lp.FzgStageA8390 != null)" />
+                                    <span class="unit">stage</span>
+                                </div>
+                                <small style="color: #6c757d; font-size: 12px;">
+                                    <strong>The test variant matters.</strong> ISO/TR 13989 is
+                                    calibrated to <strong>A/8,3/90</strong> (ISO 14635-1). Data sheets
+                                    often also quote A/16,6/90; the two are different tests and their
+                                    stage numbers are not interchangeable, so take the A/8,3/90 line.
+                                    A plain mineral gear oil is around 12, an EP oil reaches 14. The
+                                    standard notes &#177;1 stage of scatter and that oil degrades in
+                                    service, so calculating one stage low is reasonable.
+                                </small>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Micropitting Resistance (FVA 54, FZG GF-C/8,3/90)</label>
+                                <div class="dual-field">
+                                    <div class="dual-box">
+                                        <span class="dual-cap">Load stage SKS</span>
+                                        <input type="number" step="1" min="5" max="10" @bind="engine.MicropittingLoadStage"
+                                               disabled="@(lp != null && lp.MicropittingStage != null)" />
+                                    </div>
+                                    <div class="dual-box">
+                                        <span class="dual-cap">or &#955;<sub>GFP</sub> directly</span>
+                                        <input type="number" step="0.01" min="0" @bind="engine.PermissibleFilmThickness" />
+                                    </div>
+                                </div>
+                                <small style="color: #6c757d; font-size: 12px;">
+                                    Leave &#955;<sub>GFP</sub> at 0 to read it off ISO/TR 15144-1 Annex A
+                                    Figure A.1 for this oil's grade and stage. That annex is informative
+                                    and the figure has to be digitised, so a test result for the oil in
+                                    hand always wins.
+                                </small>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" @bind="engine.AntiScuffAdditives" />
+                                    <span>Oil has anti-scuff (EP) additives</span>
+                                </label>
+                                <small style="color: #6c757d; font-size: 12px;">
+                                    With EP additives a short contact exposure time raises the scuffing
+                                    temperature (Clause 10.3). That margin only holds while the exposure
+                                    time does not increase.
+                                </small>
+                            </div>
+
+                            @if (lp != null)
+                            {
+                                <div class="schematic-note">
+                                    <strong>Source.</strong> @lp.Source
+                                    @if (lp.FzgStageA8390 == null)
+                                    {
+                                        <text> The scuffing stage is not published for this product, so it stays yours to enter.</text>
+                                    }
+                                </div>
+                            }
                         </ChildContent>
                         <Footer>
                             X<sub>L</sub> = coefficient &#183; &#951;<sub>oil</sub><sup>&#8722;0.05</sup>,
-                            with &#951; the dynamic viscosity at the oil temperature.
+                            with &#951; the dynamic viscosity at the oil temperature. Values a product
+                            supplies are locked; choose <em>Custom</em> on the card to edit them.
                         </Footer>
                     </DialogButton>
                 </div>
-                <select @bind="engine.OilType">
-                    <option value="@LubricantType.Mineral">Mineral</option>
-                    <option value="@LubricantType.PolyglycolWaterSoluble">Polyglycol, water soluble</option>
-                    <option value="@LubricantType.PolyglycolNonWaterSoluble">Polyglycol, non water soluble</option>
-                    <option value="@LubricantType.Polyalphaolefin">Polyalphaolefin (PAO)</option>
-                    <option value="@LubricantType.PhosphateEster">Phosphate ester</option>
-                    <option value="@LubricantType.TractionFluid">Traction fluid</option>
+                <select @bind="selectedLubricant" @bind:after="OnLubricantChanged">
+                    @foreach (var l in LubricantPreset.All)
+                    {
+                        <option value="@l.Name">@l.Name</option>
+                    }
+                    <option value="@LubricantPreset.CustomName">Custom &#8212; enter data</option>
                 </select>
+                <small style="color: #6c757d; font-size: 12px;">
+                    &#957;<sub>40</sub> = @engine.LubricantViscosity40.ToString("F0") &#183;
+                    &#957;<sub>100</sub> = @(engine.LubricantViscosity100 > 0 ? engine.LubricantViscosity100.ToString("F1") : "est.") &#183;
+                    &#961; = @engine.OilDensity.ToString("F3") &#183; @OilTypeLabel(engine.OilType) &#183;
+                    FZG @engine.FzgLoadStage.ToString("F0")
+                    @if (LubricantPreset.Find(selectedLubricant)?.FzgStageA8390 is null)
+                    {
+                        <text>&#8202;<strong>(not from this product &#8212; check it)</strong></text>
+                    }.
+                    Open the panel for these and for a custom lubricant.
+                </small>
             </div>
 
             <div class="form-group">
@@ -353,10 +454,12 @@
                 {
                     <small style="color: #8a6d3b; font-size: 12px;">
                         Grease is taken at X<sub>S</sub> = 1.2, as for a spray &#8212; it does not
-                        circulate, so it carries heat away no better. Enter the <strong>base oil's</strong>
-                        viscosities above, not the NLGI consistency. ISO/TR 13989 and ISO/TR 15144
-                        are written for oils, so the scuffing and micropitting results below are a
-                        guide rather than a rating.
+                        circulate, so it carries heat away no better. In the lubricant panel, give
+                        the <strong>base oil's</strong> viscosities and density, not the NLGI
+                        consistency, and <strong>still set a base oil type</strong>: a grease is a
+                        base oil plus a thickener, so it has one. ISO/TR 13989 and ISO/TR 15144 are
+                        written for oils, so the scuffing and micropitting results are a guide
+                        rather than a rating.
                     </small>
                 }
             </div>
@@ -400,49 +503,6 @@
                 </div>
             }
 
-            <div class="form-group">
-                <label>Scuffing Resistance (FZG A/8,3/90)</label>
-                <div class="input-group">
-                    <input type="number" step="1" min="1" max="14" @bind="engine.FzgLoadStage" />
-                    <span class="unit">stage</span>
-                </div>
-                <small style="color: #6c757d; font-size: 12px;">
-                    The load stage at which the oil scuffs, from its datasheet. A plain mineral gear
-                    oil is around 12; an EP oil reaches 14. The standard notes a variation of &#177;1
-                    stage is common and that oil deteriorates in service, so calculating one stage
-                    below the specification is reasonable.
-                </small>
-            </div>
-
-            <div class="form-group">
-                <label>Micropitting Resistance (FVA-FZG C-GF/8,3/90)</label>
-                <div class="dual-field">
-                    <div class="dual-box">
-                        <span class="dual-cap">Load stage SKS</span>
-                        <input type="number" step="1" min="5" max="10" @bind="engine.MicropittingLoadStage" />
-                    </div>
-                    <div class="dual-box">
-                        <span class="dual-cap">or &#955;<sub>GFP</sub> directly</span>
-                        <input type="number" step="0.01" min="0" @bind="engine.PermissibleFilmThickness" />
-                    </div>
-                </div>
-                <small style="color: #6c757d; font-size: 12px;">
-                    Leave &#955;<sub>GFP</sub> at 0 to read it off ISO/TR 15144-1 Annex A Figure A.1 for
-                    this oil's VG grade and load stage. That annex is informative and the figure has to
-                    be digitised, so a test result for the oil in hand always wins.
-                </small>
-            </div>
-
-            <div class="form-group">
-                <label class="checkbox-label">
-                    <input type="checkbox" @bind="engine.AntiScuffAdditives" />
-                    <span>Oil has anti-scuff (EP) additives</span>
-                </label>
-                <small style="color: #6c757d; font-size: 12px;">
-                    With EP additives a short contact exposure time raises the scuffing temperature
-                    (Clause 10.3). That margin only holds while the exposure time does not increase.
-                </small>
-            </div>
         </div>
 
         <!-- Reference Profile Card -->
@@ -1961,7 +2021,7 @@ else
     private bool openedFromSharedLink = false;
 
     // Lubricant viscosity grade selection
-    private string selectedViscosityGrade = "VG 220";
+    private string selectedLubricant = "Mobilgear 600 XP 220";
 
     // Tooth thickness allowances and centre distance deviation are entered in micrometres
     // (that is how they appear on a drawing) but held in millimetres on the engine.
@@ -3118,7 +3178,14 @@ else
         };
 
         selectedApplicationFactor = "1.0";
-        selectedViscosityGrade = "VG 220";
+
+        // Naming the default lubricant is not the same as loading it. Setting the field alone
+        // left the card claiming a named product while the engine still held its own defaults
+        // (nu100 = 0, i.e. "estimated", for an oil whose sheet publishes 19,0) - the selector
+        // and the numbers behind it disagreeing, which is the whole thing this card was
+        // rebuilt to stop. Apply it.
+        selectedLubricant = "Mobilgear 600 XP 220";
+        OnLubricantChanged();
         asne1Micron = asni1Micron = asne2Micron = asni2Micron = 0;
         aaUpperMicron = aaLowerMicron = 0;
         daUpperMicron = daLowerMicron = dfUpperMicron = dfLowerMicron = 0;
@@ -3128,26 +3195,56 @@ else
         rimInnerDia1 = rimInnerDia2 = hubDia1 = hubDia2 = webThickness1 = webThickness2 = 0;
     }
 
-    private void OnViscosityGradeChanged()
+    /// <summary>
+    /// Applies a chosen product's data sheet figures. Custom changes nothing — the user keeps
+    /// whatever is already in the fields and edits it in the dialog.
+    ///
+    /// F_ZG and the micropitting stage are only overwritten when the product actually publishes
+    /// them. Most sheets do not, and a stale value from a previously selected product would be
+    /// worse than the user's own: the scuffing temperature is derived from that number.
+    /// </summary>
+    private void OnLubricantChanged()
     {
-        if (selectedViscosityGrade != "custom" &&
-            Iso6336SurfaceFactors.ViscosityGrades.TryGetValue(selectedViscosityGrade, out double nu40))
-        {
-            engine.LubricantViscosity40 = nu40;
-        }
+        var lp = LubricantPreset.Find(selectedLubricant);
+        if (lp == null) return;
+
+        engine.LubricantViscosity40 = lp.Nu40;
+        engine.LubricantViscosity100 = lp.Nu100;
+        engine.OilDensity = lp.Density15;
+        engine.OilType = lp.Type;
+
+        if (lp.FzgStageA8390 is { } fzg) engine.FzgLoadStage = fzg;
+        if (lp.MicropittingStage is { } gf) engine.MicropittingLoadStage = gf;
+
+        // A grease is not a delivery method the user chooses independently of the product:
+        // picking one fixes X_S. Picking an oil after a grease has to undo that, or the
+        // lubricant and the method silently disagree.
+        if (lp.IsGrease)
+            engine.LubricationMethod = LubricationMethod.Grease;
+        else if (engine.LubricationMethod == LubricationMethod.Grease)
+            engine.LubricationMethod = LubricationMethod.Dip;
     }
 
     /// <summary>
-    /// Picking grease switches the lubricant selector to Custom, because none of the ISO VG
-    /// grades describes one: what the calculation needs is the grease's BASE OIL viscosity,
-    /// and that has to be typed in from the datasheet. Switching back is left to the user —
-    /// their entered viscosity is not thrown away.
+    /// Choosing Grease by hand when the selected product is an oil is a contradiction, so the
+    /// lubricant drops to Custom rather than leaving the card claiming a named oil is a grease.
     /// </summary>
     private void OnLubricationMethodChanged()
     {
-        if (engine.LubricationMethod == LubricationMethod.Grease)
-            selectedViscosityGrade = "custom";
+        var lp = LubricantPreset.Find(selectedLubricant);
+        if (lp != null && lp.IsGrease != (engine.LubricationMethod == LubricationMethod.Grease))
+            selectedLubricant = LubricantPreset.CustomName;
     }
+
+    private static string OilTypeLabel(LubricantType t) => t switch
+    {
+        LubricantType.PolyglycolWaterSoluble => "polyglycol (water sol.)",
+        LubricantType.PolyglycolNonWaterSoluble => "polyglycol",
+        LubricantType.Polyalphaolefin => "PAO",
+        LubricantType.PhosphateEster => "phosphate ester",
+        LubricantType.TractionFluid => "traction fluid",
+        _ => "mineral"
+    };
 
     private void OnApplicationFactorChanged()
     {
@@ -3388,7 +3485,7 @@ else
         .Set("ol", engine.OptimumLifeConditions)
         .Set("lp", engine.LimitedPittingPermissible)
         // lubrication and surface
-        .Set("vg", selectedViscosityGrade)
+        .Set("lub", selectedLubricant)
         .Set("nu", engine.LubricantViscosity40)
         .Set("rz1", engine.FlankRoughnessRz1)
         .Set("rz2", engine.FlankRoughnessRz2)
@@ -3402,6 +3499,7 @@ else
         .Set("rise", engine.OilTemperatureRise)
         .Set("otd", engine.OilTemperatureDirect)
         .Set("nu100", engine.LubricantViscosity100)
+        .Set("rho", engine.OilDensity)
         .Set("fzg", engine.FzgLoadStage)
         .Set("ep", engine.AntiScuffAdditives)
         .Set("drv", engine.PinionDrives)
@@ -3539,12 +3637,13 @@ else
         engine.OptimumLifeConditions = state.GetBool("ol", engine.OptimumLifeConditions);
         engine.LimitedPittingPermissible = state.GetBool("lp", engine.LimitedPittingPermissible);
 
-        // The viscosity grade handler overwrites nu40, so it has to run before the stored
-        // nu40 is reapplied - otherwise a custom viscosity would be lost.
-        var vg = state.GetString("vg", selectedViscosityGrade);
-        selectedViscosityGrade =
-            vg == "custom" || Iso6336SurfaceFactors.ViscosityGrades.ContainsKey(vg) ? vg : "VG 220";
-        OnViscosityGradeChanged();
+        // The lubricant handler overwrites every oil figure, so it has to run BEFORE the stored
+        // ones are reapplied - otherwise a link carrying edited values would lose them. Links
+        // written before the library existed carry "vg" instead; those fall through to Custom
+        // and keep their own nu40, which is exactly what they stored.
+        var lub = state.GetString("lub", "");
+        selectedLubricant = LubricantPreset.Find(lub) != null ? lub : LubricantPreset.CustomName;
+        OnLubricantChanged();
         engine.LubricantViscosity40 = state.GetDouble("nu", engine.LubricantViscosity40);
 
         engine.FlankRoughnessRz1 = state.GetDouble("rz1", engine.FlankRoughnessRz1);
@@ -3561,6 +3660,7 @@ else
         engine.OilTemperatureRise = state.GetDouble("rise", engine.OilTemperatureRise);
         engine.OilTemperatureDirect = state.GetDouble("otd", engine.OilTemperatureDirect);
         engine.LubricantViscosity100 = state.GetDouble("nu100", engine.LubricantViscosity100);
+        engine.OilDensity = state.GetDouble("rho", engine.OilDensity);
         engine.FzgLoadStage = state.GetDouble("fzg", engine.FzgLoadStage);
         engine.AntiScuffAdditives = state.GetBool("ep", engine.AntiScuffAdditives);
         engine.MicropittingLoadStage = state.GetDouble("mps", engine.MicropittingLoadStage);

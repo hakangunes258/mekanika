@@ -1732,6 +1732,80 @@ name.
   edition (classes 1–11); ISO 6336-1:2006 normatively references the 1995 edition (grades
   0–12). The numbering and formulae differ. Do not silently equate them.
 
+**Six more, found in Aug 2026 by benchmarking against KISSsoft Tutorial 8** (z 16/43,
+m_n 1.5, β 25°, a 48.9, x₁ 0.3215 — the engine driven with the tutorial's exact inputs and
+~120 quantities diffed against its printed report). Geometry, kinematics, forces and the
+control dimensions already matched to under 0.1 %; every one of these was in the strength
+chain, and four of the six were **non-conservative**:
+
+- **Z_NT has two rows in ISO 6336-2 Table 2, and only the optimistic one was implemented.**
+  The steel/hardened group splits on whether pitting is acceptable on the finished flank:
+  the knee sits at **5×10⁷** cycles normally and at 10⁹ only when it is. At 1.1×10⁸ cycles
+  that is Z_NT = 1.00 versus 1.13 — σ_HP inflated 13 %, and the module reported S_H = 1.30
+  for a pair the reference rates 1.15. The conservative row is the default;
+  `LimitedPittingPermissible` selects the other. Anchor: exponent ln(1,6)/ln(500) = 0,075627
+  reproduces Z_NT = 1,0135 at N = 4,186×10⁷.
+  **An anchor test against the curve you chose to implement cannot tell you the curve is the
+  wrong one.** That is how this survived an earlier review that called it verified.
+- **Y_F and Y_S describe the tooth that is *cut*, not the nominal one.** Feed them
+  x_E = x + A_sne/(2 m_n tan α_n), not x. The nominal tooth is thicker, so s_Fn came out
+  high, the 30° tangent point too high, and σ_F0 ~4 % low — on the unsafe side. This is why
+  `CalculateMeasurements()` runs **before** `CalculateToothRootStrength()` in `Calculate()`:
+  the allowances must be resolved first. Do not reorder them back. `Iso6336ToothForm` was
+  never wrong — fed x_E it reproduces the reference's s_Fn, q_s and Y_F·Y_S to 0.25 %.
+- **C_B in ISO 6336-1 Eq. (86) references h_fP = 1,2 m_n, not 1,25.** It shipped with 1,25,
+  which made the factor exactly 1,000 for the ISO 53 profile A rack nearly every gear here
+  uses — i.e. the factor did nothing for the common case, which is the tell. Correct value
+  0,975; c′ and c_γ were ~2,5 % high, carrying into K_V, K_Hβ and K_Hα.
+- **K_Bγ belongs in w_Bt in *both* scuffing methods.** It was applied in the integral method
+  and in micropitting but not in the flash method, so the same gear was loaded two different
+  ways depending on which criterion was running — 20 % low on this pair. Both parts now call
+  one shared `HelicalLoadFactor`. When you touch one scuffing method, check the other.
+- **Tooth root stress uses each gear's own face width**, capped at the mating width plus one
+  module of overhang per end (ISO 6336-3). `min(b1, b2)` for both was conservative but wrong,
+  and showed up as exactly b₂/b₁ on the wider wheel.
+- **K_V defaulted to a hard-coded 1.10 while K_Hβ beside it was calculated.** Every result on
+  the page used that stand-in unless the user opened the dialog; in the resonance range it is
+  an order of magnitude low. Both default to *calculated* now, and `KvShown`/`KhbShown` return
+  1.000 rather than 0 before the first run — a 0 in the box invites the user to "correct" it,
+  which silently flips the field back to manual. **Test the page, not just the engine**: a
+  harness that sets `UseDirectDynamicFactor = false` to compare against a standard will never
+  see this class of bug.
+
+**Still open after those fixes, and worth knowing before trusting S_H:** the tutorial's
+printed report (§2.10) is a **DIN 3990:1987** run even though its own §2.4 tells you to switch
+to ISO 6336 — and Figure 19, which *is* the ISO run, prints only five numbers. Our flank chain
+now matches the DIN run to under 1 %, but Figure 19's ISO S_H = 0,986 is ~17 % below that and
+the source of the difference cannot be located from five numbers. Getting a KISSsoft report
+generated with ISO 6336:2006 Method B selected is the single highest-value verification step
+left. Until then, do not read "matches KISSsoft" as "matches ISO 6336".
+
+**The lubricant library** (`Services/LubricantLibrary.cs`). Ten named products, so the card asks
+for a lubricant instead of six numbers. It is small on purpose:
+
+- **Every field is copied from the manufacturer's published data sheet and cited per entry.**
+  Viscosity, density and above all the FZG stages are properties of a *product*, not of a
+  viscosity grade. Inventing a "typical" FZG stage would put a made-up number straight into a
+  scuffing safety factor. Ten verified entries beat fifty plausible ones. **Where a value is not
+  published it is `null`, the field stays editable, and the card says "not from this product".**
+- **The FZG test variant is a trap.** ISO/TR 13989 Eq. (99) is calibrated to **A/8,3/90**
+  (ISO 14635-1). Data sheets also quote **A/16,6/90**, and some quote only that. The two are
+  different tests and their stage numbers are not interchangeable. `FzgStageA8390` is only ever
+  filled from a line that names A/8,3/90 explicitly — Mobilgear's sheet prints both, which is how
+  the distinction became visible. Micropitting is FVA 54 / FZG GF-C, a third rig again.
+- **Resolve by name, never by index** — same rule as the material and bearing libraries, because
+  share links carry the name.
+- **A grease is a base oil plus a thickener.** `LubricationMethod.Grease` only sets X_S = 1,2;
+  the base oil *type* and the base oil *viscosities* still apply and are still asked for. Grease
+  + Mineral is a correct combination, not a contradiction — the KISSsoft tutorial's own gear runs
+  on exactly that. NLGI consistency enters no equation here and is not stored.
+- **Naming a default preset is not the same as loading it.** `ResetEngine` must call
+  `OnLubricantChanged()`, or the card claims a product while the engine holds its own defaults.
+  It shipped that way for one build: the summary read "Mobilgear 600 XP 220 … ν₁₀₀ = est." for an
+  oil whose sheet publishes 19,0.
+- In `ApplyShareState`, `OnLubricantChanged()` runs **before** the stored oil values are
+  reapplied, so a link's own edits win over the preset.
+
 **Scuffing — ISO/TR 13989-1, flash temperature method.** Θ_B(Γ) = Θ_M + Θ_fl(Γ), swept over
 200 points on the path of contact. Three rules from getting it working:
 
