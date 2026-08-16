@@ -1933,6 +1933,21 @@ and minimised. Three things worth knowing:
   a stronger steel does nothing. Do not let anyone "fix" a micropitting result by changing
   the material.
 
+**Agreed for the next change to this module** (Aug 2026, not yet done):
+
+- **Helix hand is not an input.** It reaches no ISO 6336 equation, which is why it was never
+  asked for — but the 3D viewer needs it and the reference reports print it (`Hand of gear:
+  right / left`). Add a select under the helix angle for GEAR 1 only; on an external pair gear 2
+  is necessarily the opposite hand, so it is derived. Hide it at β = 0. It has to reach both the
+  share state and `Build3dParameters()`, or a shared link draws a mirrored model. Check what the
+  viewer currently assumes before wiring it.
+- **The oil temperature defaults to the estimated route.** `OilTemperatureFromAmbient` is `true`,
+  so a new calculation runs on ambient + a 50 K rise rather than on a stated θ_oil. That is the
+  same class of problem the K_V default was: a stand-in reaching the results without being asked
+  for. ISO/TR 13989 wants θ_oil itself, and commercial software asks only for it (its root and
+  flank temperature fields belong to dry-run and plastic gears, which this module does not
+  cover). Flip the default to "entered directly" and keep ambient + rise as the opt-in estimate.
+
 **Out of scope, stated in the results card:** tooth flank fracture, planetary and internal
 arrangements. Within micropitting: the profile-modified load sharing branches and the
 buttressing factor, and ε_α > 2 which the standard restricts to Method A. Within scuffing: bevel/hypoid geometry and the profile-modified load sharing
