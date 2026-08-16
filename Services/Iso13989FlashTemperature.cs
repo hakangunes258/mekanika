@@ -143,7 +143,7 @@ public static class Iso13989FlashTemperature
         public double XS { get; set; }              // lubrication method factor
         public double XalphaBeta { get; set; }      // angle factor
         public double KBgamma { get; set; }         // helical load distribution factor
-        public double wBt { get; set; }             // transverse unit load (N/mm), K_Bgamma included
+        public double wBt { get; set; }             // transverse unit load (N/mm), WITHOUT K_Bgamma
         public double Ceff { get; set; }            // optimal tip relief (µm)
 
         public double GammaA { get; set; }
@@ -255,15 +255,16 @@ public static class Iso13989FlashTemperature
         double alphaWtr = i.alphaWt * Math.PI / 180.0;
 
         // --- Transverse unit load, Eq. (11) ---
-        // K_Bgamma, the helical load distribution factor, belongs here too. It was missing
-        // while the integral-temperature method and the micropitting method next door both
-        // applied it, so the same gear was loaded two different ways depending on which
-        // scuffing criterion was being evaluated. On a wide helical pair (eps_gamma > 2) the
-        // omission understates w_Bt by up to 30 %.
+        // w_Bt is the PLAIN unit load. K_Bgamma multiplies it in the flash temperature but NOT
+        // in the coefficient of friction - Part 1 and Part 2 differ here, and the reference
+        // reports print it the same way ("wBt 195,426" with "Kbg = 1,220, wBt*Kbg = 238,368"
+        // alongside). Folding it into w_Bt wholesale, as this did briefly, put it into the
+        // friction as well and pushed mu_m about 4 % high on a wide helical pair.
         // Same factor, same definition in both parts - shared rather than copied so the two
         // scuffing methods cannot drift apart again.
         r.KBgamma = Iso13989IntegralTemperature.HelicalLoadFactor(i.epsilonGamma);
-        r.wBt = i.KA * i.KV * i.KHbeta * i.KHalpha * i.Kmp * r.KBgamma * i.Ft / i.b;
+        r.wBt = i.KA * i.KV * i.KHbeta * i.KHalpha * i.Kmp * i.Ft / i.b;
+        double wBtFlash = r.KBgamma * r.wBt;
 
         // --- Parameters on the line of action, Eq. (30)-(35) ---
         double tanAlphaA1 = Math.Sqrt(Math.Max(0, Math.Pow(i.da1 / (i.d1 * Math.Cos(alphaTr)), 2) - 1));
@@ -314,7 +315,11 @@ public static class Iso13989FlashTemperature
         double rhoRelC = RelativeRadius(0, i.a, i.u, alphaWtr);                                    // (6) at Gamma = 0
 
         r.XL = LubricantFactor(i.Lubricant, i.EtaOil);
-        r.XR = Math.Pow((i.Ra1 + i.Ra2) / 2.0, 0.25);                                              // (28)
+        // Eq. (28). The exponent on Ra is 0,5 here - Part 2's own roughness factor is the
+        // different expression 2,2 (Ra/rho_redC)^0,25, and carrying that quarter-power over
+        // into Part 1 made mu_m about 14 % high. Solved back out of two reference reports
+        // that share Ra = 0,60 um but nothing else: both need X_R = 0,7746 = sqrt(0,60).
+        r.XR = Math.Sqrt((i.Ra1 + i.Ra2) / 2.0);                                                   // (28)
 
         if (vSigmaC <= 0 || rhoRelC <= 0 || r.XL <= 0)
         {
@@ -324,6 +329,7 @@ public static class Iso13989FlashTemperature
         }
 
         r.MuM = 0.060 * Math.Pow(r.wBt / (vSigmaC * rhoRelC), 0.2) * r.XL * r.XR;                  // (25)
+        // (w_Bt here is the plain load - K_Bgamma enters the flash temperature only.)
 
         // --- Optimal tip relief, Eq. (B.1) ---
         double cGamma = i.cGamma > 0 ? i.cGamma : 20.0;
@@ -344,7 +350,7 @@ public static class Iso13989FlashTemperature
 
             double flash = xGamma <= 0 ? 0
                 : r.MuM * r.XM * xJ * xG
-                  * Math.Pow(xGamma * r.wBt, 0.75) * Math.Sqrt(i.vt) / Math.Pow(i.a, 0.25);        // (A.5)
+                  * Math.Pow(xGamma * wBtFlash, 0.75) * Math.Sqrt(i.vt) / Math.Pow(i.a, 0.25);    // (A.5)
 
             flashSum += flash;
             if (flash > r.FlashMax)
@@ -381,7 +387,7 @@ public static class Iso13989FlashTemperature
         r.FlashMaxAlternate = FlashViaEq5(r.GammaAtMax, loadFactorAtMax, i, r);
 
         // --- Contact exposure time, Eq. (95)-(96) ---
-        r.ContactExposureTime = ContactExposureTime(r.GammaAtMax, i, r.wBt, Er);
+        r.ContactExposureTime = ContactExposureTime(r.GammaAtMax, i, wBtFlash, Er);
 
         // --- Scuffing temperature, Eq. (99), and safety, Eq. (100) ---
         r.ScuffingTemperature = 80.0 + (0.85 + 1.4 * i.XW) * r.XL * i.FzgLoadStage * i.FzgLoadStage;
@@ -562,7 +568,7 @@ public static class Iso13989FlashTemperature
         double xJ = ApproachFactor(gamma, r.GammaA, r.GammaE, i, r.Ceff);
 
         return 2.52 * r.MuM * (r.XM / 50.0) * xJ
-             * Math.Pow(xGamma * r.wBt, 0.75)
+             * Math.Pow(xGamma * r.KBgamma * r.wBt, 0.75)
              * Math.Sqrt(n1 / 60.0)
              * Math.Abs(Math.Sqrt(rho1) - Math.Sqrt(rho2 / i.u))
              / Math.Pow(rhoRel, 0.25);                                                              // (5)

@@ -1660,12 +1660,14 @@ public class GearPairEngine
                 ? StructuralFactorOverride
                 : Iso13989IntegralTemperature.WeldingFactor(Material1.Iso6336Type),
 
-            // Part 2 asks for the roughness of the flanks AS MANUFACTURED, and carries the
-            // run-in state separately in X_E. Part 1 asks for the run-in roughness. The form
-            // collects the run-in value, so it is scaled back up by the standard's own
-            // Ra_run-in ~ 0,6 Ra_new and the gear is then declared fully run in.
-            Ra1 = FlankRa1 / 0.6,
-            Ra2 = FlankRa2 / 0.6,
+            // Ra as entered, the same value Part 1 gets. This used to be scaled up by 1/0,6 on
+            // the argument that Part 2 wants the as-manufactured roughness while Part 1 wants
+            // the run-in one. The reference reports feed one Ra to both and declare the gear
+            // run in (X_E = 1,000), and the scaling put mu_mC 14 % high on its own - so the
+            // entered value is taken at face value and X_E carries the run-in state, which is
+            // what it is for.
+            Ra1 = FlankRa1,
+            Ra2 = FlankRa2,
             PhiE = 1.0,
 
             Ca1 = TipRelief1,

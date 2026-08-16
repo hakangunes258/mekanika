@@ -1808,22 +1808,40 @@ tolerances it lands S_H ~4 % low and S_F ~8 % low, because the 2013 class 8 is c
 remaining difference on this module**, and it is conservative. Implementing the 1995 grades
 alongside the 2013 classes is the next real accuracy step.
 
-Still unexplained: the scuffing coefficient of friction runs high — and a **second** ISO 6336
-report (z 19/57, m_n 3, grease, quality 6, ISO 53 profile D) shows the discrepancy is a constant
-factor rather than a drifting one. Ours over theirs, after correcting for the w_Bt difference:
-0,844 and 0,867 on the first gear, 0,847 and 0,836 on the second — i.e. **µ_m is ~1/0,85 too
-high in both the flash and the integral method, on two unrelated gears**. That is a coefficient,
-not a geometry error, so the search is narrowed to Eq. (26)/(1) and the X_R term. Conservative
-direction (S_B and S_intS come out low).
+**The scuffing coefficient of friction, resolved.** µ_m ran ~1/0,85 high in both methods on
+two unrelated gears. Two causes, both now fixed, and the size of each was recovered by solving
+the reference reports' own printed numbers backwards:
 
-That second report is worth keeping in mind as a test case: it independently confirmed C_B = 1,2
-on a rack with h_fP = 1,40 (C_BS = 0,900, c′ = 12,687 exact), Z_NT and Y_NT out at 1,74×10⁹ and
-5,8×10⁸ cycles (all four within 0,06 %), σ_H0 and both σ_HG exact, and X_Ca = 1,2334 against
-1,233 at quality 6 — which is the proof that the Clause 6.1.12 gate, not the equation, is the
-only thing that differs on tip relief. It also uses the **favourable contact pattern** branch,
-Eq. (53), which this module deliberately does not implement: its F_βx = 5,44 reconstructs as
-|1,33·B1·f_sh − f_Hβ5| = |1,33×0,79 − 6,50|, i.e. the grade-5 helix tolerance replaces f_ma once
-the pattern has been verified. Ours stays on the additive Eq. (52) and so reports a higher K_Hβ.
+- **ISO/TR 13989-1 Eq. (28): X_R = √Ra, not Ra^0,25.** Part *2* has the different expression
+  2,2·(Ra/ρ_redC)^0,25, and that quarter-power had been carried across into Part 1. Anchor: both
+  reports use Ra = 0,60 µm and nothing else in common, and both require X_R = 0,7746 = √0,60.
+- **K_Bγ multiplies w_Bt in the flash *temperature* but not in the *friction*.** Folding it into
+  w_Bt wholesale — which is how it was first added — put it into both. The reports print the two
+  separately for exactly this reason: "wBt 195,426" with "Kbg = 1,220, wBt*Kbg = 238,368"
+  alongside. Part 2 *does* use K_Bγ in its friction; the two parts genuinely differ, so do not
+  "harmonise" them.
+- Related: Part 2 is now fed the entered Ra, not Ra/0,6. The 1/0,6 scale-up assumed Part 2 wants
+  the as-manufactured roughness while Part 1 wants the run-in one; the references feed one Ra to
+  both and set X_E = 1,000, which is what X_E is for.
+
+µ_m now lands +1,4 % and +5,2 % on the two reports, and that residual is the load, not the
+friction: our w_Bt is 9 % and 29 % high because of K_Hβ (the ISO 1328 edition on one, the
+favourable-contact-pattern Eq. (53) on the other), and µ ∝ w^0,2 accounts for it exactly.
+
+**θ_S was never wrong.** It was recorded as "14 % low" — that was measured against Tutorial 8,
+whose printed report is a DIN 3990 run. Against both ISO 6336 reports it lands within 0,2 %.
+Do not compare a scuffing temperature across the two standards.
+
+**What Tutorial 8's Figure 19 says now.** The ISO run it prints five numbers for — the one that
+was ~17 % away for three rounds — is reproduced to S_H −1,8 % and S_F −3,8 %, conservative. Its
+*scuffing* section still differs by design: it is DIN 3990-4, which has its own friction formula
+and folds K_Bγ into the printed w_Bt, so our µ_m of 0,074 against its 0,111 is a standards
+difference, not an error. Fixing Part 1 moved us toward the two ISO references and away from the
+DIN one, which is the right direction for an ISO implementation.
+
+Still open on scuffing: the mean flash temperature runs ~21 % high on the first report while µ_m
+and w_Bt together only account for ~8 %, so the load sharing factor X_Γ is the next place to
+look (the report prints X_Gam = 0,907).
 
 **The lubricant library** (`Services/LubricantLibrary.cs`). Ten named products, so the card asks
 for a lubricant instead of six numbers. It is small on purpose:
