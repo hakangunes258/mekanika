@@ -1279,6 +1279,23 @@ Target: $50-100/month passive income
 > never actually executed against the engines, so they provided no real assurance.
 > Do not reintroduce it without wiring the cases up to run for real.
 
+**Nothing renders `IsVerified` today.** Grep it: the flag and `VerificationStandards` are set
+on every `ModuleInfo`, and no page reads either. It is a source-level record of what has been
+checked and against what, not a badge the visitor sees. Treat it as documentation until
+something is built to display it — and if a badge is ever added, re-read each module's comment
+first, because a stale one shipped for over a year saying gear-pair's scuffing was out of scope
+after scuffing had been implemented.
+
+**gear-pair is benchmarked against three KISSsoft reports** (Aug 2026): two generated with
+ISO 6336:2006 Method B, and Tutorial 8, whose printed report is DIN 3990:1987 but whose
+Figure 19 prints the ISO result. ~120 quantities diffed per case. Geometry, kinematics, forces,
+tooth thickness, W_k, M_d and the DIN 3967 allowances agree to under 0,05 %; the strength chain
+lands within 1 % of the ISO references when they are fed their own ISO 1328-1:1995 deviations,
+and −1,8 % / −3,8 % on Figure 19 as run. The reports live outside the repo (they are the user's
+own files, and `*.pdf` is gitignored) — the harness that drove them was a throwaway, per the
+"verifying a change" note further down. Twelve calculation errors came out of this exercise;
+each is recorded above with the anchor that caught it.
+
 Verification status is a single flag on `ModuleInfo` in
 `Services/ModuleMetadataService.cs`:
 

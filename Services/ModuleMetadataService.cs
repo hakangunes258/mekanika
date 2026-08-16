@@ -1,4 +1,4 @@
-namespace MechanicalCalculatorWeb.Services;
+﻿namespace MechanicalCalculatorWeb.Services;
 
 /// <summary>
 /// Centralized module metadata and relationships service
@@ -291,11 +291,27 @@ public class ModuleMetadataService
                 // f_sh follows the standard's own approximate method (Eq. 57 + Figure 13)
                 // from four shaft dimensions; it is not a shaft analysis, and the results
                 // say so whenever a representative shaft had to be assumed.
-                // Still OUT OF SCOPE (stated in the results): scuffing (ISO/TR 13989),
-                // micropitting (ISO/TR 15144), tooth flank fracture, and planetary or
-                // internal gear arrangements.
+                // Scuffing (ISO/TR 13989-1 flash and -2 integral temperature) and micropitting
+                // (ISO/TR 15144-1 Method B) were added in Aug 2026 and are no longer out of
+                // scope. Still OUT OF SCOPE, and stated in the results: tooth flank fracture
+                // (ISO/TS 6336-4), and planetary or internal gear arrangements.
+                //
+                // BENCHMARKED, Aug 2026, against three KISSsoft 03/2017-03/2018 reports - two
+                // generated with ISO 6336:2006 Method B and one (Tutorial 8) with DIN 3990:1987
+                // Method B whose Figure 19 prints the ISO result. Roughly 120 quantities were
+                // diffed per case. Geometry, kinematics, forces, tooth thickness, W_k, M_d and
+                // the DIN 3967 allowances match to under 0,05 %; the strength chain lands
+                // within 1 % of the ISO references once they are fed their own ISO 1328-1:1995
+                // deviations. Twelve calculation errors were found and fixed in the process -
+                // Z_beta, Z_NT, f_ma, x_E, C_B, K_Bgamma, X_R and the rest are recorded in
+                // CLAUDE.md with the anchor that caught each one.
+                //
+                // The one systematic difference left is the flank tolerance edition: this
+                // module uses ISO 1328-1:2013, the references were run on the 1995 edition,
+                // and that shows up as S_H ~4 % and S_F ~8 % low on one of the three. It is
+                // conservative and it is surfaced in the UI.
                 IsVerified = true,
-                VerificationStandards = new[] { "ISO 6336-1", "ISO 6336-2", "ISO 6336-3", "ISO 6336-5", "ISO 1328-1", "ISO 21771", "ISO/TR 10064-2" },
+                VerificationStandards = new[] { "ISO 6336-1", "ISO 6336-2", "ISO 6336-3", "ISO 6336-5", "ISO 1328-1", "ISO 21771", "ISO/TR 10064-2", "ISO/TR 13989-1", "ISO/TR 13989-2", "ISO/TR 15144-1", "DIN 3967", "ISO 286" },
                 HasVideo = false
             },
 
