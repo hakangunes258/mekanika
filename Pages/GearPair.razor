@@ -140,7 +140,10 @@
             <div class="form-group">
                 <label>Profile Shift Coefficient (x<sub>2</sub>)</label>
                 <div class="input-group">
-                    <input type="number" step="0.01" @bind="engine.ProfileShiftCoeff2" readonly />
+                    @* Not @bind: two-way binding round-trips the full double and printed
+                       -0,2709082744758868 in a read-only box. *@
+                    <input type="number" step="0.01" readonly
+                           value="@engine.ProfileShiftCoeff2.ToString("F4", Inv)" />
                     <span class="unit">-</span>
                 </div>
                 <small style="color: #6c757d; font-size: 12px;">Auto-calculated from center distance</small>
@@ -878,11 +881,22 @@
                     }
                     else
                     {
-                        <text>
-                            Calculated per ISO 6336-1 Clause 7.5, Method C:
-                            K<sub>H&#946;</sub> = <strong>@engine.FaceLoadFactorFlank.ToString("F3")</strong>
-                            after the last calculation.
-                        </text>
+                        @if (engine.FaceLoadFactorFlank > 0)
+                        {
+                            <text>
+                                Calculated per ISO 6336-1 Clause 7.5, Method C:
+                                K<sub>H&#946;</sub> = <strong>@engine.FaceLoadFactorFlank.ToString("F3")</strong>
+                                after the last calculation.
+                            </text>
+                        }
+                        else
+                        {
+                            <text>
+                                Calculated per ISO 6336-1 Clause 7.5, Method C, from the shaft and
+                                the flank tolerances &#8212; the value appears after the next
+                                calculation.
+                            </text>
+                        }
                     }
                 </small>
             </div>
@@ -1228,7 +1242,7 @@ else
                     <tr><td>Gear Loss Factor</td><td>H<sub>V</sub></td><td>@engine.ToothLossFactor.ToString("F4")</td><td>-</td><td>-</td></tr>
                 </tbody>
             </table>
-            <div class="alert" style="margin: 16px; background: #f8f9fa; padding: 12px; font-size: 13px;">
+            <div class="note-box">
                 Specific sliding is the sliding velocity divided by that gear's own rolling velocity,
                 &#950; = 1 &#8722; &#961;<sub>mate</sub>/(u&#183;&#961;), evaluated at the ends of the path of contact where it
                 peaks. Values beyond about &#177;3 mean heavy sliding at the root and a raised risk of
@@ -1352,7 +1366,7 @@ else
 
             @if (engine.DeviationNote != null)
             {
-                <div class="alert" style="margin: 12px 16px; background: #f8f9fa; padding: 12px; font-size: 13px;">
+                <div class="note-box tight">
                     <strong>Deviation source:</strong> @engine.DeviationNote
                 </div>
             }
@@ -1388,7 +1402,7 @@ else
                 <div class="alert alert-warning" style="margin: 12px 16px; font-size: 13px;"><strong>Gear 2:</strong> @engine.Tolerance2.Warning</div>
             }
 
-            <div class="alert" style="margin: 16px; background: #f8f9fa; padding: 12px; font-size: 13px;">
+            <div class="note-box">
                 Tolerances are calculated from the ISO 1328-1:2013 formulae, in which the classes run
                 1 (tightest) to 11 (loosest) and each step is a factor of &#8730;2. Note that ISO 6336-1:2006
                 normatively references the 1995 edition, whose accuracy grades 0-12 are numbered
@@ -1515,19 +1529,19 @@ else
 
                 @if (engine.AllowanceNote != null)
                 {
-                    <div class="alert" style="margin: 16px; background: #f8f9fa; padding: 12px; font-size: 13px;">
+                    <div class="note-box">
                         <strong>Allowance source:</strong> @engine.AllowanceNote
                     </div>
                 }
 
                 @if (engine.CentreDistanceNote != null)
                 {
-                    <div class="alert" style="margin: 16px; background: #f8f9fa; padding: 12px; font-size: 13px;">
+                    <div class="note-box">
                         <strong>Center distance:</strong> @engine.CentreDistanceNote
                     </div>
                 }
 
-                <div class="alert" style="margin: 16px; background: #f8f9fa; padding: 12px; font-size: 13px;">
+                <div class="note-box">
                     Backlash follows from the tooth thickness allowances and the center distance deviation:
                     j<sub>bn</sub> = &#8722;(A<sub>sn1</sub> + A<sub>sn2</sub>)&#183;cos&#945;<sub>n</sub> +
                     2&#183;A<sub>a</sub>&#183;sin&#945;<sub>wt</sub>&#183;cos&#946;<sub>b</sub>. The minimum occurs with the
@@ -1575,7 +1589,7 @@ else
                     }
                 </div>
             }
-            <div class="alert" style="margin: 16px; background: #f8f9fa; padding: 12px; font-size: 13px;">
+            <div class="note-box">
                 Y<sub>F</sub> and Y<sub>S</sub> are calculated from the real tooth geometry per
                 <strong>ISO 6336-3 Method B</strong> (30&#176; tangent construction, load at the outer
                 point of single pair tooth contact). Because the load is applied at that point rather
@@ -1705,7 +1719,7 @@ else
                         <div class="alert alert-warning" style="margin: 12px 16px; font-size: 13px;">@n</div>
                     }
 
-                    <div class="alert" style="margin: 16px; background: #f8f9fa; padding: 12px; font-size: 13px;">
+                    <div class="note-box">
                         The two methods answer the same question differently: the flash method sweeps the
                         whole path of contact and takes the peak, the integral method takes the tip value
                         and weights it into a mean. The standard's introduction says they give about the
@@ -1719,7 +1733,7 @@ else
                     </div>
                 }
 
-                <div class="alert" style="margin: 16px; background: #f8f9fa; padding: 12px; font-size: 13px;">
+                <div class="note-box">
                     Scuffing is a <strong>temperature limit, not a fatigue life</strong> &#8212; a single
                     momentary overload can do damage that ends the gear's service, which is why the
                     standard asks for a wider margin here than a fatigue safety would need.
@@ -1789,7 +1803,7 @@ else
                     <div class="alert alert-warning" style="margin: 12px 16px; font-size: 13px;">@n</div>
                 }
 
-                <div class="alert" style="margin: 16px; background: #f8f9fa; padding: 12px; font-size: 13px;">
+                <div class="note-box">
                     Micropitting is a <strong>lubrication-regime</strong> failure, not a stress one: it
                     starts where the oil film is thin next to the roughness of the flanks. So the
                     criterion is a ratio of lengths &#8212; film thickness over roughness &#8212; and the
@@ -1866,7 +1880,7 @@ else
                     }
                 </tbody>
             </table>
-            <div class="alert" style="margin: 16px; background: #f8f9fa; padding: 12px; font-size: 13px;">
+            <div class="note-box">
                 S<sub>F</sub> and S<sub>H</sub> are true safety factors:
                 S = &#963;<sub>P</sub>/&#963;, with no minimum divided out of the permissible stress.
                 Compare them against the ISO 6336 recommended minima shown in the Required column,
@@ -1901,12 +1915,20 @@ else
             {
                 <div class="alert alert-warning" style="margin-top: 16px;"><ModuleIcon Type="warning" Size="small" Style="default" CustomStyle="margin-right: 8px;" /> <strong>Note:</strong> Contact ratio is below 1.2. Smooth operation may be affected.</div>
             }
+            else if (OtherCriteriaFalling() is { Count: > 0 } falling)
+            {
+                @* The band used to go green on the tooth root and flank alone, which meant it
+                   could sit directly under a red micropitting row and contradict it. Scuffing
+                   and micropitting are different standards, so they do not turn the band red -
+                   but they do stop it claiming everything passed. *@
+                <div class="alert alert-warning" style="margin-top: 16px;"><ModuleIcon Type="warning" Size="small" Style="default" CustomStyle="margin-right: 8px;" /> <strong>Note:</strong> Tooth root and flank meet ISO 6336, but @string.Join(" and ", falling) above @(falling.Count > 1 ? "are" : "is") not satisfied. Read those sections before accepting the design.</div>
+            }
             else
             {
-                <div class="alert alert-success" style="margin-top: 16px;"><ModuleIcon Type="check" Size="small" Style="default" CustomStyle="margin-right: 8px;" /> <strong>OK:</strong> Design meets all safety requirements according to ISO 6336.</div>
+                <div class="alert alert-success" style="margin-top: 16px;"><ModuleIcon Type="check" Size="small" Style="default" CustomStyle="margin-right: 8px;" /> <strong>OK:</strong> Tooth root and flank meet ISO 6336, and the scuffing and micropitting checks above are satisfied.</div>
             }
 
-            <div class="alert" style="margin: 16px 0 0; background: #f8f9fa; padding: 12px; font-size: 13px;">
+            <div class="note-box below">
                 <strong>Scope:</strong> this module covers geometry (ISO 21771), flank tolerances
                 (ISO 1328-1), backlash (ISO/TR 10064-2), tooth root and flank load capacity
                 (ISO 6336-1/2/3), allowable stress numbers (ISO 6336-5) and scuffing by both the
@@ -2298,13 +2320,36 @@ else
     /// GearToothMeasurement solve that produces W_k, so the suggestion and the reported
     /// dimension can never disagree. Null until the geometry is complete.
     /// </summary>
+    /// <summary>
+    /// The checks outside ISO 6336 that are failing: scuffing, judged on the margin in kelvin
+    /// that Clause 10.5 asks for rather than on the temperature quotient, and micropitting.
+    /// Empty when they pass or were not evaluated.
+    /// </summary>
+    private List<string> OtherCriteriaFalling()
+    {
+        var falling = new List<string>();
+        if (engine.Scuffing is { Valid: true } sc && sc.MarginKelvin < 50)
+            falling.Add($"scuffing (margin {sc.MarginKelvin:F0} K, below the 50 K the standard suggests)");
+        if (engine.ScuffingIntegral is { Valid: true } si && si.SafetyFactor < 1.8)
+            falling.Add($"scuffing by the integral method (S_intS {si.SafetyFactor:F2} < 1.8)");
+        if (engine.Micropitting is { Valid: true } mp && mp.SafetyFactor < 1.0)
+            falling.Add($"micropitting (S_lambda {mp.SafetyFactor:F2} < 1.00)");
+        return falling;
+    }
+
     private int? RecommendedSpanTeeth(int gear)
     {
+        // kPreferred, not k. k is what is IN USE - the user's own entry when they made one -
+        // whereas this hint answers "how many teeth should I span?", which is the calculator's
+        // own choice. Returning k made the hint agree with whatever had been typed and hide the
+        // disagreement the results table then reported.
         var m = gear == 1 ? engine.Measurement1 : engine.Measurement2;
-        if (m is { k: > 0 }) return m.k;
+        if (m is { kPreferred: > 0 }) return m.kPreferred;
 
-        // Before the first calculation, fall back to the classical estimate
-        // k = z alpha_t/180 + 0.5, rounded to the nearest whole tooth.
+        // Before the first calculation there is no solve to draw on, so this falls back to the
+        // classical estimate k = z alpha_t/180 + 0.5. It ignores profile shift and so can differ
+        // from kPreferred by a tooth on a shifted gear - which is exactly what happened, the
+        // dialog saying 2 where the engine chose 3. Once a calculation exists the engine wins.
         if (engine.NumberOfTeeth1 <= 0 || engine.NormalModule <= 0) return null;
         int z = TeethOf(gear);
         if (z <= 0) return null;
@@ -2360,13 +2405,17 @@ else
     /// <summary>Quality grades offered by the dropdowns; an out-of-range link falls back to 6.</summary>
     private static readonly (int Grade, string Label)[] QualityGradeChoices =
     {
+        (1,  "1 - Master"),
+        (2,  "2 - Ultra precision"),
+        (3,  "3 - Ultra precision"),
         (4,  "4 - Ultra precision"),
         (5,  "5 - Very High"),
         (6,  "6 - High"),
         (7,  "7 - Medium"),
         (8,  "8 - Normal"),
         (9,  "9 - Low"),
-        (10, "10 - Coarse")
+        (10, "10 - Coarse"),
+        (11, "11 - Very coarse")
     };
 
     /// <inheritdoc cref="QualityGradeChoices"/>

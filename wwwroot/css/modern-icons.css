@@ -1,4 +1,4 @@
-/* ========================================
+﻿/* ========================================
    MODERN MINIMAL DESIGN SYSTEM EXTENSIONS
    Mekanika - Professional Engineering Tools
    ======================================== */
@@ -416,6 +416,26 @@
 .alert {
     overflow-wrap: anywhere;
 }
+
+/*
+   Prose footnotes under a results card. These used to reuse .alert, which is display:flex -
+   so every <strong>, <sub> and <em> inside became its own flex item and sat in a column of
+   its own. With overflow-wrap:anywhere on top, those narrow columns broke words down the
+   page: "Devi ation sour ce:", "Micr opitt ing is a lubri catio n-regi me". A footnote is a
+   paragraph, so it gets a block container of its own rather than the icon+text flex row.
+*/
+.note-box {
+    margin: 16px;
+    padding: 12px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.55;
+    overflow-wrap: break-word;
+}
+
+.note-box.tight { margin: 12px 16px; }
+.note-box.below { margin: 16px 0 0; }
 
 .alert-success {
     background: #d4edda;
