@@ -1,4 +1,4 @@
-@*
+﻿@*
     A small button next to a label or card header, and the modal it opens.
 
     This is the module's one dialog primitive, following the pattern CompressionSpring
@@ -54,6 +54,13 @@
                 {
                     <div class="schematic-note">@Footer</div>
                 }
+
+                @if (ConfirmLabel is not null)
+                {
+                    <div class="dialog-action">
+                        <button type="button" class="btn btn-success" @onclick="Confirm">@ConfirmLabel</button>
+                    </div>
+                }
             </div>
         </div>
     </div>
@@ -82,7 +89,23 @@
 
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
+    /// <summary>
+    /// Label for a confirm button at the foot of the dialog; null for none. A dialog that
+    /// computes something the card then uses needs one: it applies the result and closes, which
+    /// is one act rather than "press this, then find the X".
+    /// </summary>
+    [Parameter] public string? ConfirmLabel { get; set; }
+
+    /// <summary>Runs before the dialog closes. Leave unset for a plain acknowledge-and-close.</summary>
+    [Parameter] public EventCallback OnConfirm { get; set; }
+
     private bool isOpen;
+
+    private async Task Confirm()
+    {
+        if (OnConfirm.HasDelegate) await OnConfirm.InvokeAsync();
+        isOpen = false;
+    }
 
     private void Open() => isOpen = true;
 

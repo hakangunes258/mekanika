@@ -27,6 +27,12 @@
     border-bottom: 2px solid #f1f3f5;
 }
 
+/* A dialog trigger in a card header belongs at the far right, away from the title. */
+.card-header .schematic-btn {
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
 .card-header h2 {
     font-size: 16px;
     font-weight: 600;
