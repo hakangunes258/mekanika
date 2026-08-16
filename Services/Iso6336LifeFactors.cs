@@ -144,12 +144,18 @@ public static class Iso6336LifeFactors
                 return optimumConditions ? 1.0 : Math.Pow(1e9 / cycles, 0.07058);
             }
 
-            // Pitting not permissible: 1.6 at 1e5 down to 1.0 at 5e7, then flat to 1e9.
-            // exponent = ln(1.6)/ln(5e7/1e5) = 0.075627
+            // Pitting not permissible: 1.6 at 1e5 down to 1.0 at 5e7 (exponent
+            // ln(1.6)/ln(500) = 0.075627), then CONTINUING down to 0.85 at 1e10
+            // (exponent ln(1/0.85)/ln(200) = 0.030674).
+            //
+            // The second branch was flat at 1.0 as far as 1e9, which is not what the standard
+            // draws and is non-conservative: at 9e7 cycles it gives 1.000 where the curve gives
+            // 0.982. Both exponents are anchored against a KISSsoft ISO 6336:2006 Method B
+            // report on the same gear - 1,008 at 4,5e7 and 0,982 at 9,0e7, reproduced to four
+            // figures - and that report states the range as "Z_NT and Y_NT >= 0,85".
             if (cycles <= 1e5) return 1.6;
             if (cycles <= 5e7) return Math.Pow(5e7 / cycles, 0.075627);
-            if (cycles <= 1e9) return 1.0;
-            return optimumConditions ? 1.0 : Math.Pow(1e9 / cycles, 0.07058);
+            return optimumConditions ? 1.0 : Math.Pow(5e7 / cycles, 0.030674);
         }
 
         if (cycles <= 1e5) return 1.3;

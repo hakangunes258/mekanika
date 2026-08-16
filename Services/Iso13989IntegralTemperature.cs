@@ -369,7 +369,20 @@ public static class Iso13989IntegralTemperature
     private static double TipReliefFactor(Input i, Result r)
     {
         // Clause 6.1.12: tip relief is only credited for ISO 1328-1 grade 6 or better.
-        if (i.QualityGrade > 6) return 1.0;
+        //
+        // Commercial software does not all apply this restriction - a KISSsoft ISO 6336 run on
+        // a grade 8 pair with C_a = 2 µm reports X_Ca = 1,251 where this returns 1,000. Keeping
+        // the restriction is the conservative reading and it is what the clause says, so it
+        // stays; the caller is told, because "I entered a tip relief and nothing changed" is
+        // otherwise indistinguishable from a bug.
+        if (i.QualityGrade > 6)
+        {
+            if (i.Ca1 > 0 || i.Ca2 > 0)
+                r.Notes.Add($"Tip relief was disregarded (X_Ca = 1,000): Clause 6.1.12 only credits it "
+                          + $"for ISO 1328-1 grade 6 or better, and this pair is grade {i.QualityGrade}. "
+                          + $"Some software credits it regardless, which reports a higher scuffing safety.");
+            return 1.0;
+        }
 
         bool helical = Math.Abs(i.beta) > 0.01;
         double stiffness = helical ? i.cGamma : i.cPrime;

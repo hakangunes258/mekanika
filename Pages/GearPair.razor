@@ -2773,6 +2773,38 @@ else
                 </div>
 
                 <div class="form-group">
+                    <label>Flank R<sub>a</sub></label>
+                    <div class="input-group">
+                        <input type="number" step="0.05" min="0"
+                               placeholder="@FlankRaPlaceholder(gear)"
+                               value="@FlankRaValue(gear)"
+                               @onchange="e => SetFlankRa(gear, e.Value?.ToString())" />
+                        <span class="unit">&#956;m</span>
+                    </div>
+                    <small style="color: #6c757d; font-size: 12px;">
+                        Drives the coefficient of friction in the scuffing and micropitting checks,
+                        as R<sub>a</sub><sup>0.25</sup>. Left blank it is taken as R<sub>z</sub>/6 &#8212;
+                        a rule of thumb, not a measurement: a drawing calling out R<sub>z</sub> 4.8 with
+                        R<sub>a</sub> 0.60 has a ratio of 8, and R<sub>z</sub>/6 would put it 33 % high.
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label>Tip Relief (C<sub>a</sub>)</label>
+                    <div class="input-group">
+                        <input type="number" step="1" min="0"
+                               value="@(gear == 1 ? engine.TipRelief1 : engine.TipRelief2)"
+                               @onchange="e => SetTipRelief(gear, e.Value?.ToString())" />
+                        <span class="unit">&#956;m</span>
+                    </div>
+                    <small style="color: #6c757d; font-size: 12px;">
+                        0 = unmodified profile. Both scuffing methods use it. ISO/TR 13989-2 only
+                        credits it for ISO 1328-1 grade 6 or better, and says so in the results when
+                        the grade is coarser than that.
+                    </small>
+                </div>
+
+                <div class="form-group">
                     <label>Root Fillet R<sub>z</sub></label>
                     <div class="input-group">
                         <input type="number" step="0.5" min="0.1"
@@ -2916,6 +2948,39 @@ else
     {
         if (gear == 1) engine.RootRoughnessRz1 = ParseOr(v, engine.RootRoughnessRz1);
         else engine.RootRoughnessRz2 = ParseOr(v, engine.RootRoughnessRz2);
+    }
+
+    /* An <input type="number"> only accepts a dot as the decimal separator, whatever the
+       user's locale. @bind knows that; a hand-written value="@..." does not, so these format
+       with InvariantCulture explicitly. Formatting "0,6" into the value attribute made the
+       browser reject it and render an empty box, which looked like the entry had been thrown
+       away while the engine had in fact stored it. */
+    private static readonly System.Globalization.CultureInfo Inv =
+        System.Globalization.CultureInfo.InvariantCulture;
+
+    /// <summary>The Rz/6 fallback, shown greyed so it is clear what is being used.</summary>
+    private string FlankRaPlaceholder(int gear)
+        => ((gear == 1 ? engine.FlankRoughnessRz1 : engine.FlankRoughnessRz2) / 6.0).ToString("F2", Inv);
+
+    /// <summary>Empty when no override is set, so the placeholder shows through.</summary>
+    private string FlankRaValue(int gear)
+    {
+        double ra = gear == 1 ? engine.FlankRoughnessRa1 : engine.FlankRoughnessRa2;
+        return ra > 0 ? ra.ToString("0.###", Inv) : "";
+    }
+
+    private void SetFlankRa(int gear, string? v)
+    {
+        // Blank clears the override and returns to Rz/6.
+        double parsed = string.IsNullOrWhiteSpace(v) ? 0 : ParseOr(v, 0);
+        if (gear == 1) engine.FlankRoughnessRa1 = parsed;
+        else engine.FlankRoughnessRa2 = parsed;
+    }
+
+    private void SetTipRelief(int gear, string? v)
+    {
+        if (gear == 1) engine.TipRelief1 = ParseOr(v, engine.TipRelief1);
+        else engine.TipRelief2 = ParseOr(v, engine.TipRelief2);
     }
 
     /// <summary>What the M_d limits will actually be measured with, for the caption.</summary>
@@ -3488,6 +3553,10 @@ else
         .Set("lub", selectedLubricant)
         .Set("nu", engine.LubricantViscosity40)
         .Set("rz1", engine.FlankRoughnessRz1)
+        .Set("ra1", engine.FlankRoughnessRa1)
+        .Set("ra2", engine.FlankRoughnessRa2)
+        .Set("ca1", engine.TipRelief1)
+        .Set("ca2", engine.TipRelief2)
         .Set("rz2", engine.FlankRoughnessRz2)
         .Set("rr1", engine.RootRoughnessRz1)
         .Set("rr2", engine.RootRoughnessRz2)
@@ -3647,6 +3716,10 @@ else
         engine.LubricantViscosity40 = state.GetDouble("nu", engine.LubricantViscosity40);
 
         engine.FlankRoughnessRz1 = state.GetDouble("rz1", engine.FlankRoughnessRz1);
+        engine.FlankRoughnessRa1 = state.GetDouble("ra1", engine.FlankRoughnessRa1);
+        engine.FlankRoughnessRa2 = state.GetDouble("ra2", engine.FlankRoughnessRa2);
+        engine.TipRelief1 = state.GetDouble("ca1", engine.TipRelief1);
+        engine.TipRelief2 = state.GetDouble("ca2", engine.TipRelief2);
         engine.FlankRoughnessRz2 = state.GetDouble("rz2", engine.FlankRoughnessRz2);
         engine.RootRoughnessRz1 = state.GetDouble("rr1", engine.RootRoughnessRz1);
         engine.RootRoughnessRz2 = state.GetDouble("rr2", engine.RootRoughnessRz2);

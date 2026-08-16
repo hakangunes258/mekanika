@@ -1,4 +1,4 @@
-using MechanicalCalculatorWeb.Models;
+﻿using MechanicalCalculatorWeb.Models;
 
 namespace MechanicalCalculatorWeb.Services;
 
@@ -213,6 +213,35 @@ public class GearPairEngine
     public double FlankRoughnessRz2 { get; set; } = 3.0;
     public double RootRoughnessRz1 { get; set; } = 10.0;     // root fillet Rz (µm), Y_RrelT
     public double RootRoughnessRz2 { get; set; } = 10.0;
+
+    /// <summary>
+    /// Flank arithmetic mean roughness Ra (µm). 0 = derive it as Rz/6.
+    ///
+    /// Ra is a measured quantity of its own, not a fixed fraction of Rz: a drawing that calls
+    /// out Rz 4,8 and Ra 0,60 has a ratio of 8, and Rz/6 would put Ra 33 % high. It matters
+    /// because the scuffing and micropitting coefficient of friction scales as Ra^0,25, so the
+    /// error carries straight into the flash temperature. Rz/6 stays the fallback because most
+    /// users have only one of the two.
+    /// </summary>
+    public double FlankRoughnessRa1 { get; set; }
+    public double FlankRoughnessRa2 { get; set; }
+
+    /// <summary>Flank Ra actually used (µm): the entered value, or Rz/6 when none was given.</summary>
+    public double FlankRa1 => FlankRoughnessRa1 > 0 ? FlankRoughnessRa1 : FlankRoughnessRz1 / 6.0;
+
+    /// <inheritdoc cref="FlankRa1"/>
+    public double FlankRa2 => FlankRoughnessRa2 > 0 ? FlankRoughnessRa2 : FlankRoughnessRz2 / 6.0;
+
+    /// <summary>
+    /// Tip relief C_a of each gear (µm); 0 = unmodified profile.
+    ///
+    /// Both scuffing methods take it — the flash method compares it against the optimal relief
+    /// C_eff, and the integral method turns it into the tip relief factor X_Ca. Neither could
+    /// see it before: the services accepted C_a but the engine never supplied one, so every
+    /// gear was rated as though its profile were unmodified.
+    /// </summary>
+    public double TipRelief1 { get; set; }
+    public double TipRelief2 { get; set; }
 
     // === Scuffing, ISO/TR 13989-1 (flash temperature method) ===
 
@@ -921,7 +950,13 @@ public class GearPairEngine
         // explicitly permits as the estimate of total manufacturing misalignment. It is
         // deliberately NOT tied to the measured-deviation switch above: leaving it at 0
         // would silently make K_Hbeta = 1.
-        MeshMisalignmentFma = Math.Max(Tolerance1.HelixSlope, Tolerance2.HelixSlope);
+        //
+        // Eq. (64) combines the two gears in quadrature, not by taking the larger. Their
+        // helix deviations are independent, so they add as a root sum of squares; max()
+        // understated f_ma and therefore K_Hbeta. Checked against a KISSsoft ISO 6336:2006
+        // report whose f_Hβ of 14 and 15 µm give f_ma = 20,51 = sqrt(14² + 15²), not 15.
+        MeshMisalignmentFma = Math.Sqrt(Tolerance1.HelixSlope * Tolerance1.HelixSlope
+                                      + Tolerance2.HelixSlope * Tolerance2.HelixSlope);
     }
 
     private void CalculateLoadFactors()
@@ -1263,8 +1298,19 @@ public class GearPairEngine
             : Math.Sqrt((4.0 - TransverseContactRatio) / 3.0 * (1.0 - OverlapRatio)
                         + OverlapRatio / TransverseContactRatio);
 
-        // Helix angle factor Zβ
-        HelixAngleFactorFlank = Math.Sqrt(Math.Cos(betaRad));
+        // Helix angle factor Zβ — ISO 6336-2, as corrected by Corrigendum 1:2008.
+        //
+        // Z_β = 1/sqrt(cos β), NOT sqrt(cos β). The square root of the cosine is the DIN 3990-2
+        // form, and it is below 1, so it credits a helical pair rather than penalising it. This
+        // shipped that way and it is the single largest non-conservative error the module has
+        // had on the flank side: at β = 20° it understates σ_H0 by 6 %, at β = 25° by 10 %.
+        //
+        // Confirmed three ways against a KISSsoft ISO 6336:2006 Method B report: the report
+        // prints the formula; its σ_H0 = 685,35 can only be reconstructed with 1,032 (the
+        // remaining factors give 664,29, and 664,29 × 1,0317 = 685,4); and the same software's
+        // DIN 3990 run on a different pair prints Z_β = 0,952 = sqrt(cos 25°), i.e. it applies
+        // the two forms to the two standards exactly as the corrigendum implies.
+        HelixAngleFactorFlank = 1.0 / Math.Sqrt(Math.Cos(betaRad));
 
         // Nominal contact stress: σH0 = ZH ZE Zε Zβ sqrt(Ft/(d1 b) × (u+1)/u)
         double loadTerm = TangentialForce / (ReferenceDiameter1 * effectiveFaceWidth)
@@ -1554,9 +1600,14 @@ public class GearPairEngine
             // ISO/TR 13989-1 works in Ra; the rest of this module works in Rz. The standard's
             // own note in Eq. (28) is that these are the roughnesses of newly manufactured
             // gears, and Rz ~ 6 Ra is the conversion ISO 6336-2 uses.
-            Ra1 = FlankRoughnessRz1 / 6.0,
-            Ra2 = FlankRoughnessRz2 / 6.0,
+            Ra1 = FlankRa1,
+            Ra2 = FlankRa2,
             QualityGrade = Math.Max(QualityGrade1, QualityGrade2),
+
+            // Tip relief. Left unset the service rates an unmodified profile, which is what
+            // every gear got before this was passed at all.
+            Ca1 = TipRelief1,
+            Ca2 = TipRelief2,
 
             cGamma = DynamicResult?.cGammaAlpha ?? 20.0,
 
@@ -1613,9 +1664,12 @@ public class GearPairEngine
             // run-in state separately in X_E. Part 1 asks for the run-in roughness. The form
             // collects the run-in value, so it is scaled back up by the standard's own
             // Ra_run-in ~ 0,6 Ra_new and the gear is then declared fully run in.
-            Ra1 = FlankRoughnessRz1 / 6.0 / 0.6,
-            Ra2 = FlankRoughnessRz2 / 6.0 / 0.6,
+            Ra1 = FlankRa1 / 0.6,
+            Ra2 = FlankRa2 / 0.6,
             PhiE = 1.0,
+
+            Ca1 = TipRelief1,
+            Ca2 = TipRelief2,
 
             cGamma = DynamicResult?.cGammaAlpha ?? 20.0,
             cPrime = DynamicResult?.cPrime ?? 14.0,
@@ -1664,8 +1718,10 @@ public class GearPairEngine
 
             // ISO/TR 15144 asks for Ra directly; the form collects Rz, and ISO 6336-2's
             // Rz ~ 6 Ra is the conversion used throughout this module.
-            Ra1 = FlankRoughnessRz1 / 6.0,
-            Ra2 = FlankRoughnessRz2 / 6.0,
+            Ra1 = FlankRa1,
+            Ra2 = FlankRa2,
+            Ca1 = TipRelief1,
+            Ca2 = TipRelief2,
             QualityGrade = Math.Max(QualityGrade1, QualityGrade2),
             cPrime = DynamicResult?.cPrime ?? 14.0,
             cGammaAlpha = DynamicResult?.cGammaAlpha ?? 20.0,

@@ -1772,13 +1772,45 @@ chain, and four of the six were **non-conservative**:
   harness that sets `UseDirectDynamicFactor = false` to compare against a standard will never
   see this class of bug.
 
-**Still open after those fixes, and worth knowing before trusting S_H:** the tutorial's
-printed report (§2.10) is a **DIN 3990:1987** run even though its own §2.4 tells you to switch
-to ISO 6336 — and Figure 19, which *is* the ISO run, prints only five numbers. Our flank chain
-now matches the DIN run to under 1 %, but Figure 19's ISO S_H = 0,986 is ~17 % below that and
-the source of the difference cannot be located from five numbers. Getting a KISSsoft report
-generated with ISO 6336:2006 Method B selected is the single highest-value verification step
-left. Until then, do not read "matches KISSsoft" as "matches ISO 6336".
+**Five more, found in Aug 2026 against a real ISO 6336:2006 Method B report** (KISSsoft
+03/2017; z 21/42, m_n 2, β 20°, a 68, x₁ 0,5, VG 220 at 70 °C). Tutorial 8 could never settle
+these because its printed report is a DIN 3990 run — this one is the ISO run, and it closed the
+~17 % on S_H that had been open for three rounds:
+
+- **Z_β = 1/√(cos β), not √(cos β)** — ISO 6336-2 as corrected by **Corrigendum 1:2008**.
+  √(cos β) is the DIN 3990-2 form; it is below 1, so it *credits* a helical pair instead of
+  penalising it. This was the largest non-conservative error the flank side has had: 6 % on
+  σ_H0 at β = 20°, 10 % at β = 25°. Three confirmations — the report prints the formula; its
+  σ_H0 = 685,35 only reconstructs with 1,032 (the other factors give 664,29); and the same
+  software's DIN run prints Z_β = 0,952 = √(cos 25°), i.e. it applies the two forms to the two
+  standards exactly as the corrigendum implies.
+- **Z_NT keeps descending past the 5×10⁷ knee**, to 0,85 at 10¹⁰ (exponent
+  ln(1/0,85)/ln(200) = 0,030674). It was left flat at 1,0 as far as 10⁹. Both branches now
+  reproduce the report to four figures: 1,008 at 4,5×10⁷ and 0,982 at 9,0×10⁷.
+- **f_ma is the root sum of squares of the two gears' f_Hβ, not the larger** (Eq. 64). The
+  deviations are independent. Anchor: f_Hβ 14 and 15 µm give f_ma = 20,51, which is what the
+  report carries; max() would give 15.
+- **Tip relief C_a was not an input at all.** Both scuffing services accepted `Ca1`/`Ca2` and
+  the engine never supplied them, so every gear was rated as an unmodified profile. Now
+  `TipRelief1/2`. Note the module *deliberately* keeps ISO/TR 13989-2 Clause 6.1.12, which only
+  credits tip relief at ISO 1328-1 grade 6 or better — the reference software credits it
+  regardless (X_Ca = 1,251 on a grade 8 pair). Fed grade 6 our X_Ca comes out 1,2508 against
+  their 1,251, so the *equation* agrees and only the restriction differs; the results say so
+  rather than silently ignoring an entered C_a.
+- **Ra is its own input, not Rz/6.** The report calls out Rz 4,8 *and* Ra 0,60 — a ratio of 8.
+  µ_m scales as Ra^0,25, so Rz/6 fed the flash temperature a 33 % high roughness.
+  `FlankRoughnessRa1/2`, with Rz/6 as the fallback.
+
+**What that leaves.** Fed the report's *own* ISO 1328-1:1995 deviations, our chain reproduces
+it to K_Hβ 0,2 %, σ_H 0,4 %, S_H 0,6 % and S_F 2 %. Run with our own ISO 1328-1:2013 class 8
+tolerances it lands S_H ~4 % low and S_F ~8 % low, because the 2013 class 8 is coarser than the
+1995 grade 8 (f_Hβ 16/16 against 14/15). **That single edition mismatch is now the dominant
+remaining difference on this module**, and it is conservative. Implementing the 1995 grades
+alongside the 2013 classes is the next real accuracy step.
+
+Still unexplained: the scuffing coefficient of friction runs ~18 % high (µ_m 0,083 against
+0,070), and with it the flash temperatures and a ~28 % low S_B — in the conservative direction.
+The Ra fix took a third of it; the rest is not located.
 
 **The lubricant library** (`Services/LubricantLibrary.cs`). Ten named products, so the card asks
 for a lubricant instead of six numbers. It is small on purpose:
