@@ -59,14 +59,34 @@ public class LubricantPreset
     public const string CustomName = "Custom";
 
     /// <summary>
+    /// Names that shipped in an earlier build and must keep resolving, because share links
+    /// carry the name. The greases once carried a "(grease)" suffix; the lubricant list is now
+    /// filtered by lubrication method, so the suffix only repeated what the list already says.
+    /// </summary>
+    private static readonly Dictionary<string, string> Renamed = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Klüber Microlube GB 00 (grease)"] = "Klüber Microlube GB 00",
+    };
+
+    /// <summary>
     /// Resolve by NAME, never by index — the same rule the material and bearing libraries
     /// follow. Share links carry the name, so inserting a row must not repoint an existing
     /// link at a different lubricant. Returns null for Custom or an unknown name.
     /// </summary>
     public static LubricantPreset? Find(string? name)
-        => string.IsNullOrWhiteSpace(name) || name == CustomName
-            ? null
-            : All.FirstOrDefault(l => string.Equals(l.Name, name, StringComparison.OrdinalIgnoreCase));
+    {
+        if (string.IsNullOrWhiteSpace(name) || name == CustomName) return null;
+        if (Renamed.TryGetValue(name, out var current)) name = current;
+        return All.FirstOrDefault(l => string.Equals(l.Name, name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// The entries that belong with a given lubrication method: greases when the mesh is
+    /// grease-packed, oils otherwise. Offering both at once was what made "Grease" look like
+    /// an alternative to a base oil type rather than a state the lubricant is in.
+    /// </summary>
+    public static IEnumerable<LubricantPreset> For(LubricationMethod method)
+        => All.Where(l => l.IsGrease == (method == LubricationMethod.Grease));
 
     public static readonly IReadOnlyList<LubricantPreset> All = new List<LubricantPreset>
     {
@@ -117,13 +137,25 @@ public class LubricantPreset
                 FzgStageA8390 = 12, MicropittingStage = null,
                 Source = "Shell Omala S4 WE 220 TDS v4.1: nu40 222, nu100 34,4 mm²/s, density 1074 kg/m³ at 15 °C (ISO 12185), VI 203, FZG failure load stage >12 on DIN 51354-2 A/8,3/90. Polyalkylene glycol base." },
 
-        // ---- Grease ---------------------------------------------------------------------
-        // The lubricant of the KISSsoft tutorial this module is benchmarked against, which is
-        // why it earns a place in a ten-entry library.
-        new() { Name = "Klüber Microlube GB 00 (grease)", Type = LubricantType.Mineral,
+        // ---- Greases --------------------------------------------------------------------
+        // Note what the FZG lines say. Klüber test their gear greases on the SPECIAL low-speed
+        // rig A/2,76/50, not the A/8,3/90 that ISO/TR 13989 Eq. (99) is calibrated to, so those
+        // stages are deliberately NOT copied into FzgStageA8390 - a ">= 12" from a different rig
+        // is not a 12 here. The synthetic below does publish A/8,3/90 and so carries a value.
+        new() { Name = "Klüber Microlube GB 0", Type = LubricantType.Mineral,
+                IsGrease = true,
+                Nu40 = 590, Nu100 = 31.5, Density15 = 0.90,
+                FzgStageA8390 = null, MicropittingStage = null,
+                Source = "Klüber Microlube GB 0 product information, prod. 020232, edition 05.08.2020: NLGI 0, mineral base oil, base oil viscosity approx. 590 mm²/s at 40 °C and approx. 31,5 mm²/s at 100 °C, density approx. 0,90 g/cm³ at 20 °C. Its published scuffing stage (>= 12) is from the special FZG test A/2,76/50, not A/8,3/90, so it is not carried over." },
+        new() { Name = "Klüber Microlube GB 00", Type = LubricantType.Mineral,
                 IsGrease = true,
                 Nu40 = 700, Nu100 = 35, Density15 = 0.90,
                 FzgStageA8390 = null, MicropittingStage = null,
-                Source = "Klüber Microlube GB 00 product information 5.191: fluid gear grease, mineral base oil, base oil viscosity approx. 700 mm²/s at 40 °C and approx. 35 mm²/s at 100 °C, density approx. 0,90 g/cm³ at 20 °C. No FZG stage published; ISO/TR 13989 does not cover grease." },
+                Source = "Klüber Microlube GB 00 product information 5.191 e: fluid gear grease, NLGI 00/000, mineral base oil, base oil viscosity approx. 700 mm²/s at 40 °C and approx. 35 mm²/s at 100 °C, density approx. 0,90 g/cm³ at 20 °C (DIN 51757). Its published scuffing stage (> 12) is from the special FZG test A/2,76/50, not A/8,3/90, so it is not carried over." },
+        new() { Name = "Klübersynth GE 46-1200", Type = LubricantType.PolyglycolNonWaterSoluble,
+                IsGrease = true,
+                Nu40 = 120, Nu100 = 20, Density15 = 0.99,
+                FzgStageA8390 = 12, MicropittingStage = null,
+                Source = "Klübersynth GE 46-1200 product information 5.59 e: synthetic long-term gear grease, NLGI 00, polyglycol base oil, base oil viscosity approx. 120 mm²/s at 40 °C and approx. 20 mm²/s at 100 °C (DIN 51561), density approx. 0,99 g/ml at 20 °C. FZG test DIN 51354 Pt 2, A/8,3/90: load step > 12 — the variant ISO/TR 13989 wants, so it is carried." },
     };
 }

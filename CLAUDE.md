@@ -1,4 +1,4 @@
-# Mekanika - Mechanical Engineering Calculator Web Application
+﻿# Mekanika - Mechanical Engineering Calculator Web Application
 
 ## Project Overview
 Mekanika is a web-based mechanical engineering calculator built with Blazor WebAssembly (.NET 8). It provides various calculation modules for mechanical engineers including interference fits, taper fits, key connections, bolt calculations, bearing life calculations, and spring design.
@@ -1808,9 +1808,22 @@ tolerances it lands S_H ~4 % low and S_F ~8 % low, because the 2013 class 8 is c
 remaining difference on this module**, and it is conservative. Implementing the 1995 grades
 alongside the 2013 classes is the next real accuracy step.
 
-Still unexplained: the scuffing coefficient of friction runs ~18 % high (µ_m 0,083 against
-0,070), and with it the flash temperatures and a ~28 % low S_B — in the conservative direction.
-The Ra fix took a third of it; the rest is not located.
+Still unexplained: the scuffing coefficient of friction runs high — and a **second** ISO 6336
+report (z 19/57, m_n 3, grease, quality 6, ISO 53 profile D) shows the discrepancy is a constant
+factor rather than a drifting one. Ours over theirs, after correcting for the w_Bt difference:
+0,844 and 0,867 on the first gear, 0,847 and 0,836 on the second — i.e. **µ_m is ~1/0,85 too
+high in both the flash and the integral method, on two unrelated gears**. That is a coefficient,
+not a geometry error, so the search is narrowed to Eq. (26)/(1) and the X_R term. Conservative
+direction (S_B and S_intS come out low).
+
+That second report is worth keeping in mind as a test case: it independently confirmed C_B = 1,2
+on a rack with h_fP = 1,40 (C_BS = 0,900, c′ = 12,687 exact), Z_NT and Y_NT out at 1,74×10⁹ and
+5,8×10⁸ cycles (all four within 0,06 %), σ_H0 and both σ_HG exact, and X_Ca = 1,2334 against
+1,233 at quality 6 — which is the proof that the Clause 6.1.12 gate, not the equation, is the
+only thing that differs on tip relief. It also uses the **favourable contact pattern** branch,
+Eq. (53), which this module deliberately does not implement: its F_βx = 5,44 reconstructs as
+|1,33·B1·f_sh − f_Hβ5| = |1,33×0,79 − 6,50|, i.e. the grade-5 helix tolerance replaces f_ma once
+the pattern has been verified. Ours stays on the additive Eq. (52) and so reports a higher K_Hβ.
 
 **The lubricant library** (`Services/LubricantLibrary.cs`). Ten named products, so the card asks
 for a lubricant instead of six numbers. It is small on purpose:
@@ -1821,10 +1834,18 @@ for a lubricant instead of six numbers. It is small on purpose:
   scuffing safety factor. Ten verified entries beat fifty plausible ones. **Where a value is not
   published it is `null`, the field stays editable, and the card says "not from this product".**
 - **The FZG test variant is a trap.** ISO/TR 13989 Eq. (99) is calibrated to **A/8,3/90**
-  (ISO 14635-1). Data sheets also quote **A/16,6/90**, and some quote only that. The two are
-  different tests and their stage numbers are not interchangeable. `FzgStageA8390` is only ever
-  filled from a line that names A/8,3/90 explicitly — Mobilgear's sheet prints both, which is how
-  the distinction became visible. Micropitting is FVA 54 / FZG GF-C, a third rig again.
+  (ISO 14635-1). Data sheets also quote **A/16,6/90**, and Klüber test their gear GREASES on the
+  special low-speed rig **A/2,76/50**. All three are different tests and their stage numbers are
+  not interchangeable. `FzgStageA8390` is only ever filled from a line that names A/8,3/90
+  explicitly — Mobilgear's sheet prints two variants on separate lines, which is how the
+  distinction became visible, and both Microlube greases publish only A/2,76/50 so they carry
+  `null` while Klübersynth GE 46-1200, which does publish A/8,3/90, carries 12. Micropitting is
+  FVA 54 / FZG GF-C, a fourth rig again.
+- **The lubricant list is filtered by lubrication method** — greases when the mesh is
+  grease-packed, oils otherwise — and the last pick on each side is remembered, so toggling
+  oil → grease → oil does not silently change the user's viscosity grade. Names that shipped
+  once must keep resolving: `Renamed` maps the old "… (grease)" spellings, because share links
+  carry the name.
 - **Resolve by name, never by index** — same rule as the material and bearing libraries, because
   share links carry the name.
 - **A grease is a base oil plus a thickener.** `LubricationMethod.Grease` only sets X_S = 1,2;
