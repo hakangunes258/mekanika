@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 110" fill="none">
+  <defs>
+    <pattern id="hatch2" patternUnits="userSpaceOnUse" width="3.5" height="3.5" patternTransform="rotate(50)">
+      <line x1="0" y1="0" x2="0" y2="3.5" stroke="#1e3a5f" stroke-width="0.5" opacity="0.55"/>
+    </pattern>
+  </defs>
+  
+  <!-- Interlocking gears behind letters -->
+  <g opacity="0.35">
+    <!-- Gear 1 -->
+    <g transform="translate(55, 70)" stroke="#1e3a5f" stroke-width="1">
+      <circle r="22" fill="none"/>
+      <circle r="8" fill="none"/>
+      <g>
+        <line x1="0" y1="-22" x2="0" y2="-27"/>
+        <line x1="15.6" y1="-15.6" x2="19.1" y2="-19.1"/>
+        <line x1="22" y1="0" x2="27" y2="0"/>
+        <line x1="15.6" y1="15.6" x2="19.1" y2="19.1"/>
+        <line x1="0" y1="22" x2="0" y2="27"/>
+        <line x1="-15.6" y1="15.6" x2="-19.1" y2="19.1"/>
+        <line x1="-22" y1="0" x2="-27" y2="0"/>
+        <line x1="-15.6" y1="-15.6" x2="-19.1" y2="-19.1"/>
+      </g>
+    </g>
+    <!-- Gear 2 (meshing) -->
+    <g transform="translate(92, 45)" stroke="#1e3a5f" stroke-width="1">
+      <circle r="16" fill="none"/>
+      <circle r="5" fill="none"/>
+      <g>
+        <line x1="0" y1="-16" x2="0" y2="-20"/>
+        <line x1="11.3" y1="-11.3" x2="14.1" y2="-14.1"/>
+        <line x1="16" y1="0" x2="20" y2="0"/>
+        <line x1="11.3" y1="11.3" x2="14.1" y2="14.1"/>
+        <line x1="0" y1="16" x2="0" y2="20"/>
+        <line x1="-11.3" y1="11.3" x2="-14.1" y2="14.1"/>
+        <line x1="-16" y1="0" x2="-20" y2="0"/>
+        <line x1="-11.3" y1="-11.3" x2="-14.1" y2="-14.1"/>
+      </g>
+    </g>
+  </g>
+  
+  <!-- M -->
+  <path d="M20 25 L20 85 L29 85 L29 40 L45 68 L61 40 L61 85 L70 85 L70 25 L58 25 L45 50 L32 25 Z" 
+        fill="url(#hatch2)" stroke="#1e3a5f" stroke-width="2.5"/>
+  
+  <!-- E -->
+  <path d="M82 25 L82 85 L118 85 L118 76 L92 76 L92 58 L113 58 L113 49 L92 49 L92 34 L118 34 L118 25 Z" 
+        fill="url(#hatch2)" stroke="#1e3a5f" stroke-width="2.5"/>
+  
+  <!-- K -->
+  <path d="M128 25 L128 85 L137 85 L137 58 L162 85 L176 85 L148 55 L174 25 L160 25 L137 52 L137 25 Z" 
+        fill="url(#hatch2)" stroke="#1e3a5f" stroke-width="2.5"/>
+  
+  <!-- A with detailed gear -->
+  <path d="M183 85 L205 25 L217 25 L239 85 L229 85 L223 68 L199 68 L193 85 Z M202 59 L220 59 L211 35 Z" 
+        fill="url(#hatch2)" stroke="#1e3a5f" stroke-width="2.5"/>
+  
+  <!-- Detailed gear in first A -->
+  <g transform="translate(211, 52)">
+    <circle r="11" fill="none" stroke="#1e3a5f" stroke-width="1.8"/>
+    <circle r="6" fill="none" stroke="#1e3a5f" stroke-width="1.2"/>
+    <circle r="2" fill="#1e3a5f"/>
+    <!-- 8 teeth -->
+    <g stroke="#1e3a5f" stroke-width="1.5">
+      <line x1="0" y1="-11" x2="0" y2="-15"/>
+      <line x1="7.8" y1="-7.8" x2="10.6" y2="-10.6"/>
+      <line x1="11" y1="0" x2="15" y2="0"/>
+      <line x1="7.8" y1="7.8" x2="10.6" y2="10.6"/>
+      <line x1="0" y1="11" x2="0" y2="15"/>
+      <line x1="-7.8" y1="7.8" x2="-10.6" y2="10.6"/>
+      <line x1="-11" y1="0" x2="-15" y2="0"/>
+      <line x1="-7.8" y1="-7.8" x2="-10.6" y2="-10.6"/>
+    </g>
+  </g>
+  
+  <!-- N -->
+  <path d="M250 25 L250 85 L259 85 L259 43 L287 85 L296 85 L296 25 L287 25 L287 67 L259 25 Z" 
+        fill="url(#hatch2)" stroke="#1e3a5f" stroke-width="2.5"/>
+  
+  <!-- I -->
+  <path d="M310 25 L310 85 L319 85 L319 25 Z" 
+        fill="url(#hatch2)" stroke="#1e3a5f" stroke-width="2.5"/>
+  
+  <!-- K -->
+  <path d="M332 25 L332 85 L341 85 L341 58 L366 85 L380 85 L352 55 L378 25 L364 25 L341 52 L341 25 Z" 
+        fill="url(#hatch2)" stroke="#1e3a5f" stroke-width="2.5"/>
+  
+  <!-- A -->
+  <path d="M387 85 L409 25 L421 25 L443 85 L433 85 L427 68 L403 68 L397 85 Z M406 59 L424 59 L415 35 Z" 
+        fill="url(#hatch2)" stroke="#1e3a5f" stroke-width="2.5"/>
+  
+  <!-- Compass on last A -->
+  <g transform="translate(415, 10)" stroke="#1e3a5f" stroke-width="1.4">
+    <circle cx="0" cy="0" r="5" fill="none"/>
+    <line x1="0" y1="5" x2="-9" y2="32"/>
+    <line x1="0" y1="5" x2="9" y2="32"/>
+    <line x1="-5" y1="22" x2="5" y2="22"/>
+    <circle cx="0" cy="0" r="2" fill="#1e3a5f"/>
+    <!-- Compass adjustment screw -->
+    <circle cx="5" cy="18" r="1.5" fill="none" stroke-width="0.8"/>
+  </g>
+  
+  <!-- Technical ruler with more detail -->
+  <g stroke="#1e3a5f" stroke-width="1">
+    <rect x="175" y="5" width="75" height="8" fill="none" rx="1"/>
+    <line x1="180" y1="5" x2="180" y2="13"/>
+    <line x1="190" y1="8" x2="190" y2="13"/>
+    <line x1="200" y1="5" x2="200" y2="13"/>
+    <line x1="210" y1="8" x2="210" y2="13"/>
+    <line x1="220" y1="5" x2="220" y2="13"/>
+    <line x1="230" y1="8" x2="230" y2="13"/>
+    <line x1="240" y1="5" x2="240" y2="13"/>
+  </g>
+  
+  <!-- Dimension lines with arrows -->
+  <g stroke="#1e3a5f" stroke-width="0.7" opacity="0.5">
+    <!-- Left -->
+    <line x1="12" y1="25" x2="12" y2="85"/>
+    <polygon points="12,25 9,31 15,31" fill="#1e3a5f" opacity="0.5"/>
+    <polygon points="12,85 9,79 15,79" fill="#1e3a5f" opacity="0.5"/>
+    <!-- Bottom -->
+    <line x1="82" y1="97" x2="176" y2="97"/>
+    <polygon points="82,97 88,94 88,100" fill="#1e3a5f" opacity="0.5"/>
+    <polygon points="176,97 170,94 170,100" fill="#1e3a5f" opacity="0.5"/>
+    <!-- Right -->
+    <line x1="450" y1="30" x2="450" y2="80"/>
+    <polygon points="450,30 447,36 453,36" fill="#1e3a5f" opacity="0.5"/>
+    <polygon points="450,80 447,74 453,74" fill="#1e3a5f" opacity="0.5"/>
+  </g>
+  
+  <!-- Small bearing symbol -->
+  <g transform="translate(310, 98)" stroke="#1e3a5f" stroke-width="0.8" opacity="0.5">
+    <circle r="6" fill="none"/>
+    <circle r="2.5" fill="none"/>
+    <circle r="0.8" fill="#1e3a5f"/>
+  </g>
+</svg>

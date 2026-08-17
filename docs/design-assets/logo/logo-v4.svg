@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 100" fill="none">
+  <defs>
+    <pattern id="hatch4" patternUnits="userSpaceOnUse" width="3" height="3" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="3" stroke="#1e3a5f" stroke-width="0.8" opacity="0.5"/>
+    </pattern>
+    <pattern id="cross" patternUnits="userSpaceOnUse" width="8" height="8">
+      <line x1="0" y1="4" x2="8" y2="4" stroke="#1e3a5f" stroke-width="0.3" opacity="0.15"/>
+      <line x1="4" y1="0" x2="4" y2="8" stroke="#1e3a5f" stroke-width="0.3" opacity="0.15"/>
+    </pattern>
+  </defs>
+  
+  <!-- Background grid (subtle) -->
+  <rect x="0" y="0" width="420" height="100" fill="url(#cross)"/>
+  
+  <!-- M -->
+  <path d="M15 20 L15 80 L25 80 L25 38 L40 65 L55 38 L55 80 L65 80 L65 20 L52 20 L40 48 L28 20 Z" 
+        fill="url(#hatch4)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- E -->
+  <path d="M78 20 L78 80 L115 80 L115 71 L89 71 L89 54 L110 54 L110 45 L89 45 L89 29 L115 29 L115 20 Z" 
+        fill="url(#hatch4)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- K -->
+  <path d="M125 20 L125 80 L135 80 L135 54 L160 80 L174 80 L146 50 L172 20 L158 20 L135 48 L135 20 Z" 
+        fill="url(#hatch4)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- A -->
+  <path d="M180 80 L202 20 L214 20 L236 80 L225 80 L219 63 L197 63 L191 80 Z M200 54 L216 54 L208 32 Z" 
+        fill="url(#hatch4)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- Gear with more detail -->
+  <g transform="translate(208, 48)">
+    <circle r="12" fill="none" stroke="#1e3a5f" stroke-width="1.8"/>
+    <circle r="7" fill="none" stroke="#1e3a5f" stroke-width="1.2" stroke-dasharray="2,1"/>
+    <circle r="3" fill="none" stroke="#1e3a5f" stroke-width="1"/>
+    <circle r="1" fill="#1e3a5f"/>
+    <!-- 8 gear teeth -->
+    <g stroke="#1e3a5f" stroke-width="1.8">
+      <line x1="0" y1="-12" x2="0" y2="-16"/>
+      <line x1="8.5" y1="-8.5" x2="11.3" y2="-11.3"/>
+      <line x1="12" y1="0" x2="16" y2="0"/>
+      <line x1="8.5" y1="8.5" x2="11.3" y2="11.3"/>
+      <line x1="0" y1="12" x2="0" y2="16"/>
+      <line x1="-8.5" y1="8.5" x2="-11.3" y2="11.3"/>
+      <line x1="-12" y1="0" x2="-16" y2="0"/>
+      <line x1="-8.5" y1="-8.5" x2="-11.3" y2="-11.3"/>
+    </g>
+  </g>
+  
+  <!-- N -->
+  <path d="M248 20 L248 80 L258 80 L258 40 L285 80 L295 80 L295 20 L285 20 L285 60 L258 20 Z" 
+        fill="url(#hatch4)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- I with center line -->
+  <path d="M308 20 L308 80 L318 80 L318 20 Z" 
+        fill="url(#hatch4)" stroke="#1e3a5f" stroke-width="2.2"/>
+  <line x1="313" y1="18" x2="313" y2="82" stroke="#1e3a5f" stroke-width="0.5" stroke-dasharray="4,2" opacity="0.4"/>
+  
+  <!-- K -->
+  <path d="M330 20 L330 80 L340 80 L340 54 L365 80 L379 80 L351 50 L377 20 L363 20 L340 48 L340 20 Z" 
+        fill="url(#hatch4)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- A -->
+  <path d="M385 80 L407 20 L419 20 L441 80 L430 80 L424 63 L402 63 L396 80 Z M405 54 L421 54 L413 32 Z" 
+        fill="url(#hatch4)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- Detailed compass -->
+  <g transform="translate(413, 8)" stroke="#1e3a5f" stroke-width="1.3">
+    <circle cx="0" cy="0" r="5" fill="none"/>
+    <circle cx="0" cy="0" r="2" fill="none" stroke-width="0.8"/>
+    <line x1="0" y1="5" x2="-10" y2="35"/>
+    <line x1="0" y1="5" x2="10" y2="35"/>
+    <line x1="-6" y1="24" x2="6" y2="24"/>
+    <circle cx="0" cy="0" r="1" fill="#1e3a5f"/>
+    <!-- Pencil tip -->
+    <path d="M-10 35 L-10 40 L-8 35" fill="none" stroke-width="0.8"/>
+  </g>
+  
+  <!-- Detailed ruler -->
+  <g stroke="#1e3a5f" stroke-width="1">
+    <rect x="172" y="4" width="72" height="10" fill="none" rx="1"/>
+    <line x1="178" y1="4" x2="178" y2="14"/>
+    <line x1="184" y1="8" x2="184" y2="14"/>
+    <line x1="190" y1="6" x2="190" y2="14"/>
+    <line x1="196" y1="8" x2="196" y2="14"/>
+    <line x1="202" y1="4" x2="202" y2="14"/>
+    <line x1="208" y1="8" x2="208" y2="14"/>
+    <line x1="214" y1="6" x2="214" y2="14"/>
+    <line x1="220" y1="8" x2="220" y2="14"/>
+    <line x1="226" y1="4" x2="226" y2="14"/>
+    <line x1="232" y1="8" x2="232" y2="14"/>
+    <line x1="238" y1="6" x2="238" y2="14"/>
+  </g>
+  
+  <!-- Dimension annotations -->
+  <g stroke="#1e3a5f" stroke-width="0.8" opacity="0.6">
+    <!-- Left vertical with filled arrows -->
+    <line x1="8" y1="20" x2="8" y2="80"/>
+    <path d="M8 20 L5 26 L11 26 Z" fill="#1e3a5f" fill-opacity="0.4"/>
+    <path d="M8 80 L5 74 L11 74 Z" fill="#1e3a5f" fill-opacity="0.4"/>
+    <!-- Bottom -->
+    <line x1="78" y1="92" x2="174" y2="92"/>
+    <path d="M78 92 L84 89 L84 95 Z" fill="#1e3a5f" fill-opacity="0.4"/>
+    <path d="M174 92 L168 89 L168 95 Z" fill="#1e3a5f" fill-opacity="0.4"/>
+  </g>
+  
+  <!-- Center mark on A -->
+  <g stroke="#1e3a5f" stroke-width="0.5" opacity="0.5">
+    <line x1="208" y1="30" x2="208" y2="38"/>
+    <line x1="204" y1="34" x2="212" y2="34"/>
+  </g>
+</svg>

@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100" fill="none">
+  <defs>
+    <pattern id="hatch6" patternUnits="userSpaceOnUse" width="3.5" height="3.5" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="3.5" stroke="#1e3a5f" stroke-width="0.6" opacity="0.5"/>
+    </pattern>
+  </defs>
+  
+  <!-- M -->
+  <path d="M12 20 L12 80 L21 80 L21 38 L35 62 L49 38 L49 80 L58 80 L58 20 L47 20 L35 46 L23 20 Z" 
+        fill="url(#hatch6)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- E -->
+  <path d="M68 20 L68 80 L102 80 L102 72 L77 72 L77 54 L97 54 L97 46 L77 46 L77 28 L102 28 L102 20 Z" 
+        fill="url(#hatch6)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- K -->
+  <path d="M112 20 L112 80 L121 80 L121 54 L144 80 L158 80 L132 50 L156 20 L142 20 L121 48 L121 20 Z" 
+        fill="url(#hatch6)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- A with gear -->
+  <path d="M165 80 L186 20 L198 20 L219 80 L209 80 L203 64 L181 64 L175 80 Z M184 56 L200 56 L192 32 Z" 
+        fill="url(#hatch6)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- Spur gear style (industrial look) -->
+  <g transform="translate(192, 48)">
+    <!-- Outer tooth circle -->
+    <circle r="13" fill="none" stroke="#1e3a5f" stroke-width="1.2"/>
+    <!-- Root circle -->
+    <circle r="9" fill="none" stroke="#1e3a5f" stroke-width="1.5"/>
+    <!-- Bore with keyway -->
+    <circle r="3" fill="#1e3a5f"/>
+    <rect x="-0.8" y="-5" width="1.6" height="5" fill="white"/>
+    <!-- Teeth (rectangular profile) -->
+    <g fill="#1e3a5f" opacity="0.7">
+      <rect x="-1.5" y="-15" width="3" height="6" rx="0.3"/>
+      <rect x="-1.5" y="9" width="3" height="6" rx="0.3" transform="rotate(180 0 12)"/>
+      <rect x="-1.5" y="-15" width="3" height="6" rx="0.3" transform="rotate(45 0 0)"/>
+      <rect x="-1.5" y="-15" width="3" height="6" rx="0.3" transform="rotate(90 0 0)"/>
+      <rect x="-1.5" y="-15" width="3" height="6" rx="0.3" transform="rotate(135 0 0)"/>
+      <rect x="-1.5" y="-15" width="3" height="6" rx="0.3" transform="rotate(180 0 0)"/>
+      <rect x="-1.5" y="-15" width="3" height="6" rx="0.3" transform="rotate(225 0 0)"/>
+      <rect x="-1.5" y="-15" width="3" height="6" rx="0.3" transform="rotate(270 0 0)"/>
+      <rect x="-1.5" y="-15" width="3" height="6" rx="0.3" transform="rotate(315 0 0)"/>
+    </g>
+  </g>
+  
+  <!-- N -->
+  <path d="M230 20 L230 80 L239 80 L239 40 L265 80 L274 80 L274 20 L265 20 L265 60 L239 20 Z" 
+        fill="url(#hatch6)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- I -->
+  <path d="M286 20 L286 80 L295 80 L295 20 Z" 
+        fill="url(#hatch6)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- K -->
+  <path d="M307 20 L307 80 L316 80 L316 54 L339 80 L353 80 L327 50 L351 20 L337 20 L316 48 L316 20 Z" 
+        fill="url(#hatch6)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- A (clean) -->
+  <path d="M360 80 L381 20 L393 20 L414 80 L404 80 L398 64 L376 64 L370 80 Z M379 56 L395 56 L387 32 Z" 
+        fill="url(#hatch6)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- DIMENSION - Left vertical (ISO style) -->
+  <g stroke="#1e3a5f" stroke-width="0.6">
+    <!-- Extension lines (slight gap from object) -->
+    <line x1="10" y1="20" x2="3" y2="20"/>
+    <line x1="10" y1="80" x2="3" y2="80"/>
+    <!-- Dimension line -->
+    <line x1="5" y1="20" x2="5" y2="42"/>
+    <line x1="5" y1="58" x2="5" y2="80"/>
+    <!-- Arrowheads (30° angle, filled) -->
+    <polygon points="5,20 3,26 7,26" fill="#1e3a5f"/>
+    <polygon points="5,80 3,74 7,74" fill="#1e3a5f"/>
+  </g>
+  
+  <!-- DIMENSION - Bottom horizontal -->
+  <g stroke="#1e3a5f" stroke-width="0.6">
+    <!-- Extension lines -->
+    <line x1="68" y1="82" x2="68" y2="94"/>
+    <line x1="158" y1="82" x2="158" y2="94"/>
+    <!-- Dimension line -->
+    <line x1="68" y1="90" x2="100" y2="90"/>
+    <line x1="126" y1="90" x2="158" y2="90"/>
+    <!-- Arrowheads -->
+    <polygon points="68,90 74,88 74,92" fill="#1e3a5f"/>
+    <polygon points="158,90 152,88 152,92" fill="#1e3a5f"/>
+  </g>
+  
+  <!-- DIMENSION - Right vertical -->
+  <g stroke="#1e3a5f" stroke-width="0.6">
+    <!-- Extension lines -->
+    <line x1="416" y1="20" x2="424" y2="20"/>
+    <line x1="416" y1="80" x2="424" y2="80"/>
+    <!-- Dimension line -->
+    <line x1="420" y1="20" x2="420" y2="42"/>
+    <line x1="420" y1="58" x2="420" y2="80"/>
+    <!-- Arrowheads -->
+    <polygon points="420,20 418,26 422,26" fill="#1e3a5f"/>
+    <polygon points="420,80 418,74 422,74" fill="#1e3a5f"/>
+  </g>
+  
+  <!-- Technical ruler -->
+  <g stroke="#1e3a5f" stroke-width="0.9" opacity="0.8">
+    <line x1="165" y1="8" x2="219" y2="8"/>
+    <line x1="165" y1="4" x2="165" y2="12"/>
+    <line x1="178" y1="6" x2="178" y2="10"/>
+    <line x1="192" y1="4" x2="192" y2="12"/>
+    <line x1="205" y1="6" x2="205" y2="10"/>
+    <line x1="219" y1="4" x2="219" y2="12"/>
+  </g>
+</svg>

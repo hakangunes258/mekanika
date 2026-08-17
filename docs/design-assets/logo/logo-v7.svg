@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100" fill="none">
+  <defs>
+    <pattern id="hatch7" patternUnits="userSpaceOnUse" width="3.5" height="3.5" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="3.5" stroke="#1e3a5f" stroke-width="0.6" opacity="0.5"/>
+    </pattern>
+  </defs>
+  
+  <!-- M -->
+  <path d="M15 22 L15 78 L24 78 L24 40 L37 62 L50 40 L50 78 L59 78 L59 22 L48 22 L37 46 L26 22 Z" 
+        fill="url(#hatch7)" stroke="#1e3a5f" stroke-width="2"/>
+  
+  <!-- E -->
+  <path d="M70 22 L70 78 L102 78 L102 70 L79 70 L79 54 L98 54 L98 46 L79 46 L79 30 L102 30 L102 22 Z" 
+        fill="url(#hatch7)" stroke="#1e3a5f" stroke-width="2"/>
+  
+  <!-- K -->
+  <path d="M112 22 L112 78 L121 78 L121 54 L143 78 L157 78 L132 50 L155 22 L141 22 L121 48 L121 22 Z" 
+        fill="url(#hatch7)" stroke="#1e3a5f" stroke-width="2"/>
+  
+  <!-- A with gear -->
+  <path d="M164 78 L185 22 L197 22 L218 78 L208 78 L202 62 L180 62 L174 78 Z M183 54 L199 54 L191 32 Z" 
+        fill="url(#hatch7)" stroke="#1e3a5f" stroke-width="2"/>
+  
+  <!-- Simple but clear gear (spokes visible) -->
+  <g transform="translate(191, 47)">
+    <!-- Gear outline with teeth profile -->
+    <path d="M0 -12 L2 -12 L3 -15 L-3 -15 L-2 -12
+             M8.5 -8.5 L9.4 -7.1 L12.7 -9.2 L10.6 -12.7 L7.1 -9.4
+             M12 0 L12 2 L15 3 L15 -3 L12 -2
+             M8.5 8.5 L7.1 9.4 L9.2 12.7 L12.7 10.6 L9.4 7.1
+             M0 12 L-2 12 L-3 15 L3 15 L2 12
+             M-8.5 8.5 L-9.4 7.1 L-12.7 9.2 L-10.6 12.7 L-7.1 9.4
+             M-12 0 L-12 -2 L-15 -3 L-15 3 L-12 2
+             M-8.5 -8.5 L-7.1 -9.4 L-9.2 -12.7 L-12.7 -10.6 L-9.4 -7.1"
+          stroke="#1e3a5f" stroke-width="1.5" fill="none"/>
+    <!-- Gear body -->
+    <circle r="10" fill="none" stroke="#1e3a5f" stroke-width="1.8"/>
+    <!-- Spokes -->
+    <g stroke="#1e3a5f" stroke-width="1.2">
+      <line x1="0" y1="-4" x2="0" y2="-8"/>
+      <line x1="0" y1="4" x2="0" y2="8"/>
+      <line x1="-4" y1="0" x2="-8" y2="0"/>
+      <line x1="4" y1="0" x2="8" y2="0"/>
+    </g>
+    <!-- Center bore -->
+    <circle r="4" fill="none" stroke="#1e3a5f" stroke-width="1.2"/>
+    <circle r="1.5" fill="#1e3a5f"/>
+  </g>
+  
+  <!-- N -->
+  <path d="M230 22 L230 78 L239 78 L239 42 L264 78 L273 78 L273 22 L264 22 L264 58 L239 22 Z" 
+        fill="url(#hatch7)" stroke="#1e3a5f" stroke-width="2"/>
+  
+  <!-- I -->
+  <path d="M285 22 L285 78 L294 78 L294 22 Z" 
+        fill="url(#hatch7)" stroke="#1e3a5f" stroke-width="2"/>
+  
+  <!-- K -->
+  <path d="M306 22 L306 78 L315 78 L315 54 L337 78 L351 78 L326 50 L349 22 L335 22 L315 48 L315 22 Z" 
+        fill="url(#hatch7)" stroke="#1e3a5f" stroke-width="2"/>
+  
+  <!-- A -->
+  <path d="M358 78 L379 22 L391 22 L412 78 L402 78 L396 62 L374 62 L368 78 Z M377 54 L393 54 L385 32 Z" 
+        fill="url(#hatch7)" stroke="#1e3a5f" stroke-width="2"/>
+  
+  <!-- DIMENSION LEFT - Architectural style -->
+  <g stroke="#1e3a5f" stroke-width="0.6" fill="#1e3a5f">
+    <!-- Extension lines -->
+    <line x1="13" y1="22" x2="4" y2="22"/>
+    <line x1="13" y1="78" x2="4" y2="78"/>
+    <!-- Dimension line -->
+    <line x1="7" y1="22" x2="7" y2="44"/>
+    <line x1="7" y1="56" x2="7" y2="78"/>
+    <!-- Tick marks (architectural style) -->
+    <line x1="4" y1="19" x2="10" y2="25" stroke-width="1"/>
+    <line x1="4" y1="75" x2="10" y2="81" stroke-width="1"/>
+  </g>
+  
+  <!-- DIMENSION BOTTOM -->
+  <g stroke="#1e3a5f" stroke-width="0.6" fill="#1e3a5f">
+    <!-- Extension lines -->
+    <line x1="70" y1="80" x2="70" y2="92"/>
+    <line x1="157" y1="80" x2="157" y2="92"/>
+    <!-- Dimension line -->
+    <line x1="70" y1="88" x2="106" y2="88"/>
+    <line x1="121" y1="88" x2="157" y2="88"/>
+    <!-- Tick marks -->
+    <line x1="67" y1="85" x2="73" y2="91" stroke-width="1"/>
+    <line x1="154" y1="85" x2="160" y2="91" stroke-width="1"/>
+  </g>
+  
+  <!-- DIMENSION TOP -->
+  <g stroke="#1e3a5f" stroke-width="0.6" fill="#1e3a5f">
+    <!-- Extension lines -->
+    <line x1="164" y1="20" x2="164" y2="8"/>
+    <line x1="218" y1="20" x2="218" y2="8"/>
+    <!-- Dimension line -->
+    <line x1="164" y1="12" x2="183" y2="12"/>
+    <line x1="199" y1="12" x2="218" y2="12"/>
+    <!-- Tick marks -->
+    <line x1="161" y1="9" x2="167" y2="15" stroke-width="1"/>
+    <line x1="215" y1="9" x2="221" y2="15" stroke-width="1"/>
+  </g>
+  
+  <!-- Scale ruler -->
+  <g stroke="#1e3a5f" stroke-width="0.8" opacity="0.7">
+    <rect x="285" y="6" width="66" height="8" fill="none" rx="1"/>
+    <line x1="291" y1="6" x2="291" y2="14"/>
+    <line x1="302" y1="9" x2="302" y2="14"/>
+    <line x1="313" y1="6" x2="313" y2="14"/>
+    <line x1="324" y1="9" x2="324" y2="14"/>
+    <line x1="335" y1="6" x2="335" y2="14"/>
+    <line x1="346" y1="9" x2="346" y2="14"/>
+  </g>
+</svg>

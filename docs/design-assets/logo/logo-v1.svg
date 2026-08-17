@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 110" fill="none">
+  <defs>
+    <pattern id="hatch1" patternUnits="userSpaceOnUse" width="3" height="3" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="3" stroke="#1e3a5f" stroke-width="0.6" opacity="0.5"/>
+    </pattern>
+  </defs>
+  
+  <!-- Large gear behind M -->
+  <g transform="translate(30, 55)" stroke="#1e3a5f" stroke-width="1.2" opacity="0.4">
+    <circle r="28" fill="none"/>
+    <circle r="20" fill="none" stroke-dasharray="3,2"/>
+    <circle r="8" fill="none"/>
+    <!-- Gear teeth -->
+    <g>
+      <line x1="0" y1="-28" x2="0" y2="-34"/>
+      <line x1="14" y1="-24.2" x2="17" y2="-29.4"/>
+      <line x1="24.2" y1="-14" x2="29.4" y2="-17"/>
+      <line x1="28" y1="0" x2="34" y2="0"/>
+      <line x1="24.2" y1="14" x2="29.4" y2="17"/>
+      <line x1="14" y1="24.2" x2="17" y2="29.4"/>
+      <line x1="0" y1="28" x2="0" y2="34"/>
+      <line x1="-14" y1="24.2" x2="-17" y2="29.4"/>
+      <line x1="-24.2" y1="14" x2="-29.4" y2="17"/>
+      <line x1="-28" y1="0" x2="-34" y2="0"/>
+      <line x1="-24.2" y1="-14" x2="-29.4" y2="-17"/>
+      <line x1="-14" y1="-24.2" x2="-17" y2="-29.4"/>
+    </g>
+  </g>
+  
+  <!-- M -->
+  <path d="M15 25 L15 85 L24 85 L24 42 L38 70 L52 42 L52 85 L61 85 L61 25 L50 25 L38 52 L26 25 Z" 
+        fill="url(#hatch1)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- E -->
+  <path d="M72 25 L72 85 L108 85 L108 76 L82 76 L82 58 L103 58 L103 49 L82 49 L82 34 L108 34 L108 25 Z" 
+        fill="url(#hatch1)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- K -->
+  <path d="M118 25 L118 85 L127 85 L127 58 L152 85 L165 85 L137 55 L163 25 L150 25 L127 52 L127 25 Z" 
+        fill="url(#hatch1)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- A -->
+  <path d="M172 85 L194 25 L206 25 L228 85 L218 85 L212 68 L188 68 L182 85 Z M191 59 L209 59 L200 35 Z" 
+        fill="url(#hatch1)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- Gear in A hole -->
+  <g transform="translate(200, 52)">
+    <circle r="10" fill="none" stroke="#1e3a5f" stroke-width="1.5"/>
+    <circle r="4" fill="none" stroke="#1e3a5f" stroke-width="1"/>
+    <circle r="1.5" fill="#1e3a5f"/>
+    <g stroke="#1e3a5f" stroke-width="1.2">
+      <line x1="0" y1="-10" x2="0" y2="-13"/>
+      <line x1="8.7" y1="-5" x2="11.3" y2="-6.5"/>
+      <line x1="8.7" y1="5" x2="11.3" y2="6.5"/>
+      <line x1="0" y1="10" x2="0" y2="13"/>
+      <line x1="-8.7" y1="5" x2="-11.3" y2="6.5"/>
+      <line x1="-8.7" y1="-5" x2="-11.3" y2="-6.5"/>
+    </g>
+  </g>
+  
+  <!-- N -->
+  <path d="M238 25 L238 85 L247 85 L247 45 L275 85 L284 85 L284 25 L275 25 L275 65 L247 25 Z" 
+        fill="url(#hatch1)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- I -->
+  <path d="M298 25 L298 85 L307 85 L307 25 Z" 
+        fill="url(#hatch1)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- K -->
+  <path d="M320 25 L320 85 L329 85 L329 58 L354 85 L367 85 L339 55 L365 25 L352 25 L329 52 L329 25 Z" 
+        fill="url(#hatch1)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- A -->
+  <path d="M374 85 L396 25 L408 25 L430 85 L420 85 L414 68 L390 68 L384 85 Z M393 59 L411 59 L402 35 Z" 
+        fill="url(#hatch1)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- Compass -->
+  <g transform="translate(402, 12)" stroke="#1e3a5f" stroke-width="1.3">
+    <circle cx="0" cy="0" r="4" fill="none"/>
+    <line x1="0" y1="4" x2="-8" y2="28"/>
+    <line x1="0" y1="4" x2="8" y2="28"/>
+    <line x1="-4" y1="20" x2="4" y2="20"/>
+    <circle cx="0" cy="0" r="1.5" fill="#1e3a5f"/>
+  </g>
+  
+  <!-- Ruler on top -->
+  <g stroke="#1e3a5f" stroke-width="1.2">
+    <line x1="165" y1="10" x2="235" y2="10"/>
+    <line x1="165" y1="6" x2="165" y2="14"/>
+    <line x1="182.5" y1="8" x2="182.5" y2="12"/>
+    <line x1="200" y1="7" x2="200" y2="13"/>
+    <line x1="217.5" y1="8" x2="217.5" y2="12"/>
+    <line x1="235" y1="6" x2="235" y2="14"/>
+  </g>
+  
+  <!-- Dimension arrows -->
+  <g stroke="#1e3a5f" stroke-width="0.8" opacity="0.6">
+    <!-- Left vertical -->
+    <line x1="8" y1="25" x2="8" y2="85"/>
+    <path d="M5 28 L8 25 L11 28" fill="none"/>
+    <path d="M5 82 L8 85 L11 82" fill="none"/>
+    <!-- Bottom horizontal -->
+    <line x1="72" y1="95" x2="165" y2="95"/>
+    <path d="M75 92 L72 95 L75 98" fill="none"/>
+    <path d="M162 92 L165 95 L162 98" fill="none"/>
+  </g>
+  
+  <!-- Center lines (dashed) -->
+  <g stroke="#1e3a5f" stroke-width="0.6" stroke-dasharray="8,3" opacity="0.4">
+    <line x1="200" y1="0" x2="200" y2="100"/>
+  </g>
+</svg>

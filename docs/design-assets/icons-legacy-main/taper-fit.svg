@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#1e3a5f" stroke-width="1.5">
+  <!-- Tapered shaft cross-section -->
+  <path d="M4 18 L8 6 L16 6 L20 18 Z" fill="#1e3a5f" opacity="0.1"/>
+  <path d="M4 18 L8 6 L16 6 L20 18 Z"/>
+  <!-- Center line -->
+  <line x1="12" y1="4" x2="12" y2="20" stroke-dasharray="3,2" opacity="0.5"/>
+  <!-- Taper angle indicator -->
+  <path d="M6 16 L8 10" stroke-width="1" opacity="0.7"/>
+  <path d="M18 16 L16 10" stroke-width="1" opacity="0.7"/>
+  <!-- Dimension line -->
+  <line x1="5" y1="20" x2="19" y2="20" stroke-width="1"/>
+  <line x1="5" y1="19" x2="5" y2="21" stroke-width="1"/>
+  <line x1="19" y1="19" x2="19" y2="21" stroke-width="1"/>
+</svg>

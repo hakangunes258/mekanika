@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100" fill="none">
+  <defs>
+    <pattern id="hatch5" patternUnits="userSpaceOnUse" width="3.5" height="3.5" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="3.5" stroke="#1e3a5f" stroke-width="0.6" opacity="0.5"/>
+    </pattern>
+  </defs>
+  
+  <!-- M -->
+  <path d="M12 20 L12 80 L21 80 L21 38 L35 62 L49 38 L49 80 L58 80 L58 20 L47 20 L35 46 L23 20 Z" 
+        fill="url(#hatch5)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- E -->
+  <path d="M68 20 L68 80 L102 80 L102 72 L77 72 L77 54 L97 54 L97 46 L77 46 L77 28 L102 28 L102 20 Z" 
+        fill="url(#hatch5)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- K -->
+  <path d="M112 20 L112 80 L121 80 L121 54 L144 80 L158 80 L132 50 L156 20 L142 20 L121 48 L121 20 Z" 
+        fill="url(#hatch5)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- A with gear -->
+  <path d="M165 80 L186 20 L198 20 L219 80 L209 80 L203 64 L181 64 L175 80 Z M184 56 L200 56 L192 32 Z" 
+        fill="url(#hatch5)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- Realistic gear (no inner rings, just teeth and hub) -->
+  <g transform="translate(192, 48)">
+    <!-- Gear body (solid look) -->
+    <circle r="11" fill="none" stroke="#1e3a5f" stroke-width="2"/>
+    <!-- Hub hole -->
+    <circle r="2.5" fill="#1e3a5f"/>
+    <!-- Keyway in hub -->
+    <rect x="-1" y="-4" width="2" height="4" fill="white"/>
+    <!-- 8 teeth as trapezoids -->
+    <g stroke="#1e3a5f" stroke-width="1.5" fill="none">
+      <path d="M-2 -11 L-2.5 -15 L2.5 -15 L2 -11"/>
+      <path d="M6.4 -8.8 L9 -12 L12.7 -9 L9.2 -6.4"/>
+      <path d="M11 -2 L15 -2.5 L15 2.5 L11 2"/>
+      <path d="M8.8 6.4 L12 9 L9 12.7 L6.4 9.2"/>
+      <path d="M2 11 L2.5 15 L-2.5 15 L-2 11"/>
+      <path d="M-6.4 8.8 L-9 12 L-12.7 9 L-9.2 6.4"/>
+      <path d="M-11 2 L-15 2.5 L-15 -2.5 L-11 -2"/>
+      <path d="M-8.8 -6.4 L-12 -9 L-9 -12.7 L-6.4 -9.2"/>
+    </g>
+  </g>
+  
+  <!-- N -->
+  <path d="M230 20 L230 80 L239 80 L239 40 L265 80 L274 80 L274 20 L265 20 L265 60 L239 20 Z" 
+        fill="url(#hatch5)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- I -->
+  <path d="M286 20 L286 80 L295 80 L295 20 Z" 
+        fill="url(#hatch5)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- K -->
+  <path d="M307 20 L307 80 L316 80 L316 54 L339 80 L353 80 L327 50 L351 20 L337 20 L316 48 L316 20 Z" 
+        fill="url(#hatch5)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- A (simple, no compass) -->
+  <path d="M360 80 L381 20 L393 80 L383 80 L378 64 L370 64 L365 80 Z M372 56 L376 56 L374 48 Z" 
+        fill="url(#hatch5)" stroke="#1e3a5f" stroke-width="2.2"/>
+  
+  <!-- PROPER DIMENSION - Left vertical -->
+  <g stroke="#1e3a5f" stroke-width="0.7">
+    <!-- Extension lines -->
+    <line x1="12" y1="20" x2="4" y2="20"/>
+    <line x1="12" y1="80" x2="4" y2="80"/>
+    <!-- Dimension line with gap -->
+    <line x1="6" y1="20" x2="6" y2="45"/>
+    <line x1="6" y1="55" x2="6" y2="80"/>
+    <!-- Arrows (proper dimension arrows) -->
+    <path d="M6 20 L4 24 L8 24 Z" fill="#1e3a5f"/>
+    <path d="M6 80 L4 76 L8 76 Z" fill="#1e3a5f"/>
+  </g>
+  
+  <!-- PROPER DIMENSION - Bottom horizontal -->
+  <g stroke="#1e3a5f" stroke-width="0.7">
+    <!-- Extension lines -->
+    <line x1="68" y1="80" x2="68" y2="92"/>
+    <line x1="158" y1="80" x2="158" y2="92"/>
+    <!-- Dimension line with gap -->
+    <line x1="68" y1="88" x2="105" y2="88"/>
+    <line x1="121" y1="88" x2="158" y2="88"/>
+    <!-- Arrows -->
+    <path d="M68 88 L72 86 L72 90 Z" fill="#1e3a5f"/>
+    <path d="M158 88 L154 86 L154 90 Z" fill="#1e3a5f"/>
+  </g>
+  
+  <!-- PROPER DIMENSION - Top horizontal (above A) -->
+  <g stroke="#1e3a5f" stroke-width="0.7">
+    <!-- Extension lines -->
+    <line x1="165" y1="20" x2="165" y2="8"/>
+    <line x1="219" y1="20" x2="219" y2="8"/>
+    <!-- Dimension line with gap -->
+    <line x1="165" y1="12" x2="185" y2="12"/>
+    <line x1="199" y1="12" x2="219" y2="12"/>
+    <!-- Arrows -->
+    <path d="M165 12 L169 10 L169 14 Z" fill="#1e3a5f"/>
+    <path d="M219 12 L215 10 L215 14 Z" fill="#1e3a5f"/>
+  </g>
+  
+  <!-- Small ruler on top right -->
+  <g stroke="#1e3a5f" stroke-width="0.8" opacity="0.7">
+    <line x1="286" y1="8" x2="353" y2="8"/>
+    <line x1="286" y1="5" x2="286" y2="11"/>
+    <line x1="303" y1="6" x2="303" y2="10"/>
+    <line x1="320" y1="5" x2="320" y2="11"/>
+    <line x1="337" y1="6" x2="337" y2="10"/>
+    <line x1="353" y1="5" x2="353" y2="11"/>
+  </g>
+</svg>
