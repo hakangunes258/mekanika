@@ -1788,6 +1788,17 @@ chain, and four of the six were **non-conservative**:
   which silently flips the field back to manual. **Test the page, not just the engine**: a
   harness that sets `UseDirectDynamicFactor = false` to compare against a standard will never
   see this class of bug.
+- **The K_V dialog then opened with nothing in it.** Moving the deviation fields off the card
+  and into the dialog kept the `@if (engine.UseMeasuredDeviations)` around them but dropped the
+  checkbox that was the only thing ever setting that flag, so it stayed false for good and the
+  whole of Method B's input was unreachable — the dialog showed its intro and its footer and no
+  fields at all. The switch is now a *string-backed* select (`DeviationSource`), for the same
+  reason `ToleranceSource` is one: `@bind` on a `<select>` goes through the value attribute, and
+  the renderer drops that attribute when it is handed a bool `false`, so a bool-bound select
+  cannot tell its two options apart. The class-derived values stay on screen `readonly`, the way
+  the centre distance deviations do, so the dialog is never blank and you can see what the
+  standard picked. **When a conditional block loses its condition's only writer, the block is
+  dead** — check for one whenever inputs move between a card and a dialog.
 
 **Five more, found in Aug 2026 against a real ISO 6336:2006 Method B report** (KISSsoft
 03/2017; z 21/42, m_n 2, β 20°, a 68, x₁ 0,5, VG 220 at 70 °C). Tutorial 8 could never settle

@@ -2188,6 +2188,18 @@ else
         set { engine.DirectKHbeta = value; engine.UseDirectFaceLoadFactor = true; }
     }
 
+    /// <summary>
+    /// Which of the two routes the K_V dialog takes its tooth deviations from. A string view of
+    /// engine.UseMeasuredDeviations, for the same reason ToleranceSource is one: a select binds
+    /// through its value attribute, and the renderer drops that attribute when it is given a
+    /// bool false, so the two options could not be told apart.
+    /// </summary>
+    private string DeviationSource
+    {
+        get => engine.UseMeasuredDeviations ? "measured" : "class";
+        set => engine.UseMeasuredDeviations = value == "measured";
+    }
+
     private void UseCalculatedKv() => engine.UseDirectDynamicFactor = false;
 
     private void UseCalculatedKhbeta() => engine.UseDirectFaceLoadFactor = false;
@@ -2618,38 +2630,65 @@ else
                 the field on the card.
             </div>
 
-            @{
-                bool _ = true;
-            }
-            @if (_)
-            {
+            <div class="form-group">
+                <label>Tooth Deviations</label>
+                <select @bind="DeviationSource">
+                    <option value="class">From the wheel's ISO 1328-1 class &#8212; Clause 6.4.3</option>
+                    <option value="measured">Measured on the gears &#8212; enter them below</option>
+                </select>
+                <small style="color: #6c757d; font-size: 12px;">
+                    @if (engine.UseMeasuredDeviations)
+                    {
+                        <text>
+                            Taken as entered. Fill these in from an inspection chart:
+                            <strong>leaving them at 0 puts K<sub>V</sub> at about 1</strong>, which is
+                            not conservative.
+                        </text>
+                    }
+                    else
+                    {
+                        <text>
+                            Derived from the wheel's tolerance class &#8212; f<sub>pT</sub> becomes
+                            f<sub>pb</sub> via cos(&#945;<sub>t</sub>), and the running-in allowances
+                            are taken as 0. The fields below show what was used.
+                        </text>
+                    }
+                </small>
+            </div>
 
-            @if (engine.UseMeasuredDeviations)
+            <div class="form-group">
+                <label>Base Pitch Deviation (f<sub>pb</sub>)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" min="0" @bind="engine.BasePitchDeviation"
+                           readonly="@(!engine.UseMeasuredDeviations)" />
+                    <span class="unit">&#956;m</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Profile Form Deviation (f<sub>f&#945;</sub>)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" min="0" @bind="engine.ProfileFormDeviation"
+                           readonly="@(!engine.UseMeasuredDeviations)" />
+                    <span class="unit">&#956;m</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Running-in Allowances (y<sub>p</sub> / y<sub>f</sub>)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" min="0" @bind="engine.RunningInAllowanceP"
+                           readonly="@(!engine.UseMeasuredDeviations)" />
+                    <input type="number" step="0.1" min="0" @bind="engine.RunningInAllowanceF"
+                           readonly="@(!engine.UseMeasuredDeviations)" style="margin-left:8px;" />
+                    <span class="unit">&#956;m</span>
+                </div>
+                <small style="color: #6c757d; font-size: 12px;">0 is conservative (no running-in benefit)</small>
+            </div>
+
+            @if (!engine.UseMeasuredDeviations && engine.BasePitchDeviation <= 0)
             {
-                <div class="form-group">
-                    <label>Base Pitch Deviation (f<sub>pb</sub>)</label>
-                    <div class="input-group">
-                        <input type="number" step="0.1" min="0" @bind="engine.BasePitchDeviation" />
-                        <span class="unit">&#956;m</span>
-                    </div>
+                <div class="schematic-note">
+                    The class values land in the three fields above after the next calculation.
                 </div>
-                <div class="form-group">
-                    <label>Profile Form Deviation (f<sub>f&#945;</sub>)</label>
-                    <div class="input-group">
-                        <input type="number" step="0.1" min="0" @bind="engine.ProfileFormDeviation" />
-                        <span class="unit">&#956;m</span>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Running-in Allowances (y<sub>p</sub> / y<sub>f</sub>)</label>
-                    <div class="input-group">
-                        <input type="number" step="0.1" min="0" @bind="engine.RunningInAllowanceP" />
-                        <input type="number" step="0.1" min="0" @bind="engine.RunningInAllowanceF" style="margin-left:8px;" />
-                        <span class="unit">&#956;m</span>
-                    </div>
-                    <small style="color: #6c757d; font-size: 12px;">0 is conservative (no running-in benefit)</small>
-                </div>
-            }
             }
 
             <div class="dialog-action">
