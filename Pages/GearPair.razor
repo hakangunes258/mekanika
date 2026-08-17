@@ -218,7 +218,7 @@
             @* The dialog trigger sits in the header rather than beside the select: everything
                it holds describes the lubricant as a whole, not that one field. *@
             <div class="card-header">
-                <ModuleIcon Type="surface" Size="medium" Style="solid" />
+                <ModuleIcon Type="lubrication" Size="medium" Style="solid" />
                 <h2>Lubrication</h2>
                 @LubricantDataDialog()
             </div>
@@ -1970,7 +1970,7 @@ else
     /// dialog carries the ones that need a measurement or a required backlash typed in.
     /// </summary>
     private RenderFragment ToleranceDialog() => @<DialogButton
-        Icon="settings"
+        Icon="open-options-dialog"
         Title="Tooth Thickness &#8212; from a measurement or a required backlash"
         MaxWidth="720"
         ButtonTitle="Enter a measured dimension or a required backlash">
@@ -2449,7 +2449,7 @@ else
     /// The ISO 6336-1 Method B inputs behind the dynamic factor. Kept in a dialog because most
     /// users take K_V from experience; the ones who do not need every deviation.
     /// </summary>
-    private RenderFragment LubricantDataDialog() => @<DialogButton Icon="settings" Title="Lubricant Data" MaxWidth="760"
+    private RenderFragment LubricantDataDialog() => @<DialogButton Icon="open-options-dialog" Title="Lubricant Data" MaxWidth="760"
                           ButtonTitle="Lubricant data and custom entry"
     ConfirmLabel="OK">
                 <Intro>
@@ -2605,7 +2605,7 @@ else
             </DialogButton>;
 
     private RenderFragment DynamicFactorDialog() => @<DialogButton
-        Icon="settings"
+        Icon="open-options-dialog"
         Title="Dynamic Factor K_V &#8212; ISO 6336-1 Clause 6, Method B"
         MaxWidth="720"
         ButtonTitle="Calculate K_V from the tooth deviations"
@@ -2679,7 +2679,7 @@ else
     /// deflection and the mounting arrangement.
     /// </summary>
     private RenderFragment FaceLoadFactorDialog() => @<DialogButton
-        Icon="settings"
+        Icon="open-options-dialog"
         Title="Face Load Factor K_Hbeta &#8212; ISO 6336-1 Clause 7.5, Method C"
         MaxWidth="760"
         ButtonTitle="Calculate K_Hbeta from the misalignment and shaft deflection"
@@ -2817,7 +2817,7 @@ else
     /// calculation, through Y_B; the rest shapes the 3D model.
     /// </summary>
     private RenderFragment GearAdvancedDialog(int gear) => @<DialogButton
-        Icon="settings"
+        Icon="open-options-dialog"
         Title="@($"Advanced Gear Geometry — gear {gear}")"
         MaxWidth="720"
         ButtonTitle="@($"Surface finish, rim and hub of gear {gear}")">
