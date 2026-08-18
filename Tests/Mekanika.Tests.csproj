@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Golden-value tests for the calculation engines.
+
+    The engines are the product; everything else on the site is a way of showing
+    them. They had no automated test of any kind, so the only thing standing
+    behind a number on screen was whoever last read the standard.
+
+    This references the web project rather than listing its source files. A
+    hand-kept <Compile Include> list is the drift this repo keeps getting bitten
+    by: a new engine would simply not be covered and nothing would say so.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Mekanika.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../MechanicalCalculatorWeb.csproj" />
+  </ItemGroup>
+
+</Project>

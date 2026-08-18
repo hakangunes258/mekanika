@@ -1837,8 +1837,11 @@ name.
   each other and against the classical Lewis form factor — all three agree at ~122 MPa for
   the default gear; the mixed version gave 86 MPa.
 - **Every curve is anchored, not eyeballed.** Y_NT/Z_NT, Y_RrelT, Y_X, Z_X, Y_B and Y_DT
-  each reproduce their standard's own tabulated end points (e.g. Y_RrelT = 1.000 at
-  Rz = 10 µm for all three material rows; Y_DT = 0.701 at ε_αn = 2.5). If you touch a
+  each reproduce their standard's own tabulated end points (e.g. Y_DT = 0.701 at
+  ε_αn = 2.5). Y_RrelT is the one to be careful with: Rz = 10 µm is the reference
+  roughness and the standard names 1.000 there, but Table 4's three expressions
+  actually land on 1.00100, 1.00164 and 0.99436. This note used to record 1.000 as
+  exact, and a test asserting it to three decimals fails against correct code. If you touch a
   constant, re-check the anchor — that is what makes these trustworthy rather than plausible.
 - **`f_sh` is never silently zero.** Shaft deflection dominates K_Hβ — on the default gear,
   12 µm takes it from 1.76 to 3.02 — so `ShaftDeflectionSource` makes the choice explicit:
@@ -2085,11 +2088,18 @@ buttressing factor, and ε_α > 2 which the standard restricts to Method A. With
 branches (Clauses 9.3, 9.5, 9.7) are not implemented — a stated tip relief still reaches the
 approach factor.
 
-**Verifying a change:** there is no test project. Build a throwaway console harness that
-`<Compile Include="…/Services/*.cs" />`s the gear services and prints the anchor points
-(geometry against hand values, W_k for m=1 z=20 20° = 7.6604 mm, Z_H = 2.4945, Z_E = 189.8,
-the life-factor table ends, and an inverse-involute round trip). That is how the Y_ε bug
-was found; a plausible-looking safety factor will not reveal it.
+**Verifying a change:** `Tests/Mekanika.Tests.csproj` (xUnit, `dotnet test`), run by the
+deploy workflow before Publish. The gear anchors live there as tests rather than as prose:
+inverse-involute round trip, W_k for m=1 z=20 20° = 7.6604 mm, Z_H = 2.494573 against its
+closed form, Z_E = 189.8, ε_α = 1.6352 by hand, the life-factor curve ends, and that K_V and
+K_Hβ are calculated rather than the stand-in 1.10 they once defaulted to. That anchor set is
+how the Y_ε bug was found; a plausible-looking safety factor will not reveal it.
+
+**An anchor proves the curve is evaluated right, not that it is the right curve.** Z_NT
+passed its own anchor for as long as it was on the wrong row of ISO 6336-2 Table 2. Where a
+test can check direction as well as a point — monotonic life factors, a rougher root never
+scoring better, doubling the power never raising a safety factor — it does, because that is
+the part a single point cannot see.
 
 ### **Related Calculators Feature**
 

@@ -45,6 +45,13 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      - name: Test the calculation engines
+        # The engines are the product. Golden values from the standards they
+        # implement, so a refactor that quietly changes a number fails here
+        # instead of on someone's drawing. Runs before Publish: a broken engine
+        # should stop the deploy at 20 seconds, not after the WASM build.
+        run: dotnet test Tests/Mekanika.Tests.csproj -c Release --verbosity minimal
+
       - name: Publish
         # Target the project, not the .sln (the solution rejects -o with a warning).
         # A standard WASM publish (no AOT) needs no extra workload.

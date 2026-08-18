@@ -14,11 +14,19 @@
     <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="8.0.0" />
   </ItemGroup>
 
+  <!--
+    This project sits at the repo root, so the SDK's default glob would sweep in
+    every .cs file under it - including the test project. Without this the test
+    sources are compiled into the web app, which fails because it has no xunit
+    reference, and the error is reported against this project rather than against
+    Tests. (The AnalyticsProxy excludes that used to be here were removed with the
+    folder itself; they had outlived it by some time.)
+  -->
   <ItemGroup>
-    <Compile Remove="AnalyticsProxy\**" />
-    <Content Remove="AnalyticsProxy\**" />
-    <EmbeddedResource Remove="AnalyticsProxy\**" />
-    <None Remove="AnalyticsProxy\**" />
+    <Compile Remove="Tests\**" />
+    <Content Remove="Tests\**" />
+    <EmbeddedResource Remove="Tests\**" />
+    <None Remove="Tests\**" />
   </ItemGroup>
 
   <!--
