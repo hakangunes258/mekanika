@@ -1891,11 +1891,17 @@ else
 
         Note these are more specific than the plain `th:nth-child(1)` rules the
         other eleven calculators declare, and three of those use 45/15/25/15
-        rather than 40/15/25/20. That only stays harmless because a Razor <style>
+        rather than 40/15/25/20. That only stays harmless because a Razor style
         block lives and dies with its component: it is in the DOM while this page
         is rendered and gone once it is not. If these rules ever need to move to a
         shared stylesheet, scope them to this page first, or gear-pair will start
         re-laying-out key-connection's tables.
+
+        (Do not write that tag name in angle brackets here. Razor parses the body
+        of a style block as markup and does not know CSS comment syntax, so the
+        literal tag inside this comment was read as a nested open tag - the next
+        real closing tag matched it, the outer block was left unclosed, and the
+        build failed with RZ9980. Which is how this parenthesis came to exist.)
     */
 
     /* --- 4 columns: Description | Symbol | Value | Unit --- */

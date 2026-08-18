@@ -26,6 +26,25 @@ const PAGES = 'Pages';
 const EXCLUDE = new Set(['GearPair.razor']);
 const RULE = /\.results-table (?:th|td):nth-child\(\d\)[^}]*\}/gs;
 
+/*
+    Razor parses the body of a <style> block as markup and knows nothing about CSS
+    comment syntax, so a tag name written in angle brackets inside a CSS comment is
+    read as a nested open tag: the next real closing tag matches it, the outer block
+    is left unclosed, and the build dies with RZ9980 pointing at the opening line
+    rather than at the comment. dotnet does catch it - half a minute later, and
+    without saying why. This says why.
+*/
+for (const file of readdirSync(PAGES).filter(f => f.endsWith('.razor'))) {
+    const src = readFileSync(join(PAGES, file), 'utf8');
+    for (const block of src.matchAll(/<style>(.*?)<\/style>/gs)) {
+        const stray = block[1].match(/<\/?[a-zA-Z][a-zA-Z0-9]*\s*\/?>/g);
+        if (stray) {
+            console.error(`::error file=${PAGES}/${file}::markup tag ${stray[0]} inside a <style> block. Razor reads it as a real tag and the block will not close (RZ9980). Write the tag name without angle brackets.`);
+            process.exit(1);
+        }
+    }
+}
+
 const found = new Map();
 
 for (const file of readdirSync(PAGES).filter(f => f.endsWith('.razor'))) {
