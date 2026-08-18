@@ -34,6 +34,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Verify the duplicated result-table CSS has not drifted
+        # Eleven calculators declare the same .results-table column rules in their
+        # own <style> block. They had quietly diverged into 40/15/25/20 and
+        # 45/15/25/15, which only shows when two pages are put side by side.
+        run: node tools/check-table-css.mjs
+
       - name: Set up .NET 8
         uses: actions/setup-dotnet@v4
         with:

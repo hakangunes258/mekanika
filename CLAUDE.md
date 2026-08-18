@@ -874,6 +874,38 @@ When updating other modules to match the keyway format:
   appears dead and the visitor cannot tell the app from a broken page. gear-pair was the
   last one still doing it and was fixed in Aug 2026.
 
+### **Result-table column rules are duplicated in eleven pages — keep them identical**
+
+Every single-shape calculator declares the same `.results-table` column widths and
+alignments in its own Razor `<style>` block. `tools/check-table-css.mjs` (run by the deploy
+workflow) fails the build if they stop matching. The canonical block is 40/15/25/20 with
+`'Consolas', 'Courier New', monospace` for the value column.
+
+They had drifted: eight pages used 40/15/25/20 and three (key-connection, clamp-connection,
+moment-of-inertia) used 45/15/25/15. Nothing surfaces that — each page looks fine alone and
+they only disagree side by side, which is how it was eventually caught (Aug 2026).
+
+**gear-pair is excluded from the check, deliberately.** It is the only page with more than
+one table shape — 12 tables of Description | Symbol | Gear 1 | Gear 2 | Unit, 8 of
+Description | Symbol | Value | Unit, and 2 of six columns — and a single 5-column rule set
+was being applied to all of them. In the 4-column tables that styled the Unit column as if
+it were "Gear 2": right-aligned monospace instead of centred grey, with the declared widths
+summing to 83%. Its rules are now selected by `:nth-child(n):nth-last-child(m)`, which
+matches a cell only in a row of exactly n+m-1 cells, so each shape gets its own set and a
+new column is picked up automatically.
+
+**Two 6-column tables there are structurally identical and semantically are not** —
+`Description | Symbol | Gear 1 | Gear 2 | Required | Status` versus the micropitting sweep
+`Point | gY | ρn,Y | X_Y | Θfl,Y | λGF,Y`, a label followed by five numbers. No selector can
+tell them apart, so the second carries an explicit `.results-table-numeric`.
+
+**Why the eleven duplicates have not simply been merged into `modern-icons.css`:** two pages
+use `.results-table` for something else — `MyCalculations` for the saved-calculations list and
+`Account` for a two-column key/value table — and a shared rule would restyle both. Scoping it
+with the obvious `#results-content` prefix then out-specifies gear-pair's rules, because an id
+beats any number of pseudo-classes, and would silently re-lay-out its 5-column tables. Merging
+means untangling that first; until then, one canonical copy and a build check.
+
 ### **Numbers are formatted in the invariant culture, app-wide**
 
 `Program.cs` pins `CultureInfo.DefaultThreadCurrentCulture`/`CurrentCulture` (and the UI
