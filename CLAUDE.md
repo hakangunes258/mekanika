@@ -1511,9 +1511,46 @@ the original path and fragment.
 - **The dev server hides all of this.** `dotnet run` rewrites unknown paths to
   `index.html`, so `404.html` never executes locally and deep links appear to work no
   matter how broken the handshake is. Test against a server that actually 404s.
-- Still open: bots get a real HTTP 404 for module URLs, so the routes are not
-  indexable. Fixing that needs a static file per route at publish time, which changes
-  the served URL to a trailing-slash form — check Blazor's route matching first.
+- **Closed (Aug 2026): module URLs no longer 404.** `tools/generate-static-pages.mjs`
+  runs after `dotnet publish` and writes `<route>/index.html` for every URL in
+  sitemap.xml, so Pages answers `/interference-fit/` with 200 and the slash-less form
+  only 301s to it. Each page carries its own title, description, canonical, OG/Twitter
+  tags and a `SoftwareApplication` JSON-LD, none of which need JavaScript — which is
+  what social and non-Google crawlers see. See the section below before touching it.
+  `404.html` still serves everything not in the sitemap (`/login`, `/account`,
+  `/my-calculations`, `/auth/callback`, `/bolt`, `/spring`), and its `noindex` is
+  correct for exactly those.
+
+### **Static Page Generation (the 404 fix)**
+
+`tools/generate-static-pages.mjs`, run by the deploy workflow straight after
+`dotnet publish`. Four rules, each of which is the reason something is written the
+way it is:
+
+- **The shell is the *published* `index.html`, transformed — not a second template.**
+  A parallel copy of that `<head>` would drift the first time a script or a `?v=`
+  changes, and nothing would show it. Every replacement asserts it matched exactly
+  once, so a restructured `index.html` fails the build instead of quietly emitting
+  pages that have lost their canonical.
+- **Metadata comes from `ModuleMetadataService.cs`, the route list from `sitemap.xml`.**
+  One source of truth each, and they check each other: a sitemap URL with no module
+  entry is a hard error. A hand-maintained JSON copy with a "keep in sync" comment is
+  precisely the drift this repo keeps getting bitten by. Metadata with no sitemap entry
+  is only *reported* — that is `/bolt`, and the orphan-page decision is a human's.
+- **Canonical, `og:url` and sitemap all use the trailing-slash form.** That is the URL
+  Pages answers with 200. Pointing the canonical at the slash-less form makes a crawler
+  follow a 301 and then be told the page it came from is the canonical one — a mixed
+  signal for nothing.
+- **The trailing-slash normaliser must keep `location.search` and `location.hash`.**
+  Blazor's router does not match `/interference-fit/`, so each generated page rewrites
+  the URL with `history.replaceState` before `blazor.webassembly.js` loads. A shared
+  calculation is `/key-connection#s=<payload>` and the fragment *is* the payload: it
+  rides through the 301 (browsers carry a fragment when the target has none) and has to
+  ride through the rewrite too. Verified in a real browser, not just by reading it.
+
+`<base href="/" />` must stay `/`. The generated files live one directory down, so
+every relative asset path resolves through it; rewriting it per directory would 404
+the whole framework.
 
 **This is the same state layer cloud-saved calculations will use** (`inputs` jsonb).
 Build/apply once per module, reuse for links, localStorage, and Supabase.

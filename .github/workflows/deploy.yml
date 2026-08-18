@@ -44,6 +44,46 @@ jobs:
         # A standard WASM publish (no AOT) needs no extra workload.
         run: dotnet publish MechanicalCalculatorWeb.csproj -c Release -o publish
 
+      - name: Generate a static HTML file per route
+        # GitHub Pages has no SPA rewrite: without this every calculator URL is
+        # answered by 404.html with an HTTP 404, so the routes in sitemap.xml are
+        # not indexable and link previews fall back to the site-level tags with a
+        # canonical pointing at the home page. The generator reads its route list
+        # from sitemap.xml and its metadata from ModuleMetadataService.cs, and
+        # fails if the two disagree - so a new module added to one and not the
+        # other stops the deploy instead of shipping a page with no description.
+        run: node tools/generate-static-pages.mjs --publish publish/wwwroot --repo .
+
+      - name: Verify the generated pages carry their own metadata
+        run: |
+          cd publish/wwwroot
+          status=0
+
+          # Spot-check the deepest and the shallowest of them rather than all 17:
+          # the generator already fails hard on a shape it does not recognise, so
+          # this is here to catch the case where it silently produced nothing.
+          for route in interference-fit gear-pair about; do
+            f="$route/index.html"
+            test -f "$f" || { echo "::error::$f was not generated"; status=1; continue; }
+
+            grep -q "rel=\"canonical\" href=\"https://mekanika.org/$route/\"" "$f" \
+              || { echo "::error file=$f::canonical is not self-referential - the page would be indexed as a copy of the home page"; status=1; }
+            grep -q "og:url\" content=\"https://mekanika.org/$route/\"" "$f" \
+              || { echo "::error file=$f::og:url still points somewhere else - link previews will be wrong"; status=1; }
+            grep -q "SoftwareApplication" "$f" \
+              || { echo "::error file=$f::page-level JSON-LD missing"; status=1; }
+            grep -q "history.replaceState" "$f" \
+              || { echo "::error file=$f::trailing-slash normaliser missing - Pages 301s to the slash form and Blazor's router will not match it, so the app boots blank"; status=1; }
+            grep -q "<base href=\"/\" />" "$f" \
+              || { echo "::error file=$f::<base href=\"/\"> lost - every asset would resolve under /$route/ and 404"; status=1; }
+          done
+
+          # The home page must NOT have been rewritten with a module's metadata.
+          grep -q "rel=\"canonical\" href=\"https://mekanika.org/\"" index.html \
+            || { echo "::error::index.html lost its own canonical"; status=1; }
+
+          exit $status
+
       - name: Verify critical Pages files are present
         # Fail loudly if the SPA fallback, custom domain, or Jekyll opt-out is
         # missing, rather than shipping a broken site.

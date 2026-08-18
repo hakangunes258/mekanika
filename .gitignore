@@ -58,3 +58,6 @@ $RECYCLE.BIN/
 # copies (the ISO 6336 PDF carries a Beuth/SNV licensee watermark) and must never
 # be committed - this repo is public and publishes to GitHub Pages.
 *.pdf
+
+# Output of `dotnet publish`, which the static page generator writes into.
+publish/
