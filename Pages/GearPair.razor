@@ -1642,7 +1642,7 @@ else
             <div class="card-header"><ModuleIcon Type="surface" Size="medium" Style="solid" /><h2>Micropitting (ISO/TR 15144-1, Method B)</h2></div>
             @if (engine.Micropitting is { Valid: true } mp)
             {
-                <table class="results-table">
+                <table class="results-table results-table-numeric">
                     <thead><tr><th>Point</th><th>g<sub>Y</sub> (mm)</th><th>&#961;<sub>n,Y</sub> (mm)</th><th>X<sub>Y</sub></th><th>&#920;<sub>fl,Y</sub> (K)</th><th>&#955;<sub>GF,Y</sub></th></tr></thead>
                     <tbody>
                         @foreach (var p in engine.Micropitting.Points)
@@ -1872,30 +1872,115 @@ else
         background: #e8f5e9;
     }
 
-    /* 5-column layout for gear comparison tables */
-    .results-table th:nth-child(1) { width: 35%; }
-    .results-table th:nth-child(2) { width: 12%; text-align: center; }
-    .results-table th:nth-child(3) { width: 18%; text-align: right; }
-    .results-table th:nth-child(4) { width: 18%; text-align: right; }
-    .results-table th:nth-child(5) { width: 17%; text-align: center; }
+    /*
+        This page does not have one table shape, it has four, and the rules below
+        are keyed to each of them.
 
-    .results-table td:nth-child(2) {
+        They used to be a single 5-column set (Description | Symbol | Gear 1 |
+        Gear 2 | Unit) applied to every .results-table on the page. Eight of the
+        results tables are 4-column (Description | Symbol | Value | Unit), so
+        their Unit column was being styled as if it were "Gear 2": right-aligned
+        in monospace instead of centred in grey, and the widths summed to 83%,
+        leaving the browser to hand out the remaining 17% however it liked. Two
+        tables on the same screen visibly disagreed.
+
+        `:nth-child(n):nth-last-child(m)` matches a cell only in a row of exactly
+        n+m-1 cells, so each set applies to its own shape and nothing else. It
+        also maintains itself: add a column to a table and the rules follow,
+        which a hand-applied `.cols-5` class would not.
+
+        Note these are more specific than the plain `th:nth-child(1)` rules the
+        other eleven calculators declare, and three of those use 45/15/25/15
+        rather than 40/15/25/20. That only stays harmless because a Razor <style>
+        block lives and dies with its component: it is in the DOM while this page
+        is rendered and gone once it is not. If these rules ever need to move to a
+        shared stylesheet, scope them to this page first, or gear-pair will start
+        re-laying-out key-connection's tables.
+    */
+
+    /* --- 4 columns: Description | Symbol | Value | Unit --- */
+    .results-table th:nth-child(1):nth-last-child(4) { width: 40%; }
+    .results-table th:nth-child(2):nth-last-child(3) { width: 15%; text-align: center; }
+    .results-table th:nth-child(3):nth-last-child(2) { width: 25%; text-align: right; }
+    .results-table th:nth-child(4):nth-last-child(1) { width: 20%; text-align: center; }
+
+    .results-table td:nth-child(3):nth-last-child(2) {
+        text-align: right;
+        font-weight: 500;
+        font-family: 'Consolas', monospace;
+    }
+
+    .results-table td:nth-child(4):nth-last-child(1) {
+        text-align: center;
+        color: #666;
+    }
+
+    /* --- 5 columns: Description | Symbol | Gear 1 | Gear 2 | Unit --- */
+    .results-table th:nth-child(1):nth-last-child(5) { width: 35%; }
+    .results-table th:nth-child(2):nth-last-child(4) { width: 12%; text-align: center; }
+    .results-table th:nth-child(3):nth-last-child(3) { width: 18%; text-align: right; }
+    .results-table th:nth-child(4):nth-last-child(2) { width: 18%; text-align: right; }
+    .results-table th:nth-child(5):nth-last-child(1) { width: 17%; text-align: center; }
+
+    .results-table td:nth-child(3):nth-last-child(3),
+    .results-table td:nth-child(4):nth-last-child(2) {
+        text-align: right;
+        font-weight: 500;
+        font-family: 'Consolas', monospace;
+    }
+
+    .results-table td:nth-child(5):nth-last-child(1) {
+        text-align: center;
+        color: #666;
+    }
+
+    /* The symbol column. Every .results-table on the page has one at column 2;
+       the prose tables in the dialogs are .info-table and are not touched here. */
+    .results-table td:nth-child(2):nth-last-child(3),
+    .results-table td:nth-child(2):nth-last-child(4),
+    .results-table td:nth-child(2):nth-last-child(5) {
         text-align: center;
         font-family: 'Times New Roman', serif;
         font-style: italic;
         color: #666;
     }
 
-    .results-table td:nth-child(3),
-    .results-table td:nth-child(4) {
+    /* --- 6 columns: Description | Symbol | Gear 1 | Gear 2 | Required | Status.
+           No fixed widths; six columns of text fit better left to the browser. --- */
+    .results-table th:nth-child(3):nth-last-child(4),
+    .results-table th:nth-child(4):nth-last-child(3),
+    .results-table th:nth-child(5):nth-last-child(2) { text-align: right; }
+    .results-table th:nth-child(6):nth-last-child(1) { text-align: center; }
+
+    .results-table td:nth-child(3):nth-last-child(4),
+    .results-table td:nth-child(4):nth-last-child(3),
+    .results-table td:nth-child(5):nth-last-child(2) {
         text-align: right;
         font-weight: 500;
         font-family: 'Consolas', monospace;
     }
 
-    .results-table td:nth-child(5) {
+    .results-table td:nth-child(6):nth-last-child(1) {
         text-align: center;
         color: #666;
+    }
+
+    /*
+        The micropitting sweep is a label followed by five numbers (Point | gY |
+        ρn,Y | XY | Θfl,Y | λGF,Y) - the same six columns as the safety comparison
+        above, so nothing in the markup's shape distinguishes them. Left to the
+        rules above, its gY column would be rendered as if it were a symbol.
+        Hence the explicit class: this is the table where every column after the
+        first is a number.
+    */
+    .results-table.results-table-numeric th:not(:first-child) { text-align: right; }
+
+    .results-table.results-table-numeric tbody td:not(:first-child) {
+        text-align: right;
+        font-weight: 500;
+        font-style: normal;
+        font-family: 'Consolas', monospace;
+        color: inherit;
     }
 
     .results-table td[colspan="2"] {
