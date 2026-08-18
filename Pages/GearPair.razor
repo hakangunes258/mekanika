@@ -941,6 +941,8 @@
 
     </div>
 
+    <ValidationAlert Messages="validationMessages" />
+
     <div class="button-group">
         <button class="btn btn-success btn-lg @(isCalculating ? "btn-calculating" : "")" @onclick="Calculate" disabled="@isCalculating">
             @if (isCalculating)
@@ -1912,6 +1914,9 @@ else
 
 @code {
     private GearPairEngine engine = new();
+
+    /// <summary>Why Calculate refused, shown by <see cref="ValidationAlert"/>.</summary>
+    private List<string> validationMessages = new();
     private List<GearMaterial> gearMaterials = new();
     private ModuleInfo moduleInfo = new();
     private bool showResults = false;
@@ -3539,13 +3544,24 @@ else
         StateHasChanged();
         await Task.Delay(350);
 
-        // Validation
-        if (engine.Power <= 0 || engine.Speed1 <= 0 || engine.NormalModule <= 0 ||
-            engine.NumberOfTeeth1 <= 0 || engine.NumberOfTeeth2 <= 0 ||
-            engine.FaceWidth1 <= 0 || engine.FaceWidth2 <= 0 ||
-            engine.CenterDistance <= 0 || engine.RequiredServiceLife <= 0)
+        // One message per missing field, not a single silent return. The bare
+        // guard that used to be here left the button doing nothing at all with
+        // no explanation - the last of the twelve calculators to behave that way.
+        validationMessages.Clear();
+        if (engine.Power <= 0) validationMessages.Add("Transmitted power (P) must be greater than 0.");
+        if (engine.Speed1 <= 0) validationMessages.Add("Pinion speed (n₁) must be greater than 0.");
+        if (engine.NormalModule <= 0) validationMessages.Add("Normal module (mₙ) must be greater than 0.");
+        if (engine.NumberOfTeeth1 <= 0) validationMessages.Add("Number of teeth on the pinion (z₁) must be greater than 0.");
+        if (engine.NumberOfTeeth2 <= 0) validationMessages.Add("Number of teeth on the wheel (z₂) must be greater than 0.");
+        if (engine.FaceWidth1 <= 0) validationMessages.Add("Pinion face width (b₁) must be greater than 0.");
+        if (engine.FaceWidth2 <= 0) validationMessages.Add("Wheel face width (b₂) must be greater than 0.");
+        if (engine.CenterDistance <= 0) validationMessages.Add("Centre distance (a) must be greater than 0.");
+        if (engine.RequiredServiceLife <= 0) validationMessages.Add("Required service life must be greater than 0.");
+
+        if (validationMessages.Count > 0)
         {
             isCalculating = false;
+            await Analytics.TrackCalculationError("gear-pair", "validation_failed", string.Join("; ", validationMessages));
             return;
         }
 
@@ -3593,6 +3609,7 @@ else
     private void ClearForm()
     {
         ResetEngine();
+        validationMessages.Clear();
         showResults = false;
         openedFromSharedLink = false;
     }

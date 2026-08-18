@@ -147,21 +147,6 @@ public class ModuleMetadataService
                 HasVideo = false
             },
 
-            ["bolt"] = new ModuleInfo
-            {
-                Key = "bolt",
-                Name = "General Bolt Calculator",
-                Route = "/bolt",
-                Category = "Fasteners",
-                Icon = "🔧",
-                Description = "General purpose bolt connection calculator for simplified bolt design. Calculate thread engagement, preload, and basic stresses for common bolted joints.",
-                Keywords = "bolt calculator, bolt design, thread engagement, bolt preload, fastener design, bolt sizing",
-                RelatedModules = new[] { "single-bolt", "boltdatabase", "clamp-connection" },
-                IsVerified = false,
-                VerificationStandards = new[] { "General Reference" },
-                HasVideo = false
-            },
-
             ["boltdatabase"] = new ModuleInfo
             {
                 Key = "boltdatabase",

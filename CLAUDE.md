@@ -868,6 +868,33 @@ When updating other modules to match the keyway format:
 - Always provide units in the UI
 - Material properties are injected via `MaterialService`
 - PDF generation uses JavaScript interop with jsPDF library (`Pages/pdfGenerator.js`)
+- **Every calculator shows why Calculate refused.** All twelve fill a `List<string>` and
+  render `Shared/ValidationAlert.razor` above the button (moment-of-inertia uses its own
+  `validationError` string). A bare `return` in a Calculate guard is a bug: the button
+  appears dead and the visitor cannot tell the app from a broken page. gear-pair was the
+  last one still doing it and was fixed in Aug 2026.
+
+### **Numbers are formatted in the invariant culture, app-wide**
+
+`Program.cs` pins `CultureInfo.DefaultThreadCurrentCulture`/`CurrentCulture` (and the UI
+pair) to `InvariantCulture` before the host is built. Do not remove this, and do not add
+per-call `CultureInfo` arguments to work around its absence.
+
+Blazor WebAssembly otherwise takes the culture from the browser, which split the app
+against itself: the ~830 `ToString("F1")`-style calls in the result tables follow
+`CurrentCulture` and rendered `40,5` on a Turkish browser, while the ~210
+`<input type="number">` boxes do not — Blazor always binds those through
+`InvariantCulture`, because the HTML spec fixes a number field's value format. One page,
+one quantity, two decimal separators.
+
+It also silences a quieter failure: `BoltCalculationEngine` falls back to
+`materialName.ToLower() switch { "cast iron" => 300, … }` for names the material database
+does not carry, and Turkish lowercases `I` to dotless `ı` — `"Cast Iron"` became
+`"cast ıron"`, matched no arm, and returned the 235 MPa mild-steel default. Culture-aware
+casing has no business in a lookup key.
+
+**When the Turkish version arrives, this is the place to revisit — but the fix is to format
+*both* sides per culture, never to drop the pin and let the two halves disagree again.**
 
 ---
 
@@ -1307,7 +1334,13 @@ VerificationStandards = new[] { "DIN 6885", "ISO 773" },
 Set `IsVerified = false` for any module whose engine uses a simplified or
 uncalibrated model, and record why in a comment next to the flag. Currently
 `false` for: **clamp-connection** (split-hub model; single-slit lever effect not
-modelled) and **bolt** (general-purpose, no standard reference).
+modelled).
+
+The **bolt** module (`/bolt`, "General Bolt Calculator") was **deleted in Aug 2026**. It was a
+369-line quick torque/preload tool that no menu, no home-page card and no sitemap entry ever
+linked to — unreachable since it was written — and it carried no standard reference, so it sat
+next to the VDI 2230 `single-bolt` module as an unverifiable second answer. Do not restore it
+without deciding first what it is *for* that `single-bolt` is not.
 
 **gear-pair was promoted to `true` in Aug 2026** — see the gear module section below.
 
@@ -1518,7 +1551,7 @@ the original path and fragment.
   tags and a `SoftwareApplication` JSON-LD, none of which need JavaScript — which is
   what social and non-Google crawlers see. See the section below before touching it.
   `404.html` still serves everything not in the sitemap (`/login`, `/account`,
-  `/my-calculations`, `/auth/callback`, `/bolt`, `/spring`), and its `noindex` is
+  `/my-calculations`, `/auth/callback`, `/spring`), and its `noindex` is
   correct for exactly those.
 
 ### **Static Page Generation (the 404 fix)**
@@ -1536,7 +1569,9 @@ way it is:
   One source of truth each, and they check each other: a sitemap URL with no module
   entry is a hard error. A hand-maintained JSON copy with a "keep in sync" comment is
   precisely the drift this repo keeps getting bitten by. Metadata with no sitemap entry
-  is only *reported* — that is `/bolt`, and the orphan-page decision is a human's.
+  is only *reported*, never silently dropped — an unreachable page is a decision for a
+  human, not something a build step should bury. `/bolt` was the one entry this caught, and
+  it was deleted rather than published.
 - **Canonical, `og:url` and sitemap all use the trailing-slash form.** That is the URL
   Pages answers with 200. Pointing the canonical at the slash-less form makes a crawler
   follow a 301 and then be told the page it came from is the canonical one — a mixed
