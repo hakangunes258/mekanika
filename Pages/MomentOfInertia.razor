@@ -3,6 +3,7 @@
 @inject MaterialService MaterialService
 @inject ModuleMetadataService MetadataService
 @inject AnalyticsService Analytics
+@inject SeoService Seo
 @using MechanicalCalculatorWeb.Services
 @using MechanicalCalculatorWeb.Models
 @using System.Globalization
@@ -1400,16 +1401,28 @@ else
     {
         try
         {
-            var metaTags = new
+            // Was InvokeVoidAsync("setMetaTags", ...) against a JS function that does
+            // not exist anywhere in the codebase - the call threw on every page load
+            // and the catch below hid it. Every other module goes through SeoService,
+            // so this one does too.
+            var baseUrl = "https://mekanika.org";
+            var seo = new SeoMetadata
             {
-                title = moduleInfo.Name + " - Mekanika",
-                description = moduleInfo.Description,
-                keywords = moduleInfo.Keywords,
-                url = "https://mekanika.org" + moduleInfo.Route,
-                image = "https://mekanika.org/images/og-moment-of-inertia.png"
+                Title = $"{moduleInfo.Name} - Free Online Tool | Mekanika",
+                Description = moduleInfo.Description,
+                Keywords = moduleInfo.Keywords,
+                CanonicalUrl = $"{baseUrl}{moduleInfo.Route}",
+                OgTitle = moduleInfo.Name,
+                OgDescription = moduleInfo.Description,
+                OgImage = $"{baseUrl}/logo.png",
+                OgUrl = $"{baseUrl}{moduleInfo.Route}",
+                TwitterCard = "summary",
+                TwitterTitle = moduleInfo.Name,
+                TwitterDescription = moduleInfo.Description,
+                TwitterImage = $"{baseUrl}/logo.png"
             };
 
-            await JSRuntime.InvokeVoidAsync("setMetaTags", metaTags);
+            await Seo.SetMetaTags(seo);
             await SetStructuredData();
         }
         catch

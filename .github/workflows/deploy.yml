@@ -65,6 +65,30 @@ jobs:
           grep -q "sessionStorage.redirect" index.html \
             || { echo "::error::index.html no longer restores the deep link before Blazor boots"; exit 1; }
 
+      - name: Verify the site's own JavaScript actually runs
+        # Three of these files shipped minified onto a SINGLE line while still
+        # containing `//` comments, so the first comment swallowed the rest of the
+        # file: seo.js became a SyntaxError and analytics.js/feedback.js lost 99%
+        # and 96% of their code. Every caller wraps interop in try/catch and "fails
+        # silently", so per-page SEO tags, custom GA4 events and the feedback widget
+        # were dead for months with nothing visible to show for it.
+        #
+        # Two checks, because either one alone misses half of it: node --check finds
+        # the unparseable file, and the line count finds the ones that still parse
+        # but have had their body commented out.
+        run: |
+          cd publish/wwwroot
+          status=0
+          for f in js/*.js pdfGenerator.js; do
+            node --check "$f" \
+              || { echo "::error file=$f::JavaScript syntax error - this file will not load at all"; status=1; }
+            if [ "$(wc -l < "$f")" -lt 2 ]; then
+              echo "::error file=$f::single-line JavaScript. A '//' comment anywhere in it comments out the rest of the file. Keep these files formatted; do not minify."
+              status=1
+            fi
+          done
+          exit $status
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:

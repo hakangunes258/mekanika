@@ -119,20 +119,27 @@
         <a class="dismiss">🗙</a>
     </div>
 
+    <!-- Bump the ?v= on ALL of the app scripts below together whenever ANY of them
+         changes, exactly like the two stylesheets above: one number to remember, not
+         six. These carried no version at all until the analytics/seo/feedback files
+         were repaired, which would have left returning visitors running the cached
+         broken copies and made the fix look like it did nothing. viewer3d.js and the
+         stylesheets keep their own separate numbers. -->
+
     <!-- Analytics Wrapper (BEFORE Blazor scripts) -->
-    <script src="js/analytics.js"></script>
+    <script src="js/analytics.js?v=1"></script>
 
     <!-- Auth storage helper. Must load BEFORE Blazor, because the persisted session is
          restored during host startup (Program.cs) before the app's first render. -->
-    <script src="js/auth.js"></script>
+    <script src="js/auth.js?v=1"></script>
 
     <!-- Core Blazor Framework -->
     <script src="_framework/blazor.webassembly.js"></script>
 
     <!-- Application Scripts -->
-    <script src="js/seo.js"></script>
-    <script src="js/feedback.js"></script>
-    <script src="js/share.js"></script>
+    <script src="js/seo.js?v=1"></script>
+    <script src="js/feedback.js?v=1"></script>
+    <script src="js/share.js?v=1"></script>
 
     <!-- 3D geometry viewer. This file is small; it lazy-loads three.js (~600 KB)
          only when the user actually opens a 3D view.
@@ -147,6 +154,6 @@
     <!-- PDF Generator - Load Last (only needed for export feature) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js" defer></script>
-    <script src="pdfGenerator.js" defer></script>
+    <script src="pdfGenerator.js?v=1" defer></script>
 </body>
 </html>
