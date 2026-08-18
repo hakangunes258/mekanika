@@ -5,26 +5,33 @@ using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using MechanicalCalculatorWeb;
 using MechanicalCalculatorWeb.Services;
 
-// Every number on this site is formatted and parsed the same way, whatever the
-// visitor's browser language is set to. This has to be the FIRST thing that runs:
-// it must be in place before any component renders.
+// The site shows one number format to every visitor, whatever their machine's
+// language is. This has to be the FIRST thing that runs: it must be in place
+// before any component renders.
 //
-// Blazor WebAssembly otherwise takes CurrentCulture from the browser, and that
-// split the app against itself. The 827 result-table values are written with
-// ToString("F1") and friends, which follow CurrentCulture - so a Turkish browser
-// rendered "40,5". The 208 <input type="number"> boxes do NOT: Blazor always binds
-// those through InvariantCulture, because the HTML spec fixes the format of a
-// number field's value. Same page, same quantity, two different decimal separators.
+// Blazor WebAssembly otherwise takes CurrentCulture from the browser, so the
+// ~830 ToString("F1")-style calls in the result tables rendered "40,5" on a
+// Turkish machine and "40.5" on an American one. The UI is English throughout,
+// so it reads one way for everyone.
 //
-// It also fixes a quieter one. BoltCalculationEngine falls back to
-// `materialName.ToLower() switch { "cast iron" => 300, ... }` for names the material
-// database does not carry, and Turkish lowercases 'I' to dotless 'ı' - so "Cast Iron"
-// became "cast ıron", matched nothing, and silently returned the 235 MPa mild-steel
-// default. Invariant casing makes those comparisons mean what they read as.
+// KNOWN AND ACCEPTED: this does not reach the input boxes, and cannot. The 204
+// <input type="number"> fields hold an invariant value in the DOM - the HTML
+// spec fixes that - but the browser DRAWS them in the operating system's locale,
+// and nothing on this side changes that. A `lang="en"` attribute on the document
+// or on the field itself was tried and makes no difference (Chromium still draws
+// 40,5 under a Turkish system locale). So on a non-English machine the entry
+// field reads "40,5" while the results read "40.5". That mismatch is the price
+// of a stable results format and was chosen deliberately.
 //
-// Invariant rather than a named locale: it is what the input boxes, the share links,
-// the saved calculations and the PDF already use, and a decimal point is what the
-// DIN/ISO documents these engines implement are written with.
+// Do NOT "fix" it by moving the fields to type="text". Blazor would then parse
+// them with the invariant culture, and a visitor who types "40,5" - which the
+// number field accepts today and converts correctly - would have the value
+// silently read as nothing. A cosmetic mismatch is cheaper than losing an input.
+//
+// This pin is about presentation only. Nothing that has to round-trip depends on
+// it: CalculationState writes and reads every number with an explicit
+// InvariantCulture, and the lookup keys in BoltCalculationEngine and BoltService
+// use ToLowerInvariant for the same reason.
 CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
 CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
 CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;

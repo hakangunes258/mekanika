@@ -877,24 +877,40 @@ When updating other modules to match the keyway format:
 ### **Numbers are formatted in the invariant culture, app-wide**
 
 `Program.cs` pins `CultureInfo.DefaultThreadCurrentCulture`/`CurrentCulture` (and the UI
-pair) to `InvariantCulture` before the host is built. Do not remove this, and do not add
-per-call `CultureInfo` arguments to work around its absence.
+pair) to `InvariantCulture` before the host is built, so the result tables read the same
+for every visitor. The UI is English throughout; the numbers match it.
 
-Blazor WebAssembly otherwise takes the culture from the browser, which split the app
-against itself: the ~830 `ToString("F1")`-style calls in the result tables follow
-`CurrentCulture` and rendered `40,5` on a Turkish browser, while the ~210
-`<input type="number">` boxes do not — Blazor always binds those through
-`InvariantCulture`, because the HTML spec fixes a number field's value format. One page,
-one quantity, two decimal separators.
+**The input boxes are not covered by this and cannot be.** The 204
+`<input type="number">` fields hold an invariant value in the DOM — the HTML spec fixes
+that — but the browser *draws* them in the operating system's locale. Under a Turkish
+system locale Chromium renders `value="40.5"` as **`40,5`**. A `lang="en"` attribute on the
+document or on the field itself was tested and changes nothing. So on a non-English machine
+the entry field shows `40,5` while the results show `40.5`.
 
-It also silences a quieter failure: `BoltCalculationEngine` falls back to
-`materialName.ToLower() switch { "cast iron" => 300, … }` for names the material database
-does not carry, and Turkish lowercases `I` to dotless `ı` — `"Cast Iron"` became
-`"cast ıron"`, matched no arm, and returned the 235 MPa mild-steel default. Culture-aware
-casing has no business in a lookup key.
+That mismatch is known, was chosen deliberately (Aug 2026) over the alternative of letting
+the results follow the browser too, and is the one thing to remember before "fixing" the
+number formatting again:
 
-**When the Turkish version arrives, this is the place to revisit — but the fix is to format
-*both* sides per culture, never to drop the pin and let the two halves disagree again.**
+- **Before the pin the two sides agreed** — both followed the browser, both showed `40,5`
+  on a Turkish machine. The pin did not remove an inconsistency, it introduced one on
+  non-English machines in exchange for a stable results format. Reverting it is a real
+  option; it is a presentation choice, not a correctness one.
+- **Never move the fields to `type="text"` to force a dot.** Blazor would parse them with
+  the invariant culture, and a visitor typing `40,5` — which the number field accepts today
+  and converts correctly — would have the value silently read as nothing. A cosmetic
+  mismatch is cheaper than losing an input.
+- **Nothing that round-trips depends on the pin.** `CalculationState` writes and reads every
+  number with an explicit `InvariantCulture`, so share links and cloud-saved calculations are
+  unaffected either way.
+
+**Lookup keys are lowercased with `ToLowerInvariant`, never `ToLower`** — and this is
+independent of the pin, which is why it is a separate rule. Turkish lowercases `I` to
+dotless `ı`, so under a Turkish culture `"Cast Iron"` became `"cast ıron"`, matched no arm
+of `BoltCalculationEngine`'s material fallback, and silently returned the 235 MPa
+mild-steel default in place of 300. The same applies to its surface-finish and location
+switches, to the `Contains("alumin")` thread-engagement tests in `BoltCalculationEngine`
+and `SingleBolt.razor`, and to `BoltService.GetHoleClearance`. A key that a human reads as
+a fixed string must not change meaning with the visitor's language.
 
 ---
 

@@ -453,7 +453,7 @@ namespace MechanicalCalculatorWeb.Services
         {
             if (HoleClearances.TryGetValue(size, out var clearances))
             {
-                if (clearances.TryGetValue(fitType.ToLower(), out var diameter))
+                if (clearances.TryGetValue(fitType.ToLowerInvariant(), out var diameter))
                 {
                     return diameter;
                 }

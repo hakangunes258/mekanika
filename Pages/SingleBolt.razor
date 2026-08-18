@@ -2227,7 +2227,7 @@ else
             double lastPartThickness = lastPart?.Thickness ?? 0;
 
             // Thread engagement factor based on last part material
-            string lastPartMat = lastPart?.MaterialName?.ToLower() ?? "steel";
+            string lastPartMat = lastPart?.MaterialName?.ToLowerInvariant() ?? "steel";
             double engagementFactor = (lastPartMat.Contains("alumin") ||
                                        lastPartMat.Contains("cast") ||
                                        lastPartMat.Contains("gj") ||

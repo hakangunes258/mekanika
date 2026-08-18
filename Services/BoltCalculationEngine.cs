@@ -1691,7 +1691,7 @@ namespace MechanicalCalculatorWeb.Services
                         // Thread engagement depth (VDI 2230 recommendation)
                         // For steel: minimum 1.0 × d
                         // For cast iron/aluminum: minimum 1.5 × d
-                        string lastPartMaterial = lastPart?.MaterialName?.ToLower() ?? "steel";
+                        string lastPartMaterial = lastPart?.MaterialName?.ToLowerInvariant() ?? "steel";
                         double engagementFactor = (lastPartMaterial.Contains("alumin") ||
                                                    lastPartMaterial.Contains("cast") ||
                                                    lastPartMaterial.Contains("gj") ||
@@ -1759,7 +1759,7 @@ namespace MechanicalCalculatorWeb.Services
                     // For reference pressure p = 100 MPa
                     // Values in μm per interface
         
-                    double baseSettling_100MPa = surfaceFinish.ToLower() switch
+                    double baseSettling_100MPa = surfaceFinish.ToLowerInvariant() switch
                     {
                         "ground" => 2.0,                       // Rz ≤ 4 μm, precision ground
                         "fine machined" or "machined" => 3.0,  // Rz = 4-16 μm, standard machining
@@ -1782,7 +1782,7 @@ namespace MechanicalCalculatorWeb.Services
                     double fZ_base = baseSettling_100MPa * pressureRatio;
         
                     // Location-specific multipliers (VDI 2230 recommendations)
-                    double locationFactor = location.ToLower() switch
+                    double locationFactor = location.ToLowerInvariant() switch
                     {
                         "head" => 1.2,       // Head bearing: higher settling due to concentrated load
                         "nut" => 1.2,        // Nut bearing: similar to head
@@ -1821,7 +1821,14 @@ namespace MechanicalCalculatorWeb.Services
                     if (mat != null) return mat.YieldStrength;
         
                     // Fallback for names not in MaterialService
-                    return materialName.ToLower() switch
+                    // ToLowerInvariant, not ToLower: a lookup key must not depend on
+                    // the visitor's language. Turkish lowercases 'I' to dotless 'ı',
+                    // so under a Turkish culture "Cast Iron" became "cast ıron",
+                    // matched no arm here, and silently returned the 235 MPa
+                    // mild-steel default in place of 300. Same reasoning for the
+                    // surface-finish and location switches above, and for the
+                    // Contains("alumin") tests further up.
+                    return materialName.ToLowerInvariant() switch
                     {
                         "steel" or "s235" => 235,
                         "s355" => 355,
