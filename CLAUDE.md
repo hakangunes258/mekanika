@@ -2105,6 +2105,18 @@ and minimised. Three things worth knowing:
   flank temperature fields belong to dry-run and plastic gears, which this module does not
   cover). Flip the default to "entered directly" and keep ambient + rise as the opt-in estimate.
 
+**Two deliberate conservatisms are named in the results card**, because a visitor comparing
+against commercial software otherwise reads them as errors:
+
+- **K_Hβ stays on the additive Eq. (52) with B₁ = B₂ = 1.** Commercial packages apply Eq. (53)
+  and B = 0,7 once told the helix carries end relief and the contact pattern is favourable. On
+  the 22/45 benchmark that is ~9 % on K_Hβ and ~6 % on S_H. Note the *floor* is what actually
+  governs on their side: their F_βx of 4,50 µm is Eq. (55)'s max(0,005·F_m/b; 0,5·f_Hβ), not the
+  4,39 µm the compensating form gives. Our engine computes the same 4,50 floor — it simply never
+  binds, because the additive branch sits far above it.
+- **σ_Flim comes from ISO 6336-5:2016**, i.e. 425 MPa for case-hardened MQ. The 2006 edition
+  gives 430, worth ~1,2 % on S_F. Both are defensible; the newer table is the one implemented.
+
 **Out of scope, stated in the results card:** tooth flank fracture, planetary and internal
 arrangements. Within micropitting: the profile-modified load sharing branches and the
 buttressing factor, and ε_α > 2 which the standard restricts to Method A. Within scuffing: bevel/hypoid geometry and the profile-modified load sharing

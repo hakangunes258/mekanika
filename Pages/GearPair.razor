@@ -1819,6 +1819,37 @@ else
                 branches and the buttressing factor are not implemented, and ISO/TR 15144-1 itself
                 restricts &#949;<sub>&#945;</sub> &gt; 2 to Method A.
             </div>
+
+            <div class="note-box below">
+                <strong>Comparing with commercial gear software?</strong> Two choices here are
+                deliberately on the safe side, and together they can put the safety factors below
+                what a package such as KISSsoft reports for the same gear.
+                <ul style="margin: 8px 0 0 18px; padding: 0;">
+                    <li>
+                        <strong>Face load factor K<sub>H&#946;</sub>.</strong> This module always
+                        uses the additive form of ISO 6336-1 Eq. (52) with B<sub>1</sub> =
+                        B<sub>2</sub> = 1. Commercial software will apply the compensating Eq. (53)
+                        and B = 0.7 once it is told the helix carries end relief and the contact
+                        pattern is favourable &mdash; credits the standard allows only when that
+                        pattern has been <em>verified on the assembled pair</em>, which a browser
+                        cannot do. On a benchmark 22/45 helical pair the difference is about 9% on
+                        K<sub>H&#946;</sub> and 6% on S<sub>H</sub>.
+                    </li>
+                    <li>
+                        <strong>Allowable bending stress &#963;<sub>Flim</sub>.</strong> Taken from
+                        ISO 6336-5:2016, which gives 425 N/mm&#178; for case-hardened steel of
+                        grade MQ. The 2006 edition gives 430, worth about 1.2% on
+                        S<sub>F</sub>.
+                    </li>
+                </ul>
+                <div style="margin-top: 8px;">
+                    Neither is an error on either side; the figures above are a lower bound that
+                    holds without any assumption about how the pair was built. An
+                    S<sub>H</sub> below 1 here does not say the flank will pit &mdash; it says
+                    there is no margin left once the favourable-contact-pattern credit is set
+                    aside.
+                </div>
+            </div>
         </div>
     </div>
 }
