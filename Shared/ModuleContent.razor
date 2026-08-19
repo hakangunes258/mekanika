@@ -1,0 +1,49 @@
+@inject HttpClient Http
+
+@*
+    The reference section under a calculator: what the calculation does, where the
+    inputs come from, a worked example, and an FAQ.
+
+    The text is NOT here. It lives in wwwroot/content/<module>.html and is read by
+    two consumers: tools/generate-static-pages.mjs inlines it into the pre-boot
+    HTML, which is what a crawler that does not run JavaScript sees, and this
+    component fetches the same file once Blazor has replaced #app. One copy, two
+    readers - writing the markup into this component instead would leave the
+    static page with nothing, which is the situation the static generator exists
+    to fix.
+
+    Fetch failure is silent by design: a missing reference section is not worth an
+    error box over a working calculator. A module with no content file simply gets
+    no section, which is how this rolls out one module at a time.
+
+    Styles are in modern-icons.css, not a <style> block here, because the static
+    copy is on screen before this component exists.
+*@
+
+@if (!string.IsNullOrEmpty(html))
+{
+    <div class="container">
+        @((MarkupString)html)
+    </div>
+}
+
+@code {
+    /// <summary>Module key, matching wwwroot/content/&lt;key&gt;.html.</summary>
+    [Parameter, EditorRequired] public string Module { get; set; } = "";
+
+    private string? html;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrWhiteSpace(Module)) return;
+
+        try
+        {
+            html = await Http.GetStringAsync($"content/{Module}.html");
+        }
+        catch
+        {
+            html = null;
+        }
+    }
+}

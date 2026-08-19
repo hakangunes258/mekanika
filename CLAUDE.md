@@ -1625,6 +1625,47 @@ the original path and fragment.
   `/my-calculations`, `/auth/callback`, `/spring`), and its `noindex` is
   correct for exactly those.
 
+### **Module Reference Content (the SEO sections)**
+
+The section under a calculator — what it computes, where the inputs come from, a worked
+example, an FAQ. Live on **interference-fit**; the mechanism is per-module and optional.
+
+**The text lives in exactly one place: `wwwroot/content/<module-key>.html`**, a plain HTML
+fragment. Two consumers read it and neither owns it:
+
+- `tools/generate-static-pages.mjs` inlines it into the pre-boot HTML, which is what a
+  crawler that does not run JavaScript sees.
+- `Shared/ModuleContent.razor` fetches the same file once Blazor has replaced `#app`, so a
+  visitor sees it too. Fetch failure is silent — a missing reference section is not worth an
+  error box over a working calculator.
+
+Writing the markup into the `.razor` page instead would leave the static page with nothing,
+which is the situation the generator exists to fix. A module with no content file simply gets
+no section, which is how this rolls out one module at a time.
+
+**Everything but the opening section sits in a `<details>`, and that is deliberate.** Content
+collapsed in the HTML is indexed normally — Google has said so since mobile-first indexing.
+What is *not* indexed is content fetched on click, which is exactly why this is one static
+file rather than a lazy load. Only the first heading is open; the calculator stays the
+subject of the page.
+
+**Styles are in `modern-icons.css`, never a page `<style>` block.** The usual reason applies
+(a Razor `<style>` only reaches the DOM once its page has rendered) and a second one is
+specific to this content: the static copy is on screen *before Blazor exists*, so a
+page-scoped block would leave it unstyled for exactly the visitors it was written for.
+
+**Every number in a worked example comes from running the engine**, not from a textbook and
+not from memory. The interference-fit example is `InterferenceFitEngine` driven with Ø50
+H7/s6, C45/C45, L 60, D_a 90, Rz 6,3, µ 0,12, 250 Nm. A reader who types those inputs must
+get the numbers they just read. Re-run them if the engine changes.
+
+**On quoting standards.** Citing a standard by number, stating that the calculation follows
+it, and using its method are all fine — methods are not copyrightable. Reproducing its
+tables is a different question, and the site already embeds several (`Iso286.cs`,
+`Iso6336Material.cs`, `Din3967.cs`, `Iso1328Tolerance.cs`, DIN 6885 in
+`KeyConnectionEngine`). That exposure predates this content and is worth a lawyer's opinion
+before the site gets much more visible; do not add to it casually.
+
 ### **Static Page Generation (the 404 fix)**
 
 `tools/generate-static-pages.mjs`, run by the deploy workflow straight after

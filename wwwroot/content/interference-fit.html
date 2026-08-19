@@ -1,0 +1,146 @@
+<!--
+    The reference section shown under the interference fit calculator.
+
+    ONE COPY, TWO READERS. tools/generate-static-pages.mjs inlines this file into
+    the pre-boot HTML, which is what a crawler that does not run JavaScript sees;
+    Shared/ModuleContent.razor fetches the same file and renders it once Blazor
+    has taken over #app. Editing the text here changes both. Do not paste a second
+    copy into the .razor page.
+
+    Everything but the opening section sits in <details>. Collapsed content is in
+    the HTML, so it is indexed normally - what would NOT be indexed is content
+    fetched on click, which is why this is one static file rather than a lazy load.
+
+    Every number in the worked example comes from InterferenceFitEngine run with
+    the inputs stated. If the engine changes, re-run them.
+-->
+<section class="module-content">
+
+    <h2>How an interference fit is calculated</h2>
+
+    <p>An interference fit holds by friction alone. The shaft is made slightly larger than the
+    bore, so assembling the two puts the hub in tension and the shaft in compression. That
+    contact pressure, multiplied by the friction coefficient and the contact area, is the entire
+    load capacity of the joint &mdash; there is no key, no pin, nothing else carrying the torque.</p>
+
+    <p>The chain from tolerance to torque runs in four steps. <strong>Interference from the
+    fit</strong> is the shaft deviation minus the hub deviation; a &#216;50 H7/s6 fit gives 59 &micro;m
+    at most and 18 &micro;m at least. <strong>Roughness loss</strong> removes part of it before the
+    joint sees any load, because the surface peaks flatten during assembly. What survives produces
+    the <strong>contact pressure</strong>, and the pressure sets the <strong>transmissible
+    torque</strong>. The sections below take each of those in turn.</p>
+
+    <details>
+        <summary>The equations</summary>
+        <div class="mc-body">
+            <p>Contact pressure follows Lam&eacute;'s thick-cylinder solution, which is what
+            DIN 7190 applies to a cylindrical joint:</p>
+<pre>p = &delta;_eff / [ d &middot; (C&#8321;/E&#8321; + C&#8322;/E&#8322;) ]
+
+C&#8321; = (1 + Q&#7522;&#178;)/(1 &minus; Q&#7522;&#178;) &minus; &nu;&#8321;     Q&#7522; = d&#7522; / d    (shaft bore ratio)
+C&#8322; = (1 + Q&#8336;&#178;)/(1 &minus; Q&#8336;&#178;) + &nu;&#8322;     Q&#8336; = d / d&#8336;    (hub diameter ratio)
+
+T = &micro; &middot; p &middot; &pi; &middot; d&#178; &middot; L / 2</pre>
+            <p>The roughness allowance is 0,8 (Rz<sub>shaft</sub> + Rz<sub>hub</sub>), taken off
+            the geometric interference before any pressure is worked out.</p>
+            <table class="mc-sym">
+                <thead><tr><th>Symbol</th><th>Meaning</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>d</td><td>Joint (nominal) diameter</td><td>mm</td></tr>
+                    <tr><td>d&#7522;</td><td>Shaft bore, 0 for a solid shaft</td><td>mm</td></tr>
+                    <tr><td>d&#8336;</td><td>Hub outside diameter</td><td>mm</td></tr>
+                    <tr><td>L</td><td>Fit length</td><td>mm</td></tr>
+                    <tr><td>&delta;<sub>eff</sub></td><td>Effective diametral interference after losses</td><td>&micro;m</td></tr>
+                    <tr><td>p</td><td>Contact pressure at the interface</td><td>MPa</td></tr>
+                    <tr><td>&micro;</td><td>Friction coefficient at the interface</td><td>&ndash;</td></tr>
+                    <tr><td>T</td><td>Transmissible torque</td><td>Nm</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </details>
+
+    <details>
+        <summary>Where the inputs come from</summary>
+        <div class="mc-body">
+            <p><strong>Tolerances.</strong> Pick a fit rather than typing microns. H7/s6 and H7/u6
+            cover most shaft&ndash;hub work; H7/r6 is lighter. The calculator fills the deviations
+            from ISO 286 once you choose the fit and the diameter.</p>
+            <p><strong>Roughness.</strong> Use the Rz you will actually machine to. Turned surfaces
+            land around Rz 10&ndash;25 &micro;m, ground surfaces around Rz 4 &micro;m. This matters
+            more than most people expect: on a &#216;50 joint, going from ground to turned can
+            remove a third of the interference.</p>
+            <p><strong>Friction.</strong> 0,10&ndash;0,15 is the usual band for dry steel on steel.
+            Take the low end unless the surfaces are degreased and you can prove it. Oil-injection
+            assembly reduces it further.</p>
+            <p><strong>Hub outside diameter.</strong> A thin hub yields before it grips. The ratio
+            d/d&#8336; drives the whole calculation, which is why the field is not optional.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Worked example</summary>
+        <div class="mc-body">
+            <p>A C45 gear hub on a C45 shaft, &#216;50 H7/s6, 60 mm long, hub outside diameter
+            90 mm, both surfaces at Rz 6,3 &micro;m, &micro; = 0,12, carrying 250 Nm.</p>
+<pre>Interference from the fit          59,00 /  18,00 &micro;m   (max / min)
+Roughness loss  0,8 (6,3 + 6,3)    10,08 &micro;m
+Effective interference             48,92 /   7,92 &micro;m
+
+Contact pressure                   71,02 /  11,50 MPa
+Transmissible torque             2008,2  /  325,1  Nm
+Hub von Mises stress              180,74 MPa   (C45 yield 430 &rarr; 2,38)
+
+Safety against slipping             1,30        (325,1 / 250)
+Assembly force, press fit         100,4 kN
+Shaft heating for shrink fit      148,6 &deg;C</pre>
+            <p>Notice the spread. At maximum material the joint would carry 2008 Nm &mdash; eight
+            times the design load. At minimum material it carries 325 Nm. <strong>The minimum is
+            the only number that decides whether the joint slips</strong>, and it is the one a
+            quick hand calculation usually skips.</p>
+            <p>Push the same joint to 1200 Nm and the minimum-material safety factor falls to
+            0,27. The fit would hold on most of the parts produced and let go on the rest, which
+            is the worst kind of failure to diagnose.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Reading the result</summary>
+        <div class="mc-body">
+            <p>Four checks have to pass, and they pull in opposite directions.</p>
+            <p><strong>Slipping, at minimum interference.</strong> Aim for 1,3&ndash;1,5 on torque.
+            This is the governing check almost every time.</p>
+            <p><strong>Hub stress, at maximum interference.</strong> The hub is the part that
+            yields, not the shaft. Keep von Mises below the yield strength with a factor of about
+            1,5.</p>
+            <p><strong>Assembly force</strong>, if pressing &mdash; 100 kN needs a real press
+            &mdash; and <strong>assembly temperature</strong>, if shrinking. Above roughly
+            200&ndash;250 &deg;C a hardened or tempered steel starts losing its heat treatment.</p>
+            <p>Making the fit tighter fixes the first and worsens the second. Making the hub
+            thicker improves both, and is usually the cheapest change available.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Frequently asked questions</summary>
+        <div class="mc-body">
+            <p class="mc-q">Does the calculator account for temperature and speed?</p>
+            <p>Yes. Enter the service temperatures and the interference is corrected for
+            differential expansion &mdash; this matters as soon as the two parts are different
+            materials. Rotation is included as a centrifugal loss: both parts grow outwards, the
+            hub bore more than the shaft, and the difference comes off the interference.</p>
+
+            <p class="mc-q">Why does my joint fail at minimum interference but pass at maximum?</p>
+            <p>Because both are real parts. Tolerances mean some of your production sits at each
+            end. Design to the minimum.</p>
+
+            <p class="mc-q">Can I use a hollow shaft?</p>
+            <p>Yes &mdash; enter the bore. A hollow shaft is more compliant, so the same
+            interference produces less pressure.</p>
+
+            <p class="mc-q">Which standard is this?</p>
+            <p>DIN 7190, using the Lam&eacute; thick-cylinder solution. Tolerance deviations come
+            from ISO 286.</p>
+        </div>
+    </details>
+
+</section>

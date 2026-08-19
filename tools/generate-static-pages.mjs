@@ -166,7 +166,22 @@ const SLASH_NORMALISER = `    <script>
 
 `;
 
-function staticBody(mod) {
+/*
+    The reference section under a calculator, if that module has one. It is a
+    plain HTML fragment in wwwroot/content/<key>.html, inlined here so a crawler
+    that does not run JavaScript reads the whole thing - collapsed <details> and
+    all, since collapsed is indexed and fetched-on-click is not.
+
+    Shared/ModuleContent.razor fetches the SAME file at runtime. One copy, two
+    readers; the alternative is two copies that drift.
+*/
+function moduleContent(publishDir, key) {
+    const file = join(publishDir, 'content', `${key}.html`);
+    if (!existsSync(file)) return null;
+    return readFileSync(file, 'utf8').trim();
+}
+
+function staticBody(mod, content) {
     const standards = mod.standards.length
         /* Escape each name, then join - running the separator through esc() too
            printed a literal "&middot;" on the page. */
@@ -189,7 +204,7 @@ function staticBody(mod) {
                     <p style="margin-top:16px;">This calculator runs in your browser and needs JavaScript enabled.</p>
                 </noscript>
             </div>
-        </div>`;
+        </div>${content ? `\n\n        <div class="container">\n${content}\n        </div>` : ''}`;
 }
 
 function pageJsonLd(mod, url) {
@@ -219,6 +234,7 @@ const modules = parseModules(join(REPO, 'Services', 'ModuleMetadataService.cs'))
 const routes = parseRoutes(join(PUBLISH, 'sitemap.xml'));
 
 let written = 0;
+let withContent = 0;
 for (const route of routes) {
     const mod = modules.get(route);
     if (!mod) fail(`sitemap lists ${route} but ModuleMetadataService has no entry for it`);
@@ -255,8 +271,10 @@ for (const route of routes) {
         `${pageJsonLd(mod, url)}\n    <base href="/" />`, '<base> tag', route);
 
     /* Crawlable content in place of the bare loading screen. */
+    const content = moduleContent(PUBLISH, mod.key);
+    if (content) withContent++;
     html = replaceOnce(html, /        <div class="loading-screen">[\s\S]*?\n        <\/div>/,
-        staticBody(mod), 'loading screen block', route);
+        staticBody(mod, content), 'loading screen block', route);
 
     /* Must run before the router does. */
     html = replaceOnce(html, /    <script src="_framework\/blazor\.webassembly\.js"><\/script>/,
@@ -276,4 +294,4 @@ if (orphans.length) {
     console.log(`\nNot generated (no sitemap entry): ${orphans.join(', ')}`);
 }
 
-console.log(`\n${written} static pages written to ${PUBLISH}`);
+console.log(`\n${written} static pages written to ${PUBLISH} (${withContent} with a reference section)`);
