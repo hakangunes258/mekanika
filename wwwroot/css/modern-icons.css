@@ -1155,15 +1155,45 @@ select:focus {
    the visitors it was written for. */
 
 .module-content {
-    background: var(--white);
+    /* Spans the full width of the calculator grid above it, and is grey rather
+       than white so it reads as reference material and not as one more data
+       card. The grey carries a slight blue bias toward --primary; a flat
+       neutral against the #f8f9fa page would just look washed out. */
+    background: #edf0f4;
+    border: 1px solid #dfe4ea;
     border-radius: 12px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
     padding: 28px 32px 32px;
-    margin-top: 24px;
-    max-width: 78ch;
+    margin-top: 4px;
+    /* Inside .main-content the parent is already narrower than this, so the cap
+       does nothing and the card matches the calculator grid exactly. It only
+       bites on the generated static page, which Blazor has not booted on and
+       where there is no .main-content to sit in - without it the card ran the
+       full width of the window for a crawler and for a visitor with JavaScript
+       off. Capping here rather than in a wrapper keeps the runtime component
+       and the build-time generator emitting the identical markup. */
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
     line-height: 1.65;
     color: #2f3640;
     font-size: 15px;
+}
+
+/* The card is full width; nothing inside it is. Running text past roughly 75
+   characters is measurably harder to track back to the next line, and a symbol
+   table stretched to 1100px puts half a screen of nothing between the meaning
+   and its unit. So the content gets two measures - a reading one for prose and
+   a wider one for the blocks that hold columns - and the only thing spanning
+   the whole card is the rule above each <details>, which is what makes the
+   width read as deliberate rather than as a layout that failed to fill. */
+.module-content h2,
+.module-content p {
+    max-width: 74ch;
+}
+
+.module-content pre,
+.module-content table.mc-sym {
+    max-width: 880px;
 }
 
 .module-content h2 {
@@ -1178,8 +1208,8 @@ select:focus {
 .module-content strong { color: #1f2733; }
 
 .module-content pre {
-    background: #f6f8fa;
-    border: 1px solid #e4e8ee;
+    background: var(--white);
+    border: 1px solid #dfe4ea;
     border-radius: 8px;
     padding: 14px 16px;
     overflow-x: auto;
@@ -1198,13 +1228,13 @@ select:focus {
 .module-content table.mc-sym th {
     text-align: left;
     padding: 8px 12px;
-    background: #f8f9fa;
+    background: var(--white);
     border-bottom: 2px solid #dee2e6;
     font-weight: 600;
     color: var(--dark);
 }
 
-.module-content table.mc-sym td { padding: 7px 12px; border-bottom: 1px solid #eef1f4; }
+.module-content table.mc-sym td { padding: 7px 12px; border-bottom: 1px solid #dfe4ea; }
 
 .module-content table.mc-sym td:first-child {
     font-family: 'Times New Roman', serif;
@@ -1218,7 +1248,7 @@ select:focus {
 /* Native <details>, so the section works before Blazor boots and without
    JavaScript at all. The marker is a CSS chevron; the default triangle is
    hidden in both engines. */
-.module-content details { border-top: 1px solid #e9ecef; padding: 2px 0; }
+.module-content details { border-top: 1px solid #dfe4ea; padding: 2px 0; }
 
 .module-content details > summary {
     cursor: pointer;

@@ -22,9 +22,7 @@
 
 @if (!string.IsNullOrEmpty(html))
 {
-    <div class="container">
-        @((MarkupString)html)
-    </div>
+    @((MarkupString)html)
 }
 
 @code {

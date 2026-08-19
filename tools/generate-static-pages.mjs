@@ -204,7 +204,7 @@ function staticBody(mod, content) {
                     <p style="margin-top:16px;">This calculator runs in your browser and needs JavaScript enabled.</p>
                 </noscript>
             </div>
-        </div>${content ? `\n\n        <div class="container">\n${content}\n        </div>` : ''}`;
+        </div>${content ? `\n\n${content}` : ''}`;
 }
 
 function pageJsonLd(mod, url) {

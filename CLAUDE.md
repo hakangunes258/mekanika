@@ -1654,6 +1654,29 @@ subject of the page.
 specific to this content: the static copy is on screen *before Blazor exists*, so a
 page-scoped block would leave it unstyled for exactly the visitors it was written for.
 
+**The card spans the calculator grid, and the two consumers emit identical markup.** It is
+grey (`#edf0f4`, biased slightly toward `--primary`) so it reads as reference material next
+to the white data cards; a flat neutral disappears against the `#f8f9fa` page. Three width
+rules, and the reason for each:
+
+- `.module-content` caps at 1200px with auto margins. Inside `.main-content` the parent is
+  already narrower, so the cap does nothing and the card matches `.form-grid` exactly. It
+  only bites on the **generated static page**, where Blazor has not booted and there is no
+  `.main-content` — without it the card ran the full width of the window for a crawler and
+  for a visitor with JavaScript off.
+- Prose (`h2`, `p`) caps at 74ch and the wide blocks (`pre`, `table.mc-sym`) at 880px.
+  Nothing inside the card is full width; the only thing that spans it is the rule above each
+  `<details>`, and that is what makes the width read as deliberate rather than as a layout
+  that failed to fill.
+- **Do not fix this with a wrapper `<div>`.** A wrapper has to be written twice — once in the
+  Razor component and once in the generator — and the point of this feature is that those two
+  emit the same markup from the same file. It shipped once with a `.container` wrapper in
+  both, and `.container` is not defined anywhere in the CSS.
+
+`tools/build-preview.mjs` (in the scratchpad, not the repo) rebuilds the review artifact by
+inlining the real stylesheets and the real content file, so a preview cannot show something
+the deploy does not.
+
 **Every number in a worked example comes from running the engine**, not from a textbook and
 not from memory. The interference-fit example is `InterferenceFitEngine` driven with Ø50
 H7/s6, C45/C45, L 60, D_a 90, Rz 6,3, µ 0,12, 250 Nm. A reader who types those inputs must
