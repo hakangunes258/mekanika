@@ -1,0 +1,152 @@
+<!--
+    The reference section shown under the ball bearing life calculator.
+
+    ONE COPY, TWO READERS. See the header of interference-fit.html for the rule.
+
+    Every number in the worked example was read off the real page: 6205, Fr 2000 N,
+    Fa 400 N, n 1500 rpm, fw 1,0, 90 % reliability. Re-run them if the engine changes.
+-->
+<section class="module-content">
+
+    <h2>How ball bearing life is calculated</h2>
+
+    <p>Bearing life is a statistical statement, not a prediction. The basic rating life
+    L<sub>10</sub> is the number of revolutions that 90 % of a large group of identical bearings
+    will reach before the first sign of fatigue on a raceway. One bearing in ten is expected to
+    fail sooner &mdash; that is what the subscript means, and it is why two identical machines
+    can differ by a factor of several in service life without anything being wrong.</p>
+
+    <p>The calculation itself is short. Combine the radial and axial loads into one equivalent
+    radial load P, divide the bearing's dynamic rating C by it, and cube the result. The work is
+    almost entirely in finding P, because the factors X and Y that weight the axial load depend
+    on the axial load itself through the ratio f&#8320;F<sub>a</sub>/C&#8320;.</p>
+
+    <details>
+        <summary>The equations</summary>
+        <div class="mc-body">
+            <p>ISO 281 gives the life directly from the load ratio, with the exponent set by the
+            rolling element shape:</p>
+<pre>P = f&#7584; (X F&#8341; + Y F&#8336;)              equivalent dynamic load
+                                 X = 1, Y = 0 when F&#8336;/F&#8341; &le; e
+
+L&#8321;&#8320;  = (C / P)&#7527;                    p = 3 for ball bearings
+L&#8321;&#8320;&#8341; = 10&#8310; L&#8321;&#8320; / (60 n)              life in hours
+
+S&#8320; = C&#8320; / P&#8320;                       static safety</pre>
+            <p>The limit e is interpolated from the ISO 281 table using f&#8320;F<sub>a</sub>/C&#8320;.
+            Below it the axial load contributes nothing &mdash; the bearing carries it in the
+            existing contact &mdash; and above it both X and Y change.</p>
+            <table class="mc-sym">
+                <thead><tr><th>Symbol</th><th>Meaning</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>C</td><td>Basic dynamic load rating</td><td>kN</td></tr>
+                    <tr><td>C&#8320;</td><td>Basic static load rating</td><td>kN</td></tr>
+                    <tr><td>f&#8320;</td><td>Catalogue calculation factor</td><td>&ndash;</td></tr>
+                    <tr><td>F<sub>r</sub> / F<sub>a</sub></td><td>Radial / axial load</td><td>N</td></tr>
+                    <tr><td>f<sub>w</sub></td><td>Machine factor for shock</td><td>&ndash;</td></tr>
+                    <tr><td>e</td><td>Limit ratio for the axial load</td><td>&ndash;</td></tr>
+                    <tr><td>P</td><td>Equivalent dynamic load</td><td>N</td></tr>
+                    <tr><td>L<sub>10h</sub></td><td>Basic rating life</td><td>h</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </details>
+
+    <details>
+        <summary>Where the inputs come from</summary>
+        <div class="mc-body">
+            <p><strong>The bearing.</strong> Choose it from the list and C, C&#8320; and f&#8320;
+            fill in from the catalogue. If you are working from a manufacturer's data sheet, type
+            the three values instead &mdash; ratings differ between makers for the same
+            designation, sometimes by 20 %.</p>
+            <p><strong>Loads.</strong> These are the loads on <em>this</em> bearing, not on the
+            shaft. Working them out from the shaft reactions is usually the harder half of the
+            job and this calculator does not do it for you.</p>
+            <p><strong>Machine factor f<sub>w</sub>.</strong> A blunt allowance for shock that the
+            nominal loads do not contain. 1,0 only for genuinely smooth running; 1,5 for a
+            reciprocating machine; 2,0 and above for crushers and impact. It multiplies P
+            directly, so it cubes into the life &mdash; f<sub>w</sub> = 1,5 costs you two thirds
+            of the calculated hours.</p>
+            <p><strong>Reliability.</strong> 90 % is the default and is what L<sub>10</sub>
+            means. Selecting 99 % applies a&#8321; = 0,25, i.e. you must accept a quarter of the
+            life to have a one-in-a-hundred failure rate instead of one in ten.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Worked example</summary>
+        <div class="mc-body">
+            <p>A 6205 deep groove ball bearing (25 &times; 52 &times; 15, C = 14,0 kN,
+            C&#8320; = 7,9 kN, f&#8320; = 13,9) carrying 2000 N radial and 400 N axial at
+            1500 rpm, smooth running, 90 % reliability.</p>
+<pre>f&#8320; F&#8336; / C&#8320;   13,9 &middot; 400 / 7900        0,704
+e interpolated from ISO 281              0,261
+F&#8336; / F&#8341;      400 / 2000                 0,200   &le; e
+
+X = 1,00   Y = 0,00
+Equivalent dynamic load  P              2000 N
+Load ratio  C / P                        7,00
+
+Basic rating life  L&#8321;&#8320;                343,00 &times; 10&#8310; rev
+                   L&#8321;&#8320;&#8341;                  3811 hours
+
+Static equivalent load  P&#8320;             2,00 kN
+Static safety  S&#8320;                       3,95   &#10003;</pre>
+            <p>The axial load disappears from the answer entirely. At 0,200 the ratio
+            F<sub>a</sub>/F<sub>r</sub> sits below e = 0,261, so Y = 0 and P equals the radial
+            load alone. <strong>This is not the calculator ignoring the axial load</strong> &mdash;
+            a deep groove bearing genuinely carries a modest thrust within its existing contact
+            ellipse without adding to the fatigue load.</p>
+            <p>Now watch the sensitivity. Raise the radial load from 2000 N to 2500 N &mdash; 25 %
+            &mdash; and the life falls from 3811 hours to 1951, very nearly half. The cube law
+            means <strong>every load estimate you make is amplified threefold in the answer</strong>,
+            which is worth remembering before spending effort on the third significant figure of
+            anything else.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Reading the result</summary>
+        <div class="mc-body">
+            <p><strong>Compare L<sub>10h</sub> against a target for the machine class.</strong>
+            Roughly: 4000&ndash;8000 h for intermittent industrial use, 20 000&ndash;30 000 h for
+            eight-hour-a-day production machinery, 50 000 h and up for continuous plant. A
+            calculated 3811 hours is short for anything running daily.</p>
+            <p><strong>Static safety S&#8320;</strong> is a separate question and is checked
+            against the worst load the bearing sees standing still or turning slowly, including
+            shock. Below about 1,5 the raceway takes permanent indentation, and the bearing is
+            then noisy for the rest of its life regardless of what the fatigue calculation
+            said.</p>
+            <p><strong>The adjusted life here applies the reliability factor a&#8321; only.</strong>
+            The full ISO 281:2007 modifier a<sub>ISO</sub>, which accounts for lubrication film,
+            contamination and the fatigue load limit, is not included. In clean, well-lubricated
+            conditions a<sub>ISO</sub> can exceed 1 substantially; with poor lubrication or dirt
+            it falls well below. Treat the figure as a catalogue-style estimate, which is what
+            the note on the results says.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Frequently asked questions</summary>
+        <div class="mc-body">
+            <p class="mc-q">Why did my axial load make no difference?</p>
+            <p>Because F<sub>a</sub>/F<sub>r</sub> came out at or below e. That is normal for a
+            deep groove bearing with a light thrust. Increase the axial load and you will see X
+            and Y change.</p>
+
+            <p class="mc-q">Is L<sub>10h</sub> how long my bearing will last?</p>
+            <p>No. It is the life 90 % of a population reaches. Median life is roughly five times
+            L<sub>10</sub>, and one bearing in ten falls short of it. Neither number tells you
+            about a bearing that fails from dirt, misalignment or a bad fit &mdash; which in
+            practice is most of them.</p>
+
+            <p class="mc-q">Why do two catalogues give different C for the same bearing?</p>
+            <p>Because C depends on internal geometry and steel quality, which differ between
+            manufacturers. Use the rating from the maker you will actually buy.</p>
+
+            <p class="mc-q">Which standard is this?</p>
+            <p>ISO 281 for the rating life and the X/Y factors, ISO 76 for static load rating.</p>
+        </div>
+    </details>
+
+</section>

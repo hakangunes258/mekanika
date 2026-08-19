@@ -1,0 +1,150 @@
+<!--
+    The reference section shown under the clamp connection calculator.
+
+    ONE COPY, TWO READERS. See the header of interference-fit.html for the rule.
+
+    Every number in the worked example was read off the real page: d 40, Da 70,
+    L 50, slit b 4, M8 class 8.8, 2 bolts, MA 25 Nm, mu 0,15, C45/C45, T 200 Nm.
+    Re-run them if the engine changes.
+-->
+<section class="module-content">
+
+    <h2>How a clamp connection is calculated</h2>
+
+    <p>A clamp connection grips a shaft by squeezing a split hub around it. The bolts do not
+    carry the torque &mdash; they generate a normal force at the bore, and friction against that
+    normal force is what carries the torque. Everything in the calculation therefore runs in one
+    direction: tightening torque to bolt preload, preload to contact pressure, pressure to
+    friction capacity.</p>
+
+    <p>That chain has an unforgiving link at the start. Bolt preload from a tightening torque is
+    only as repeatable as the thread friction, and a factor of two in achieved preload between a
+    dry and an oiled thread is ordinary. A clamp joint sized with no margin on paper is a clamp
+    joint that slips in service, which is why the sliding safety factor here wants to be higher
+    than you would accept on a form-fit connection.</p>
+
+    <details>
+        <summary>The equations</summary>
+        <div class="mc-body">
+            <p>Preload from torque, then pressure from preload, then torque capacity from
+            friction:</p>
+<pre>F&#7515; = M&#7488; / [ 0,16 P + 0,58 &micro;&#7503; d&#8322; + &micro;&#7503; D&#7503;/2 ]     bolt preload
+
+F&#8345; = 2 n F&#7515; / &pi;                            normal force at the bore
+p  = F&#8345; / (d &middot; L&#8337;&#8319;&#8331;)                          mean contact pressure
+
+T&#8344;&#8336;&#8339; = &micro; &middot; F&#8345; &middot; d / 2                       torque capacity</pre>
+            <p>The split removes part of the circumference, so the contact does not run the full
+            360&deg;. The calculator reduces the arc by the slit and works with the effective
+            contact length that is left.</p>
+            <table class="mc-sym">
+                <thead><tr><th>Symbol</th><th>Meaning</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>d</td><td>Shaft diameter</td><td>mm</td></tr>
+                    <tr><td>D&#8336;</td><td>Clamp outside diameter</td><td>mm</td></tr>
+                    <tr><td>L</td><td>Clamp length along the shaft</td><td>mm</td></tr>
+                    <tr><td>b</td><td>Slit width</td><td>mm</td></tr>
+                    <tr><td>M<sub>A</sub></td><td>Tightening torque per bolt</td><td>Nm</td></tr>
+                    <tr><td>F<sub>V</sub></td><td>Preload achieved in one bolt</td><td>N</td></tr>
+                    <tr><td>F<sub>N</sub></td><td>Normal force at the bore</td><td>N</td></tr>
+                    <tr><td>&micro;</td><td>Friction coefficient, shaft against hub</td><td>&ndash;</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </details>
+
+    <details>
+        <summary>Where the inputs come from</summary>
+        <div class="mc-body">
+            <p><strong>Tightening torque.</strong> Take it from the bolt table for the class and
+            thread friction you will actually have, not from the number stamped on the wrench in
+            the drawer. The calculator reports the resulting bolt utilisation so you can see
+            whether the figure you entered is realistic for the bolt.</p>
+            <p><strong>Friction coefficient.</strong> 0,15 for dry steel on steel is the default
+            and is already slightly optimistic for a machined bore. Drop to 0,10 if there is any
+            chance of oil. Do not use published figures for clean laboratory surfaces.</p>
+            <p><strong>Clamp outside diameter.</strong> A thin clamp bends instead of gripping,
+            and the pressure concentrates opposite the slit. The ratio d/D&#8336; drives the
+            stress result.</p>
+            <p><strong>Slit width.</strong> Wide enough that the two halves can actually close
+            &mdash; if the slit shuts before the bolts are tight, the joint stops gaining
+            pressure and the calculation no longer applies.</p>
+            <p><strong>Number of bolts.</strong> Two is standard. One bolt makes the pressure
+            distribution much more uneven than this model assumes; see the note in
+            &quot;Reading the result&quot;.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Worked example</summary>
+        <div class="mc-body">
+            <p>A C45 clamp on a &#216;40 shaft: outside diameter 70 mm, 50 mm long, 4 mm slit,
+            two M8 class 8.8 bolts at 25 Nm each, &micro; = 0,15, carrying 200 Nm.</p>
+<pre>Effective contact angle           348,5&deg;
+Effective contact length           42,5 mm
+Contact area                       5170 mm&#178;
+
+Preload per bolt                  18 262 N   (78 % of bolt yield)
+Normal force at the bore         111 086 N
+Mean contact pressure              21,5 MPa
+Maximum contact pressure           33,7 MPa
+
+Torque capacity                   333,3 Nm
+Applied torque                    200,0 Nm
+Safety against sliding              1,67
+Hub von Mises stress               56,2 MPa   &rarr; SF 7,65
+Bolt yield safety                   1,28</pre>
+            <p>The joint holds, but read the two low numbers together. Sliding safety is 1,67
+            &mdash; acceptable &mdash; and it is bought by running the bolts at 78 % of yield,
+            which leaves a bolt safety of only 1,28. <strong>There is no spare capacity in either
+            direction</strong>: you cannot tighten harder to gain grip, because the bolts are
+            already the limiting part.</p>
+            <p>The hub is loafing at a safety of 7,65. That is the signature of a clamp joint
+            that is bolt-limited rather than hub-limited, and it points straight at the fix
+            &mdash; go to M10, or to four bolts, before making the clamp any heavier.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Reading the result</summary>
+        <div class="mc-body">
+            <p><strong>Sliding safety should be 1,5 to 2,0</strong>, higher than you would demand
+            elsewhere, because the preload behind it is uncertain. A slipping clamp gives no
+            warning and often destroys the shaft surface on its way round.</p>
+            <p><strong>Bolt yield safety</strong> is the other half of the same trade. Torque
+            capacity and bolt stress rise together, so improving one worsens the other; the only
+            way out is more bolts or bigger ones.</p>
+            <p><strong>Contact pressure</strong> matters for soft shafts and for hollow ones. The
+            maximum figure, not the mean, is what to compare against the permissible pressure.</p>
+            <p><strong>This module is not verified against a reference calculation.</strong> It
+            models the clamp as a split hub with a reduced contact arc. A single-slit clamp also
+            works as a lever about the hinge opposite the slit, which concentrates pressure near
+            the slit and is not modelled here. Treat the result as a sound comparative figure
+            rather than as a certified one, and keep more margin on a single-slit design.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Frequently asked questions</summary>
+        <div class="mc-body">
+            <p class="mc-q">Why does my clamp need such a large safety factor?</p>
+            <p>Because the whole capacity rests on two uncertain numbers &mdash; the preload you
+            actually achieved and the friction actually present. Neither is controlled to better
+            than about &plusmn;25 %.</p>
+
+            <p class="mc-q">Can I add a key as well?</p>
+            <p>You can, and it is common as a safety backstop, but do not add the two capacities
+            together. The clamp has to slip before the key takes any load at all.</p>
+
+            <p class="mc-q">Does the calculator model a double-slit (two-piece) clamp?</p>
+            <p>The contact arc reduction covers it approximately. A two-piece clamp is
+            substantially more even in pressure than a single-slit one, so the model is
+            conservative there and optimistic on a single slit.</p>
+
+            <p class="mc-q">Which standard is this?</p>
+            <p>There is no single standard for clamp connections. The bolt preload follows
+            VDI 2230 practice and the friction capacity is standard machine-design work.</p>
+        </div>
+    </details>
+
+</section>

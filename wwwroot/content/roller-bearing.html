@@ -1,0 +1,136 @@
+<!--
+    The reference section shown under the roller bearing life calculator.
+
+    ONE COPY, TWO READERS. See the header of interference-fit.html for the rule.
+
+    Every number in the worked example was read off the real page: NU205E,
+    Fr 4000 N, n 1500 rpm, fw 1,2, 90 % reliability. Re-run if the engine changes.
+-->
+<section class="module-content">
+
+    <h2>How roller bearing life is calculated</h2>
+
+    <p>A cylindrical roller bearing carries load on a line rather than on a point. That single
+    geometric difference runs through the whole calculation: the contact stress is lower for the
+    same load, the dynamic rating is higher for the same envelope, and the fatigue exponent
+    changes from 3 to 10/3. A roller bearing of the same bore and outside diameter as a ball
+    bearing will typically carry roughly twice the radial load for the same life.</p>
+
+    <p>The price is that it carries essentially no thrust. An NU or N type has no flange on one
+    ring, so axial load has nothing to react against &mdash; the shaft is free to float, which is
+    often exactly what you want at the non-locating end of a shaft, but it means the axial column
+    on this page stays at zero and any thrust in your machine must be taken somewhere else.</p>
+
+    <details>
+        <summary>The equations</summary>
+        <div class="mc-body">
+            <p>Same ISO 281 structure as a ball bearing, with the line-contact exponent:</p>
+<pre>P = f&#7584; &middot; F&#8341;                        equivalent load, radial only
+
+L&#8321;&#8320;  = (C / P)&#7527;                    p = 10/3 for roller bearings
+L&#8321;&#8320;&#8341; = 10&#8310; L&#8321;&#8320; / (60 n)
+
+S&#8320; = C&#8320; / F&#8341;</pre>
+            <p>The exponent 10/3 rather than 3 makes life a little more sensitive to load, not
+            less. Halving the load multiplies a ball bearing's life by 8 and a roller bearing's
+            by about 10.</p>
+            <table class="mc-sym">
+                <thead><tr><th>Symbol</th><th>Meaning</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>C</td><td>Basic dynamic load rating</td><td>kN</td></tr>
+                    <tr><td>C&#8320;</td><td>Basic static load rating</td><td>kN</td></tr>
+                    <tr><td>F<sub>r</sub></td><td>Radial load</td><td>N</td></tr>
+                    <tr><td>f<sub>w</sub></td><td>Machine factor for shock</td><td>&ndash;</td></tr>
+                    <tr><td>p</td><td>Life exponent, 10/3</td><td>&ndash;</td></tr>
+                    <tr><td>n</td><td>Rotational speed</td><td>rpm</td></tr>
+                    <tr><td>L<sub>10h</sub></td><td>Basic rating life</td><td>h</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </details>
+
+    <details>
+        <summary>Where the inputs come from</summary>
+        <div class="mc-body">
+            <p><strong>The bearing, and the E suffix.</strong> Pick from the list to fill C and
+            C&#8320;. Note how much the E designs differ: an NU205 is rated 17,7 kN and an NU205E
+            29,3 kN in the same 25 &times; 52 &times; 15 envelope, because the E series uses
+            larger rollers. That is a 60 % rating increase for the same space and it changes the
+            life by a factor of about five.</p>
+            <p><strong>Radial load only.</strong> If your shaft has thrust, this is not the
+            bearing that takes it. Design the axial location separately &mdash; typically a deep
+            groove or angular contact bearing at the other end.</p>
+            <p><strong>Machine factor.</strong> Same meaning as on the ball bearing page, and the
+            same warning: it multiplies P, and P is raised to 10/3.</p>
+            <p><strong>Speed.</strong> Used only to convert revolutions into hours, but check it
+            against the limiting speed shown in the results &mdash; a life figure computed above
+            the bearing's speed limit is meaningless.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Worked example</summary>
+        <div class="mc-body">
+            <p>An NU205E cylindrical roller bearing (25 &times; 52 &times; 15, C = 29,3 kN,
+            C&#8320; = 27,7 kN) carrying 4000 N radial at 1500 rpm, with a light-shock machine
+            factor of 1,2.</p>
+<pre>Equivalent load  P = 1,2 &middot; 4000        4800 N
+Load ratio  C / P                       6,10
+Life exponent  p                        10/3
+
+Basic rating life  L&#8321;&#8320;               415,68 &times; 10&#8310; rev
+                   L&#8321;&#8320;&#8341;                 4619 hours
+
+Static equivalent load  P&#8320;            4,00 kN
+Static safety  S&#8320;                      6,92   &#10003;</pre>
+            <p>Compare this against the ball bearing page, which runs a 6205 &mdash; the same
+            25 &times; 52 &times; 15 envelope. The 6205 manages 3811 hours at 2000 N; the NU205E
+            manages 4619 hours at <strong>twice the load</strong>. That is the whole argument for
+            a roller bearing, and it costs you the ability to locate the shaft.</p>
+            <p>Notice also what the machine factor did. Without it, P would be 4000 N, C/P would
+            be 7,33 and the life would be 8481 hours. <strong>Entering f<sub>w</sub> = 1,2
+            nearly halved the calculated life</strong> &mdash; a 20 % adjustment to the load, and
+            the exponent turned it into 46 %.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Reading the result</summary>
+        <div class="mc-body">
+            <p><strong>L<sub>10h</sub> against the machine class</strong>, exactly as for a ball
+            bearing: 4000&ndash;8000 h intermittent, 20 000&ndash;30 000 h daily production,
+            50 000 h and above for continuous plant.</p>
+            <p><strong>Static safety</strong> against the worst standstill or shock load. Roller
+            bearings have generous static ratings because the contact line spreads the load, so
+            S&#8320; is rarely the problem &mdash; but check it anyway if the machine is stopped
+            under load.</p>
+            <p><strong>The adjusted life applies the reliability factor a&#8321; only.</strong>
+            The ISO 281:2007 modifier a<sub>ISO</sub> for lubrication, contamination and fatigue
+            load limit is not included. Roller bearings are more sensitive to misalignment than
+            ball bearings, and misalignment is not in any of these numbers &mdash; a few minutes
+            of arc can shorten the real life far more than anything on this page.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Frequently asked questions</summary>
+        <div class="mc-body">
+            <p class="mc-q">Why can I not enter an axial load?</p>
+            <p>Because an NU or N type cannot carry one. If you need combined loading, use a
+            deep groove, angular contact or tapered roller bearing instead.</p>
+
+            <p class="mc-q">What does the E suffix mean?</p>
+            <p>A reinforced internal design with larger rolling elements. Same mounting
+            dimensions, considerably higher rating. Where it exists it is almost always the
+            better choice.</p>
+
+            <p class="mc-q">Why is the exponent 10/3 instead of 3?</p>
+            <p>It comes from the line contact between roller and raceway rather than the point
+            contact of a ball. The value is empirical and is fixed by ISO 281.</p>
+
+            <p class="mc-q">Which standard is this?</p>
+            <p>ISO 281 for rating life, ISO 76 for static load rating.</p>
+        </div>
+    </details>
+
+</section>

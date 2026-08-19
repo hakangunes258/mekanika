@@ -1,0 +1,156 @@
+<!--
+    The reference section shown under the taper fit calculator.
+
+    ONE COPY, TWO READERS. tools/generate-static-pages.mjs inlines this file into
+    the pre-boot HTML, which is what a crawler that does not run JavaScript sees;
+    Shared/ModuleContent.razor fetches the same file and renders it once Blazor
+    has taken over #app. Editing the text here changes both.
+
+    Every number in the worked example was read off the real page: dm 50, L 60,
+    solid shaft, Da 90, taper 1:10, Ds 0,30 mm, Rz 6,3/6,3, mus 0,15, mud 0,12,
+    C45/C45, T 250 Nm. Re-run them if the engine changes.
+-->
+<section class="module-content">
+
+    <h2>How a taper fit is calculated</h2>
+
+    <p>A taper fit is an interference fit whose interference you set during assembly rather
+    than during machining. Pressing the hub a measured distance up the cone stretches it by a
+    fixed amount, and that amount &mdash; not a tolerance band &mdash; decides the contact
+    pressure. This is why a taper joint can be taken apart and put back together without
+    losing its grip, and why the same joint can be tuned on the bench.</p>
+
+    <p>The taper ratio does the conversion. On a 1:10 cone, pushing the hub 0,30 mm along the
+    axis increases the radius by 0,015 mm, so the axial travel is amplified by ten to one. From
+    there the calculation is the same thick-cylinder problem as a cylindrical press fit:
+    interference minus roughness loss gives contact pressure, and pressure times friction times
+    area gives the torque the joint can carry.</p>
+
+    <details>
+        <summary>The equations</summary>
+        <div class="mc-body">
+            <p>The taper converts axial travel into radial interference, and Lam&eacute;'s
+            thick-cylinder solution converts interference into pressure:</p>
+<pre>U&#7523; = &Delta;s / (2X)                      taper 1:X, radial interference
+U&#8329; = 2 U&#7523; &minus; 0,8 (Rz&#8321; + Rz&#8322;)          effective diametral interference
+
+p  = U&#8329; / [ d&#8344; &middot; (C&#8321;/E&#8321; + C&#8322;/E&#8322;) ]
+
+T&#8344;&#8336;&#8339; = &micro;&#7496; &middot; p &middot; &pi; &middot; d&#8344;&#178; &middot; L / 2
+F&#8336;&#8347;&#8344; = p &middot; &pi; &middot; d&#8344; &middot; L &middot; (&micro;&#8347; + tan&#945;)   assembly force</pre>
+            <p>Note which friction coefficient goes where. The <em>static</em> coefficient
+            resists the wedge trying to push the hub back off and sets the assembly force; the
+            <em>dynamic</em> one is what carries torque in service.</p>
+            <table class="mc-sym">
+                <thead><tr><th>Symbol</th><th>Meaning</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>d&#8344;</td><td>Mean diameter, at mid-length of the fit</td><td>mm</td></tr>
+                    <tr><td>L</td><td>Fit length along the axis</td><td>mm</td></tr>
+                    <tr><td>X</td><td>Taper ratio denominator, as in 1:X</td><td>&ndash;</td></tr>
+                    <tr><td>&Delta;s</td><td>Axial displacement during assembly</td><td>mm</td></tr>
+                    <tr><td>&#945;</td><td>Half angle of the cone</td><td>&deg;</td></tr>
+                    <tr><td>U&#8329;</td><td>Effective diametral interference after roughness loss</td><td>&micro;m</td></tr>
+                    <tr><td>p</td><td>Contact pressure at the interface</td><td>MPa</td></tr>
+                    <tr><td>&micro;&#8347; / &micro;&#7496;</td><td>Static / dynamic friction coefficient</td><td>&ndash;</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </details>
+
+    <details>
+        <summary>Where the inputs come from</summary>
+        <div class="mc-body">
+            <p><strong>Taper ratio.</strong> Pick a standard cone unless you have a reason not
+            to: 1:10 is the usual shaft-end taper, 1:5 is steeper and releases more easily, and
+            Morse tapers around 1:20 are shallow enough to be self-holding. Anything shallower
+            than about 1:20 will not come apart without a puller.</p>
+            <p><strong>Axial displacement.</strong> This is the design variable and the one the
+            fitter actually controls. It is measured from the position where the cones just
+            touch with no force &mdash; not from a face or a shoulder. Getting that datum wrong
+            is the most common way a taper joint ends up loose.</p>
+            <p><strong>Mean diameter.</strong> Measured at mid-length of the contact, not at the
+            large end. The calculator derives the small and large diameters from it.</p>
+            <p><strong>Roughness.</strong> Same rule as a cylindrical fit: use the Rz you will
+            machine to. A ground cone at Rz 4 &micro;m keeps interference that a turned one at
+            Rz 16 &micro;m throws away.</p>
+            <p><strong>Friction.</strong> 0,15 static and 0,12 dynamic are reasonable for dry
+            steel on steel. Oil on the cone during assembly lowers both and can drop the joint
+            below its design torque, which is why taper joints are assembled dry.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Worked example</summary>
+        <div class="mc-body">
+            <p>A C45 hub on a C45 shaft end: mean diameter 50 mm, 60 mm of contact, 1:10 taper,
+            hub outside diameter 90 mm, both surfaces Rz 6,3 &micro;m, &micro;&#8347; = 0,15,
+            &micro;&#7496; = 0,12, pressed on 0,30 mm, carrying 250 Nm.</p>
+<pre>Cone geometry        d&#8321; 47,00  d&#8322; 53,00 mm   2&#945; = 5,72&deg;
+
+Radial interference               15,00 &micro;m
+Diametral interference            30,00 &micro;m
+Roughness loss 0,8(6,3 + 6,3)     10,08 &micro;m
+Effective interference            19,92 &micro;m
+
+Contact pressure                  28,37 MPa
+Hub von Mises stress              72,19 MPa   (C45 yield 430 &rarr; 5,96)
+Shaft von Mises stress            28,37 MPa
+
+Torque capacity                  802,14 Nm
+Applied torque                   250,00 Nm
+Safety against sliding             3,21
+Required assembly force           53,53 kN</pre>
+            <p>The joint carries three times the design torque, and the hub is nowhere near
+            yield. The number that actually constrains this design is the 53,5 kN assembly force
+            &mdash; that is a hydraulic nut or a press, not a hammer.</p>
+            <p>Halve the displacement to 0,15 mm and the picture inverts. Interference after
+            roughness falls to 4,92 &micro;m, pressure to 7,01 MPa, and the torque capacity to
+            198,1 Nm &mdash; a safety factor of 0,79 against the same 250 Nm. Halving the travel
+            did not halve the capacity, it cut it to a quarter. <strong>The roughness loss is a
+            fixed subtraction</strong>, so it eats a larger and larger share of the interference
+            as the displacement gets smaller.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Reading the result</summary>
+        <div class="mc-body">
+            <p><strong>Safety against sliding</strong> is the primary check. Aim for 1,5 or more
+            on torque. Unlike a cylindrical fit there is no minimum-material case to worry
+            about, because you set the interference at assembly &mdash; but that also means an
+            under-pressed joint is entirely a shop-floor error, not a tolerance one.</p>
+            <p><strong>Hub yield</strong> at the large end of the cone, where the wall is
+            thinnest relative to the diameter. Keep von Mises below yield with a factor of about
+            1,5.</p>
+            <p><strong>Assembly force</strong> decides what equipment you need. It rises roughly
+            in step with pressure, so doubling the grip doubles the press. Above about 100 kN,
+            oil-injection assembly is usually cheaper than a bigger press.</p>
+            <p>A taper that is too shallow will not release; one that is too steep needs a
+            retaining nut to stop it backing off under vibration. 1:10 with a nut is the common
+            compromise.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Frequently asked questions</summary>
+        <div class="mc-body">
+            <p class="mc-q">Why is my joint weaker than the cylindrical fit of the same size?</p>
+            <p>Because the interference is whatever you pressed on, and a typical 0,2&ndash;0,3 mm
+            of travel on a 1:10 cone gives less than an H7/s6 fit does. Taper joints are chosen
+            for serviceability, not for maximum grip.</p>
+
+            <p class="mc-q">Do I need a retaining nut?</p>
+            <p>On anything steeper than about 1:15, yes. The calculator does not model the nut;
+            it assumes the displacement is maintained.</p>
+
+            <p class="mc-q">Can I use a hollow shaft?</p>
+            <p>Yes &mdash; enter the bore. A hollow shaft is more compliant, so the same
+            displacement produces less pressure.</p>
+
+            <p class="mc-q">Which standard is this?</p>
+            <p>The same thick-cylinder basis as DIN 7190, applied to a conical interface, with
+            taper ratios from DIN 254 / ISO 1119.</p>
+        </div>
+    </details>
+
+</section>

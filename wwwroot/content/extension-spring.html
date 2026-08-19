@@ -1,0 +1,151 @@
+<!--
+    The reference section shown under the extension spring calculator.
+
+    ONE COPY, TWO READERS. See the header of interference-fit.html for the rule.
+
+    Every number in the worked example was read off the real page: d 2, Dm 16,
+    n 40, German hook, EN 10270-1 SH, F0 20 N, s1 10, s2 30. Re-run if the
+    engine changes.
+-->
+<section class="module-content">
+
+    <h2>How an extension spring is calculated</h2>
+
+    <p>An extension spring is a compression spring turned inside out, with two differences that
+    dominate the design. It is wound with the coils touching, so it carries an
+    <strong>initial tension</strong> that must be exceeded before it extends at all. And it has
+    to be attached to something, which means <strong>hooks</strong> &mdash; and the hook, not the
+    body, is where extension springs break.</p>
+
+    <p>The body calculation is the familiar torsion-of-the-wire problem. The hook is a different
+    load case altogether: the wire there is bent, not twisted, and it is bent around a small
+    radius that concentrates the stress. A spring body with a comfortable safety factor and a
+    hook running at its limit is the normal result, and reading only the body number is the usual
+    way to design a spring that fails.</p>
+
+    <details>
+        <summary>The equations</summary>
+        <div class="mc-body">
+            <p>Body rate and stress as for a compression spring, plus a separate hook check:</p>
+<pre>R = G d&#8308; / (8 D&#8344;&#179; n)                  spring rate
+F = F&#8320; + R s                          force, including initial tension
+
+&tau;&#8342; = k &middot; 8 F D&#8344; / (&pi; d&#179;)              body shear stress, Wahl corrected
+
+&sigma;&#7495; = K&#8341; &middot; 32 F R&#8321; / (&pi; d&#179;)          hook bending stress
+&tau;&#8341; = K&#8341; &middot; 8 F D&#8344; / (&pi; d&#179;)             hook shear stress</pre>
+            <p>K<sub>h</sub> depends on the hook bend radius relative to the wire. A tight bend
+            raises it sharply, which is why a hook formed around the wire diameter is much weaker
+            than one formed around two or three times it.</p>
+            <table class="mc-sym">
+                <thead><tr><th>Symbol</th><th>Meaning</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>d</td><td>Wire diameter</td><td>mm</td></tr>
+                    <tr><td>D<sub>m</sub></td><td>Mean coil diameter</td><td>mm</td></tr>
+                    <tr><td>n</td><td>Active coils</td><td>&ndash;</td></tr>
+                    <tr><td>F&#8320;</td><td>Initial tension, built in by winding</td><td>N</td></tr>
+                    <tr><td>s</td><td>Deflection from free length</td><td>mm</td></tr>
+                    <tr><td>R&#8321;</td><td>Hook bend radius</td><td>mm</td></tr>
+                    <tr><td>K<sub>h</sub></td><td>Hook stress concentration factor</td><td>&ndash;</td></tr>
+                    <tr><td>&sigma;<sub>B</sub></td><td>Hook bending stress</td><td>MPa</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </details>
+
+    <details>
+        <summary>Where the inputs come from</summary>
+        <div class="mc-body">
+            <p><strong>Initial tension.</strong> This is a manufacturing property, not a free
+            choice. The calculator shows a recommended band for the wire and index you have
+            entered; asking a spring maker for tension outside it means asking for a spring they
+            cannot reliably wind. Cold-wound springs have it; hot-wound ones do not.</p>
+            <p><strong>Hook type.</strong> The most consequential dropdown on the page. A German
+            hook (full loop) is cheap and universal and is also the most highly stressed. A raised
+            hook lowers the stress by roughly a quarter. A threaded insert removes the hook
+            problem entirely and costs more.</p>
+            <p><strong>The two operating positions.</strong> Enter both, not just the working one.
+            The difference between them is the stress range, and that is what the fatigue check
+            uses. An extension spring cycling between two loaded positions is far better off than
+            one that returns to zero each time.</p>
+            <p><strong>Active coils.</strong> Long extension springs are normal &mdash; 40 coils
+            here &mdash; because rate falls with n and extension springs usually want to be soft
+            over a long stroke.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Worked example</summary>
+        <div class="mc-body">
+            <p>2,0 mm EN 10270-1 SH wire, 16 mm mean coil diameter, 40 active coils, German
+            hooks, 20 N of initial tension, working between 10 mm and 30 mm of extension.</p>
+<pre>Spring index  16 / 2                     8,00
+Body length                             82,0 mm
+Free length incl. hooks                108,6 mm
+Wire length                             2117 mm      mass 52,2 g
+
+Spring rate                            0,995 N/mm
+Initial tension  F&#8320;                     20,0 N     (band 16,7 &ndash; 66,8)
+
+Position 1   s 10 mm   L 118,6      F&#8321;  29,9 N
+Position 2   s 30 mm   L 138,6      F&#8322;  49,8 N
+
+Body stress, corrected                   301 MPa   &rarr; SF 2,55  &#10003;
+Hook bending                             298 MPa   &rarr; SF 3,99  &#10003;
+Hook shear                               323 MPa   &rarr; SF 2,37  &#10003;
+Fatigue                                            &rarr; SF 3,53  infinite life</pre>
+            <p>Read the force at position 1: 29,9 N, not 9,95 N. The initial tension of 20 N is
+            carried before the spring moves at all, so <strong>an extension spring does not pass
+            through the origin</strong> and a rate calculation alone understates the force by that
+            whole amount. On a light spring like this one the initial tension is two-thirds of the
+            working force.</p>
+            <p>The hook is the weak point even though every check passes &mdash; 2,37 in shear
+            against 2,55 for the body. The margin is thin and the page says so. Move to a raised
+            hook and the hook stresses drop by about a quarter, taking the governing factor from
+            the hook back to the body, which is where you want it.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Reading the result</summary>
+        <div class="mc-body">
+            <p><strong>Compare the body and hook factors and design to the lower one.</strong> If
+            the hook governs, change the hook, not the wire &mdash; thicker wire raises the hook
+            stress too, because the bend radius scales with it.</p>
+            <p><strong>Check the initial tension against the recommended band.</strong> Below it
+            the coils may not close reliably; above it the spring is hard to wind and the tension
+            will not be repeatable from batch to batch.</p>
+            <p><strong>Fatigue</strong> is driven by the stress range between your two positions.
+            Extension springs are poor fatigue performers compared with compression springs,
+            largely because of the hooks, so treat an infinite-life result with more caution
+            here.</p>
+            <p><strong>There is no buckling check</strong>, because a spring in tension cannot
+            buckle. There is also no solid-length equivalent &mdash; the limit is the maximum
+            extension shown in the results, beyond which the coils are stressed past the
+            allowable.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Frequently asked questions</summary>
+        <div class="mc-body">
+            <p class="mc-q">Why is there force at zero deflection?</p>
+            <p>Initial tension. The spring is wound with its coils pressed together, and that
+            preload has to be overcome before it starts to extend. It is a real, useful property
+            &mdash; it is what keeps a slack spring from rattling.</p>
+
+            <p class="mc-q">Why does the hook fail before the body?</p>
+            <p>Because the wire at the hook is bent around a small radius rather than twisted
+            along its length, and the sharp bend concentrates stress. It is the standard failure
+            location for extension springs.</p>
+
+            <p class="mc-q">Can I get an extension spring without initial tension?</p>
+            <p>Yes, but it must be wound with a gap between coils, which costs stroke and is more
+            expensive. Hot-wound springs have no initial tension at all.</p>
+
+            <p class="mc-q">Which standard is this?</p>
+            <p>EN 13906-2 for the design method, with wire grades from EN 10270.</p>
+        </div>
+    </details>
+
+</section>

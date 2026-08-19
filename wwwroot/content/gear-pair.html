@@ -1,0 +1,169 @@
+<!--
+    The reference section shown under the cylindrical gear pair calculator.
+
+    ONE COPY, TWO READERS. See the header of interference-fit.html for the rule.
+
+    Every number in the worked example was read off the real page with the
+    default gear: mn 1,5, alpha_n 20, beta 0, a 45, z 20/40, b 15/15, x 0,
+    ISO 1328 class 6, 18CrNiMo7-6 case-hardened both, Mobilgear 600 XP 220,
+    dip lubrication, P 3,5 kW, n1 2500 rpm, KA 1,0, 10 000 h, limited pitting
+    permissible. Re-run if the engine changes.
+-->
+<section class="module-content">
+
+    <h2>How a cylindrical gear pair is calculated</h2>
+
+    <p>Gear rating is not one calculation but several running in parallel, each describing a
+    different way a tooth can fail. <strong>Tooth root breakage</strong> is a bending fatigue
+    problem at the fillet. <strong>Pitting</strong> is a contact fatigue problem on the flank.
+    <strong>Scuffing</strong> is an instantaneous lubrication failure driven by temperature, and
+    <strong>micropitting</strong> is a slow surface distress driven by film thickness. They do not
+    share a governing input, and a gear can be comfortable on three and marginal on the fourth.</p>
+
+    <p>Almost all of the effort in ISO 6336 goes into the load factors that sit between the
+    nominal tooth force and the stress that is actually rated. K<sub>A</sub> covers what the
+    driven machine does, K<sub>V</sub> the dynamic effects of running speed, K<sub>H&beta;</sub>
+    the fact that shafts deflect so the load is not even across the face, and K<sub>H&alpha;</sub>
+    the sharing between teeth in mesh. On a typical pair these multiply to something between 2
+    and 3, so <strong>they matter more than the nominal force</strong> that produced them.</p>
+
+    <details>
+        <summary>The equations</summary>
+        <div class="mc-body">
+            <p>The two fatigue criteria, each as a stress compared against a permissible stress:</p>
+<pre>F&#8348; = 2000 P / (&#969; d&#8321;)               nominal tangential force
+
+&sigma;&#7515;&#8320; = F&#8348;/(b m&#8345;) &middot; Y&#7534; Y&#8347; Y&#7517; Y&#7517;&#8331; Y&#7515;      nominal root stress
+&sigma;&#7515;  = &sigma;&#7515;&#8320; &middot; K&#8336; K&#7515; K&#7515;&#7517; K&#7515;&#945;           &rarr; S&#7515; = &sigma;&#7515;&#7527; / &sigma;&#7515;
+
+&sigma;&#7511;&#8320; = Z&#7511; Z&#7497; Z&#949; Z&#7517; &radic;[F&#8348;(u+1)/(d&#8321; b u)]   nominal contact stress
+&sigma;&#7511;  = Z&#7517; &sigma;&#7511;&#8320; &radic;(K&#8336; K&#7515; K&#7511;&#7517; K&#7511;&#945;)      &rarr; S&#7511; = &sigma;&#7511;&#7527; / &sigma;&#7511;</pre>
+            <p>Note that the flank stress carries the <em>square root</em> of the load factors,
+            because contact stress goes as the square root of load. The same K factor therefore
+            hurts the root roughly twice as much as the flank.</p>
+            <table class="mc-sym">
+                <thead><tr><th>Symbol</th><th>Meaning</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>m<sub>n</sub></td><td>Normal module</td><td>mm</td></tr>
+                    <tr><td>z&#8321; / z&#8322;</td><td>Number of teeth, pinion / wheel</td><td>&ndash;</td></tr>
+                    <tr><td>x</td><td>Profile shift coefficient</td><td>&ndash;</td></tr>
+                    <tr><td>&#949;<sub>&#945;</sub></td><td>Transverse contact ratio</td><td>&ndash;</td></tr>
+                    <tr><td>K<sub>A</sub> / K<sub>V</sub></td><td>Application / dynamic factor</td><td>&ndash;</td></tr>
+                    <tr><td>K<sub>H&beta;</sub> / K<sub>H&alpha;</sub></td><td>Face / transverse load factor</td><td>&ndash;</td></tr>
+                    <tr><td>Y<sub>F</sub> Y<sub>S</sub></td><td>Tooth form and stress correction</td><td>&ndash;</td></tr>
+                    <tr><td>Z<sub>H</sub> Z<sub>E</sub> Z<sub>&#949;</sub></td><td>Zone, elasticity, contact ratio</td><td>&ndash;</td></tr>
+                    <tr><td>S<sub>F</sub> / S<sub>H</sub></td><td>Safety, root / flank</td><td>&ndash;</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </details>
+
+    <details>
+        <summary>Where the inputs come from</summary>
+        <div class="mc-body">
+            <p><strong>Accuracy grade.</strong> This is the input people underestimate. The grade
+            sets the manufacturing deviations that feed K<sub>V</sub>, K<sub>H&beta;</sub> and
+            K<sub>H&alpha;</sub>, and moving two grades can change the safety factors by more than
+            changing the material. Specify what the shop will actually hold.</p>
+            <p><strong>Shaft data for K<sub>H&beta;</sub>.</strong> Shaft deflection, not the
+            gear teeth, is what dominates the face load factor. If you leave the shaft fields
+            blank the calculator stands in a representative shaft and says so in the results; it
+            never treats the shaft as rigid, because that is the one answer guaranteed to be
+            wrong. On the default pair below this produces K<sub>H&beta;</sub> = 2,096, and it is
+            the single largest factor in the whole rating.</p>
+            <p><strong>The lubricant.</strong> Pick a real product from the list. The FZG scuffing
+            stage is a property of a specific oil, not of a viscosity grade, so every entry is
+            taken from a manufacturer's published data sheet and a value that is not published is
+            left blank rather than invented.</p>
+            <p><strong>Life and application factor.</strong> K<sub>A</sub> describes the driven
+            machine's shock, and the required hours set the life factors. Both move the answer
+            substantially and neither can be read off the drawing.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Worked example</summary>
+        <div class="mc-body">
+            <p>The calculator's default pair: m<sub>n</sub> 1,5, 20&deg; pressure angle, spur,
+            z = 20/40 on 45 mm centres, 15 mm face width, no profile shift, ISO 1328 class 6,
+            18CrNiMo7-6 case-hardened both, dip lubrication in Mobilgear 600 XP 220, transmitting
+            3,5 kW at 2500 rpm with K<sub>A</sub> = 1,0 for 10 000 hours.</p>
+<pre>d          30,000 / 60,000 mm      &#949;&#945;  1,635    v  3,93 m/s
+F&#8348;            891 N               F&#8341;   324 N
+
+K&#8336; 1,000   K&#7515; 1,075   K&#7511;&#7517; 2,096   K&#7511;&#945; 1,035
+
+Root      &sigma;&#7515;&#8320;  126,0 / 118,3 MPa
+          &sigma;&#7515;   250,3 / 235,0     &sigma;&#7515;&#7527;  746,2 / 759,9
+          S&#7515;    2,98 / 3,23      &#10003;
+
+Flank     &sigma;&#7511;&#8320;  724,6 MPa
+          &sigma;&#7511;  1106,4            &sigma;&#7511;&#7527; 1308,5 / 1336,6
+          S&#7511;    1,11 / 1,21      &#10003;
+
+Scuffing  margin 245 K   S&#7476; 8,64     &#10003;
+Micropitting            S&#955;  1,09     &#9888;</pre>
+            <p>Follow K<sub>H&beta;</sub> = 2,096. That single factor more than doubles the load
+            used for rating, and it comes from shaft deflection and manufacturing lead deviation
+            &mdash; not from the gear teeth at all. <strong>The root stress roughly doubles from
+            126 to 250 MPa entirely through the K factors</strong>, and the flank stress rises by
+            about half because it only carries their square root.</p>
+            <p>The result is a pair that is comfortable on bending (2,98) and marginal on pitting
+            (1,11) &mdash; the normal picture for a hardened gear, where the case supports high
+            bending but the flank is limited by contact fatigue. Micropitting at 1,09 is the
+            weakest link, and it responds to smoother flanks and higher viscosity, not to a
+            stronger steel.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Reading the result</summary>
+        <div class="mc-body">
+            <p><strong>Root safety S<sub>F</sub> &ge; 1,4</strong> and <strong>flank safety
+            S<sub>H</sub> &ge; 1,0</strong> are the usual minimum targets; industrial practice
+            often asks for 1,5 and 1,2. The two thresholds differ because a root failure breaks
+            the tooth off and a flank failure gives years of warning.</p>
+            <p><strong>Judge scuffing on the margin in kelvin, not on S<sub>B</sub>.</strong>
+            ISO/TR 13989 says a safety expressed as a ratio of temperatures may cause confusion
+            and suggests a demanded difference of, for instance, 50 K. The results colour the row
+            on the margin for that reason.</p>
+            <p><strong>Two deliberate conservatisms are named in the results.</strong>
+            K<sub>H&beta;</sub> stays on the additive Eq. (52) with B = 1, where commercial
+            packages apply the compensating Eq. (53) once told the contact pattern is favourable
+            &mdash; worth roughly 9 % on K<sub>H&beta;</sub>. And &sigma;<sub>Flim</sub> comes
+            from ISO 6336-5:2016 rather than the 2006 edition. If you are comparing against other
+            software and find this module a few per cent lower, these are the likely reasons.</p>
+            <p><strong>Out of scope, and stated on the page:</strong> tooth flank fracture,
+            planetary and internal arrangements, and within micropitting the profile-modified load
+            sharing branches.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Frequently asked questions</summary>
+        <div class="mc-body">
+            <p class="mc-q">Why is my flank safety so much lower than my root safety?</p>
+            <p>Because case-hardened steel is very strong in bending and limited on the surface.
+            That split is normal. If you need more flank capacity, more face width or a larger
+            centre distance helps; a higher-grade steel mostly does not.</p>
+
+            <p class="mc-q">Why does the accuracy grade change the answer so much?</p>
+            <p>Because the deviations it defines feed straight into K<sub>V</sub>,
+            K<sub>H&beta;</sub> and K<sub>H&alpha;</sub>, and those factors multiply the rated
+            load. Manufacturing quality is a load question, not just a noise question.</p>
+
+            <p class="mc-q">Can I ignore the shaft data?</p>
+            <p>You can leave it blank, and the calculator substitutes a representative shaft and
+            tells you it has done so. You cannot get a meaningful K<sub>H&beta;</sub> without
+            some assumption about the shaft.</p>
+
+            <p class="mc-q">Which standard is this?</p>
+            <p>ISO 6336 parts 1, 2, 3 and 5 for rating; ISO 1328-1:2013 for tolerances;
+            ISO/TR 13989 for scuffing; ISO/TR 15144-1 for micropitting; DIN 3967 for tooth
+            thickness allowances. Note that ISO 6336-1:2006 normatively references the 1995
+            edition of ISO 1328-1, whose grades are not interchangeable with the 2013 classes
+            &mdash; the results say so rather than silently equating them.</p>
+        </div>
+    </details>
+
+</section>

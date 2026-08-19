@@ -1,0 +1,160 @@
+<!--
+    The reference section shown under the single bolt calculator.
+
+    ONE COPY, TWO READERS. See the header of interference-fit.html for the rule.
+
+    Every number in the worked example was read off the real page: M12 class 8.8,
+    ISO 4014, fully threaded, through hole with nut and washers, clamped length
+    30 mm S235JR, DA 36, mu 0,12 throughout, torque wrench, 90 % yield limit,
+    SV1, FA 2000...10000 N, FKerf 5000 N. Re-run them if the engine changes.
+-->
+<section class="module-content">
+
+    <h2>How a bolted joint is calculated</h2>
+
+    <p>A bolted joint is not a bolt carrying a load. It is a spring in tension &mdash; the bolt
+    &mdash; clamped against a much stiffer spring in compression &mdash; the parts. When an
+    external force pulls the joint apart, only a small fraction of it reaches the bolt; the rest
+    simply unloads the parts. That fraction is the load factor &Phi;, and on a typical steel
+    joint it is under 0,2. This is why a correctly preloaded bolt barely feels a fluctuating
+    load, and why an under-preloaded one fails in fatigue within weeks.</p>
+
+    <p>The calculation therefore has almost nothing to do with the external force and almost
+    everything to do with preload. VDI 2230 works through it in a fixed order: find how much
+    clamp force the joint must retain, add what will be lost to embedding, add the part of the
+    external load that unloads the parts, and only then check that a real bolt tightened by a
+    real method can deliver that much without yielding.</p>
+
+    <details>
+        <summary>The equations</summary>
+        <div class="mc-body">
+            <p>The two resiliences set the load factor, and the load factor governs everything
+            after it:</p>
+<pre>&delta;&#8347; = &Sigma; l&#7522; / (E&#8347; A&#7522;)          bolt resilience
+&delta;&#7523; = l&#7480; / (E&#7523; A&#7523;&#8337;&#8343;)          part resilience, deformation cone
+
+&Phi;&#8345; = n &middot; &delta;&#7523; / (&delta;&#8347; + &delta;&#7523;)      load factor with load introduction
+
+F&#8344;&#7523;&#7523;&#8345; = F&#7503;&#8341;&#8320; + F&#7526; + (1 &minus; &Phi;&#8345;) F&#8336;&#8344;&#8336;&#8339;    minimum preload needed
+F&#8344;&#7523;&#7523;&#8336;&#8347; = &#945;&#8336; &middot; F&#8344;&#7523;&#7523;&#8345;                        maximum, after tightening scatter</pre>
+            <p>&#945;&#8336; is the tightening factor: 1,6 for a torque wrench, 1,2 for angle
+            control, 1,0 for a yield-controlled tool. It multiplies the preload you must be able
+            to survive, so the tightening method changes the bolt size.</p>
+            <table class="mc-sym">
+                <thead><tr><th>Symbol</th><th>Meaning</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>&delta;<sub>S</sub> / &delta;<sub>P</sub></td><td>Resilience of bolt / of clamped parts</td><td>mm/N</td></tr>
+                    <tr><td>&Phi;<sub>n</sub></td><td>Load factor with load introduction</td><td>&ndash;</td></tr>
+                    <tr><td>F<sub>Kerf</sub></td><td>Clamp force the joint must retain</td><td>N</td></tr>
+                    <tr><td>F<sub>Z</sub></td><td>Preload lost to embedding</td><td>N</td></tr>
+                    <tr><td>F<sub>A</sub></td><td>External axial load</td><td>N</td></tr>
+                    <tr><td>&#945;<sub>A</sub></td><td>Tightening factor (method scatter)</td><td>&ndash;</td></tr>
+                    <tr><td>F<sub>SA</sub></td><td>Part of F<sub>A</sub> that reaches the bolt</td><td>N</td></tr>
+                    <tr><td>M<sub>A</sub></td><td>Tightening torque</td><td>Nm</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </details>
+
+    <details>
+        <summary>Where the inputs come from</summary>
+        <div class="mc-body">
+            <p><strong>Required clamp force.</strong> This is a design decision, not a lookup. It
+            is whatever the joint must still have left after everything else has been subtracted
+            &mdash; enough to prevent slip, prevent gapping, or seal a face. If you leave it at
+            zero you are telling the calculator the joint may go loose.</p>
+            <p><strong>External load, minimum and maximum.</strong> Enter the range, not just the
+            peak. The amplitude between them is what drives fatigue, and a joint can be perfectly
+            safe statically while failing at 10&#8310; cycles.</p>
+            <p><strong>Friction coefficients.</strong> Three separate ones: thread, head/nut, and
+            the interface between the parts. 0,12 is a reasonable dry-and-lightly-oiled default.
+            These change the achieved preload more than anything else on the page.</p>
+            <p><strong>Tightening method.</strong> Choose honestly. A torque wrench carries
+            &#945;&#8336; = 1,6, meaning the joint must tolerate 60 % more preload than the
+            minimum &mdash; that scatter is often what forces the next bolt size up.</p>
+            <p><strong>Bolting type SV1 to SV6.</strong> This describes where the load enters the
+            joint relative to the bolt head. It sets the load introduction factor n, and moving
+            the load introduction deeper into the joint sharply reduces what the bolt feels.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Worked example</summary>
+        <div class="mc-body">
+            <p>An M12 class 8.8 through-bolt with nut and washers, clamping 30 mm of S235JR,
+            substitute diameter 36 mm, all friction at 0,12, tightened with a torque wrench to
+            90 % of yield, load applied at the head (SV1), external load swinging between 2 kN
+            and 10 kN, and the joint must retain 5 kN of clamp force.</p>
+<pre>Stress area                        84,3 mm&#178;
+Load factor &Phi;&#8345;                     0,0474
+Embedding                          23,5 &micro;m   &rarr; preload loss 7,60 kN
+Part of F&#8336; reaching the bolt       0,47 kN   of 10 kN applied
+
+Minimum required preload          22,12 kN   &rarr; M&#8336; 41,7 Nm
+Maximum required preload          35,39 kN   &rarr; M&#8336; 66,7 Nm
+Bolt capacity at 90 % yield       37,77 kN   &rarr; M&#8336; 71,2 Nm
+
+Yielding (assembly)                 1,19    &#9888; low
+Surface pressure under head         1,91    &#10003;
+Fatigue                            22,21    &#10003;  infinite life</pre>
+            <p>The striking number is 0,47 kN. Ten kilonewtons are applied to the joint and less
+            than half a kilonewton reaches the bolt &mdash; the other 9,5 kN simply relieves the
+            compressed plates. <strong>That is the entire reason preloaded joints survive
+            fatigue</strong>, and it is why the fatigue safety factor comes out at 22 rather than
+            near 1.</p>
+            <p>The tight number is assembly yielding at 1,19. The gap between 22,12 kN needed and
+            35,39 kN worst case is nothing but torque-wrench scatter. Switch the tightening method
+            to angle control and &#945;&#8336; drops from 1,6 to about 1,2, the maximum preload
+            falls with it, and the same bolt stops being marginal &mdash; without changing a
+            single part.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Reading the result</summary>
+        <div class="mc-body">
+            <p><strong>Yielding at assembly</strong> compares the worst-case preload against the
+            bolt's capacity at your chosen utilisation. Below 1,0 the bolt yields while being
+            tightened. Raising the utilisation limit toward 100 % is legitimate and is what
+            yield-controlled tightening exists for.</p>
+            <p><strong>Surface pressure under the head and nut</strong> is the check people
+            forget. Exceed the permissible pressure and the bolt does not break &mdash; it sinks
+            into the part, the preload disappears, and the joint fails later for no visible
+            reason. Washers are the usual fix.</p>
+            <p><strong>Fatigue</strong> uses the stress amplitude, which depends on &Phi;&#8345;
+            and therefore on joint stiffness, not on how strong the bolt is. A higher class of
+            bolt does almost nothing for fatigue; a longer, more resilient bolt does a great
+            deal.</p>
+            <p><strong>Loss of clamp reads 1,00 whenever you enter a required clamp force.</strong>
+            That is by construction, not a result: the minimum preload is <em>sized</em> to deliver
+            exactly the clamp force you asked for, so the ratio is always one. Read it as
+            &quot;the preload was sized to meet your requirement&quot;, and put your margin into
+            the required clamp force itself.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Frequently asked questions</summary>
+        <div class="mc-body">
+            <p class="mc-q">Why does so little of the external load reach the bolt?</p>
+            <p>Because the clamped parts are far stiffer than the bolt &mdash; here about six
+            times. The load divides in proportion to resilience, so the bolt takes the smaller
+            share. This is the central idea of VDI 2230.</p>
+
+            <p class="mc-q">Should I use a longer bolt or a stronger one?</p>
+            <p>For fatigue, longer. Length increases bolt resilience, which lowers &Phi; and
+            therefore the stress amplitude. For static strength, stronger.</p>
+
+            <p class="mc-q">What is embedding and why does it cost me preload?</p>
+            <p>The microscopic peaks on every clamped surface flatten under load. Here that is
+            23,5 &micro;m across the joint, which on this bolt is 7,6 kN of lost preload &mdash;
+            more than the external load. It has to be added to the preload, which is exactly what
+            the calculation does.</p>
+
+            <p class="mc-q">Which standard is this?</p>
+            <p>VDI 2230 Part 1, using ISO 898-1 property classes and ISO metric thread
+            geometry.</p>
+        </div>
+    </details>
+
+</section>

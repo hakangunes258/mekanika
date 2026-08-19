@@ -1,0 +1,157 @@
+<!--
+    The reference section shown under the moment of inertia calculator.
+
+    ONE COPY, TWO READERS. See the header of interference-fit.html for the rule.
+
+    Every number in the worked example was read off the real page: rectangle
+    b 100, h 150, C45, profile length 1000 mm. Re-run if the engine changes.
+-->
+<section class="module-content">
+
+    <h2>How section properties are calculated</h2>
+
+    <p>The second moment of area &mdash; commonly called the moment of inertia &mdash; describes
+    how a cross-section's material is distributed relative to a bending axis. Material far from
+    the axis contributes far more than material near it, because the contribution goes as the
+    square of the distance. This single fact explains why an I-beam looks the way it does and why
+    a tube is so much better than a solid bar of the same weight.</p>
+
+    <p>Two quantities come out of it and they answer different questions.
+    <strong>I governs deflection</strong> &mdash; how far the beam bends under load.
+    <strong>W = I/c governs stress</strong> &mdash; whether it breaks. A section can be excellent
+    at one and mediocre at the other, so a beam chosen on stiffness alone may still be
+    overstressed, and vice versa.</p>
+
+    <details>
+        <summary>The equations</summary>
+        <div class="mc-body">
+            <p>The definitions, and what each derived quantity is for:</p>
+<pre>I&#8339; = &#8747; y&#178; dA        I&#8342; = &#8747; x&#178; dA        I&#7515; = I&#8339; + I&#8342;
+
+W&#8339; = I&#8339; / c&#8339;                         section modulus
+r&#8339; = &radic;(I&#8339; / A)                       radius of gyration
+
+&sigma; = M / W                            bending stress
+f &prop; F L&#179; / (E I)                       deflection
+
+I' = I + A e&#178;                          parallel axis (Steiner) shift</pre>
+            <p>The polar moment I<sub>p</sub> is the sum of the two only for a section loaded in
+            torsion about its centroid, and it is the correct torsional constant only for a
+            circular section. For an open section such as a channel or an angle, torsional
+            stiffness is a different and much smaller quantity.</p>
+            <table class="mc-sym">
+                <thead><tr><th>Symbol</th><th>Meaning</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>A</td><td>Cross-sectional area</td><td>mm&#178;</td></tr>
+                    <tr><td>I<sub>x</sub> / I<sub>y</sub></td><td>Second moment of area about x / y</td><td>mm&#8308;</td></tr>
+                    <tr><td>I<sub>p</sub></td><td>Polar second moment of area</td><td>mm&#8308;</td></tr>
+                    <tr><td>W<sub>x</sub> / W<sub>y</sub></td><td>Section modulus about x / y</td><td>mm&#179;</td></tr>
+                    <tr><td>r<sub>x</sub> / r<sub>y</sub></td><td>Radius of gyration</td><td>mm</td></tr>
+                    <tr><td>c</td><td>Distance from centroid to extreme fibre</td><td>mm</td></tr>
+                    <tr><td>&#961;</td><td>Material density</td><td>kg/m&#179;</td></tr>
+                    <tr><td>m'</td><td>Mass per metre of profile</td><td>kg/m</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </details>
+
+    <details>
+        <summary>Where the inputs come from</summary>
+        <div class="mc-body">
+            <p><strong>The shape.</strong> Pick the one that matches your section. The dimension
+            fields change with it, and every shape is computed from its own closed-form
+            expressions rather than by numerical approximation.</p>
+            <p><strong>Which axis is which.</strong> x is the horizontal axis and bending about it
+            uses the height; y is vertical and uses the width. Getting these the wrong way round
+            is the most common error on this page, and on a 100 &times; 150 rectangle it is a
+            factor of 2,25 in the answer.</p>
+            <p><strong>Material and profile length.</strong> These affect only the mass figures,
+            never I or W &mdash; section properties are pure geometry. They are there so you can
+            weigh a design without leaving the page.</p>
+            <p><strong>Symmetry.</strong> For a symmetric section the distances to the top and
+            bottom fibres are equal and there is one section modulus per axis. For an asymmetric
+            one they differ, the smaller c gives the larger W, and the stress must be checked on
+            the side with the <em>larger</em> c.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Worked example</summary>
+        <div class="mc-body">
+            <p>A solid rectangular bar, 100 mm wide and 150 mm tall, in C45, one metre long.</p>
+<pre>Area                              15 000,00 mm&#178;
+Mass per metre                      117,750 kg/m
+
+I&#8339;   (bending about x, uses h)     2,812 &times; 10&#8311; mm&#8308;
+I&#8342;   (bending about y, uses b)     1,250 &times; 10&#8311; mm&#8308;
+I&#7515;                                 4,062 &times; 10&#8311; mm&#8308;
+
+W&#8339;                                375 000,00 mm&#179;
+W&#8342;                                250 000,00 mm&#179;
+
+r&#8339;                                    43,30 mm
+r&#8342;                                    28,87 mm
+
+c to top / bottom                      75,00 mm
+c to left / right                      50,00 mm</pre>
+            <p>Lay the same bar on its side and I falls from 2,812 &times; 10&#8311; to
+            1,250 &times; 10&#8311; mm&#8308; &mdash; the beam becomes <strong>2,25 times more
+            flexible without a gram of material changing</strong>. The ratio is (150/100)&#178;,
+            because I scales with the cube of the depth and the section only got 1,5 times
+            shallower.</p>
+            <p>Now hollow it out. The same 150 &times; 100 outline with an 8 mm wall
+            (inner 134 &times; 84) drops to 29,390 kg/m &mdash; a quarter of the mass &mdash; and
+            keeps I<sub>x</sub> = 1,128 &times; 10&#8311; mm&#8308;, which is 40 % of the solid
+            bar's. Per kilogram that is <strong>1,6 times the bending stiffness</strong>, because
+            the material removed was all close to the neutral axis where y&#178; is small and it
+            was contributing almost nothing. That is the entire argument for hollow and I-shaped
+            sections, and it is visible in the numbers rather than a matter of opinion.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Reading the result</summary>
+        <div class="mc-body">
+            <p><strong>Use I for deflection and W for stress.</strong> If your beam is too bendy,
+            you need more I &mdash; get the material further from the axis. If it is overstressed,
+            you need more W, which usually means the same thing but not always.</p>
+            <p><strong>Check both axes.</strong> A section strong about x may be weak about y, and
+            a beam loaded slightly off-plane, or one free to buckle sideways, will find that
+            weakness.</p>
+            <p><strong>The radius of gyration is for buckling.</strong> A column's slenderness is
+            its effective length divided by the <em>smaller</em> of r<sub>x</sub> and
+            r<sub>y</sub> &mdash; 28,87 mm here, not 43,30. A column always buckles about its weak
+            axis.</p>
+            <p><strong>The polar moment is not a torsion constant for open sections.</strong> For
+            a round bar or tube, I<sub>p</sub> is what you want. For a channel, angle or any open
+            profile, the real torsional stiffness is far lower and this page does not compute
+            it.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Frequently asked questions</summary>
+        <div class="mc-body">
+            <p class="mc-q">Is this the same as mass moment of inertia?</p>
+            <p>No, and the shared name causes constant confusion. This page gives the
+            <em>second moment of area</em> in mm&#8308;, used for bending and buckling. Mass moment
+            of inertia is in kg&middot;m&#178; and describes resistance to angular acceleration.</p>
+
+            <p class="mc-q">Why does the material make no difference to I?</p>
+            <p>Because I is purely geometric. Material enters through E when you calculate
+            deflection, and through the allowable stress when you calculate strength &mdash; an
+            aluminium and a steel beam of the same shape have identical I and very different
+            stiffness.</p>
+
+            <p class="mc-q">Which section modulus do I use on an asymmetric section?</p>
+            <p>The smaller one. It corresponds to the fibre furthest from the centroid, which is
+            where the stress is highest.</p>
+
+            <p class="mc-q">How do I combine two shapes?</p>
+            <p>Compute each about its own centroid, then shift each to the common centroid with
+            the parallel axis theorem, I' = I + Ae&#178;, and add. This page handles one shape at
+            a time.</p>
+        </div>
+    </details>
+
+</section>

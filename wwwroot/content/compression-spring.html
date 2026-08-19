@@ -1,0 +1,157 @@
+<!--
+    The reference section shown under the compression spring calculator.
+
+    ONE COPY, TWO READERS. See the header of interference-fit.html for the rule.
+
+    Every number in the worked example was read off the real page: d 3, Dm 24,
+    L0 80, n 8, closed and ground, EN 10270-1 SH, shot peened, static load,
+    both ends flat (nu 1,0), L1 55. Re-run if the engine changes.
+-->
+<section class="module-content">
+
+    <h2>How a compression spring is calculated</h2>
+
+    <p>A helical compression spring is a bar in torsion wound into a helix. Pushing on the ends
+    twists the wire, and it is that shear stress &mdash; not bending, and not the axial force
+    &mdash; which decides whether the spring survives. Everything on this page follows from two
+    numbers: the spring index D<sub>m</sub>/d, which governs stress, and the number of active
+    coils, which governs rate.</p>
+
+    <p>The rate depends on the fourth power of the wire diameter and the inverse cube of the coil
+    diameter, so small dimensional changes move it a long way. Going from 3,0 mm to 3,2 mm wire
+    &mdash; one step in the standard range &mdash; stiffens a spring by nearly 30 %. This is why
+    spring wire comes in a fixed series and why the calculator offers a list rather than a free
+    field.</p>
+
+    <details>
+        <summary>The equations</summary>
+        <div class="mc-body">
+            <p>Rate from torsion of the wire, stress with the Wahl correction for curvature:</p>
+<pre>w = D&#8344; / d                          spring index
+
+R = G d&#8308; / (8 D&#8344;&#179; n)                 spring rate
+
+&tau;  = 8 F D&#8344; / (&pi; d&#179;)                nominal shear stress
+k  = (4w &minus; 1)/(4w &minus; 4) + 0,615/w     Wahl correction
+&tau;&#8342; = k &tau;                              corrected, at the inner fibre
+
+L&#7580; = L&#8320; / D&#8344;                          slenderness, for buckling</pre>
+            <p>The Wahl factor exists because the inside of the coil is tighter than the outside,
+            so the shear stress there is higher than the plain torsion formula gives. At index 8
+            it adds 18 %; at index 4 it adds 40 %. Low-index springs are not the compact solution
+            they look like.</p>
+            <table class="mc-sym">
+                <thead><tr><th>Symbol</th><th>Meaning</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>d</td><td>Wire diameter</td><td>mm</td></tr>
+                    <tr><td>D<sub>m</sub></td><td>Mean coil diameter</td><td>mm</td></tr>
+                    <tr><td>n</td><td>Active coils</td><td>&ndash;</td></tr>
+                    <tr><td>L&#8320; / L<sub>c</sub></td><td>Free length / solid length</td><td>mm</td></tr>
+                    <tr><td>G</td><td>Shear modulus of the wire</td><td>MPa</td></tr>
+                    <tr><td>R</td><td>Spring rate</td><td>N/mm</td></tr>
+                    <tr><td>k</td><td>Wahl stress correction factor</td><td>&ndash;</td></tr>
+                    <tr><td>&#957;</td><td>End support factor for buckling</td><td>&ndash;</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </details>
+
+    <details>
+        <summary>Where the inputs come from</summary>
+        <div class="mc-body">
+            <p><strong>Wire diameter.</strong> From the standard series &mdash; the list on the
+            page. A spring specified at 3,15 mm when the mill rolls 3,0 and 3,2 is a spring
+            nobody will quote.</p>
+            <p><strong>Spring index.</strong> Not entered, but keep an eye on it. Below 4 the
+            wire is hard to coil and the Wahl factor punishes you; above 12 the spring is floppy
+            and tangles in the bin. Four to twelve is the workable range and eight is a good
+            starting point.</p>
+            <p><strong>Load type, static or dynamic.</strong> This changes which allowable stress
+            applies and whether a fatigue check runs at all. A spring that cycles more than about
+            10&#8308; times in its life is dynamic, whatever the application looks like.</p>
+            <p><strong>End support.</strong> The factor &#957; describes how the ends are held,
+            and it decides the buckling limit. Both ends free on flat surfaces is the worst case
+            at &#957; = 1,0; ends fixed and guided is far more stable.</p>
+            <p><strong>Shot peening.</strong> Leave it on for a dynamic spring. It puts the
+            surface into residual compression and typically doubles fatigue life at the same
+            stress.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Worked example</summary>
+        <div class="mc-body">
+            <p>3,0 mm EN 10270-1 SH wire, 24 mm mean coil diameter, 80 mm free length, 8 active
+            coils, closed and ground ends, shot peened, static load, both ends on flat surfaces,
+            working at 55 mm.</p>
+<pre>Spring index  24 / 3                     8,00
+Total coils                             10,0
+Solid length                            30,0 mm
+Wire length                              754 mm     mass 41,8 g
+
+Spring rate                             7,46 N/mm
+Deflection at L&#8321; = 55                  25,00 mm
+Working force  F&#8321;                     186,5 N
+Force at solid                         373,1 N
+
+Stress at L&#8321;                            500 MPa   &rarr; SF 1,53  &#10003;
+Stress at solid length                  1000 MPa   &rarr; SF 0,77  &#10007;
+Allowable  0,45 &times; R&#7504;                    765 MPa
+
+Slenderness  L&#8320;/D&#8344;                       3,33   &#9888; buckles</pre>
+            <p>The spring passes at its working point and fails twice on the checks around it.
+            At solid length the stress reaches 1000 MPa against 765 allowable, so
+            <strong>if anything ever compresses this spring fully it takes a permanent set</strong>
+            and never returns to 80 mm. That is not a fatigue failure at 10&#8310; cycles &mdash;
+            it happens once, on the first over-travel, usually during assembly.</p>
+            <p>And at a slenderness of 3,33 with unguided flat ends it buckles sideways before
+            reaching the working point. Both problems have the same family of fixes: shorter free
+            length, larger coil diameter, or a guide rod. <strong>A compression spring result is
+            never just the working stress</strong> &mdash; the solid-length and buckling rows are
+            where real designs come apart.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Reading the result</summary>
+        <div class="mc-body">
+            <p><strong>Static safety at the working length</strong> wants 1,2 or better against
+            0,45 R<sub>m</sub>. This is the easy check and it is rarely the one that fails.</p>
+            <p><strong>Stress at solid length</strong> is the check that matters for anything a
+            person can push on. If the spring cannot be compressed solid without yielding, either
+            it must be mechanically prevented from getting there, or it needs redesigning. Design
+            offices differ on this; the safe convention is that a spring should survive being
+            pressed solid.</p>
+            <p><strong>Buckling.</strong> Above a slenderness of about 2,6 with flat unguided
+            ends, a compression spring will kick sideways. A guide rod or a bore fixes it, at the
+            cost of friction and wear.</p>
+            <p><strong>Natural frequency</strong> matters when the spring is excited near it
+            &mdash; a valve spring is the classic case. Surge means individual coils resonate and
+            hammer each other, and it destroys springs quickly.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Frequently asked questions</summary>
+        <div class="mc-body">
+            <p class="mc-q">My spring passes at the working point but fails at solid length. Is
+            that a problem?</p>
+            <p>It depends entirely on whether anything can compress it that far. If a stop
+            prevents it, no. If a person or a mechanism can bottom it out, yes &mdash; the spring
+            comes back shorter and weaker, permanently.</p>
+
+            <p class="mc-q">What is the difference between total and active coils?</p>
+            <p>The closed end coils do not deflect, so they add length and mass but no
+            compliance. Closed and ground ends cost two coils, which is why 10 total gives 8
+            active here.</p>
+
+            <p class="mc-q">Why does the calculator only offer certain wire diameters?</p>
+            <p>Because those are the diameters the standard wire series is drawn to. Anything
+            else has to be specially made.</p>
+
+            <p class="mc-q">Which standard is this?</p>
+            <p>EN 13906-1 for the design method, with wire grades from EN 10270-1, -2 and -3.</p>
+        </div>
+    </details>
+
+</section>

@@ -1163,7 +1163,11 @@ select:focus {
     border: 1px solid #dfe4ea;
     border-radius: 12px;
     padding: 28px 32px 32px;
-    margin-top: 4px;
+    /* The gap to whatever ends the calculator above - the Calculate/Clear row on
+       the input view, the last result card on the results view. 24px is what
+       separates the cards from each other, so the same value here would read as
+       one more card in the stack rather than as a new section. */
+    margin-top: 40px;
     line-height: 1.65;
     color: #2f3640;
     font-size: 15px;

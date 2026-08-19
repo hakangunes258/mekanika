@@ -1628,7 +1628,16 @@ the original path and fragment.
 ### **Module Reference Content (the SEO sections)**
 
 The section under a calculator — what it computes, where the inputs come from, a worked
-example, an FAQ. Live on **interference-fit**; the mechanism is per-module and optional.
+example, an FAQ. Live on **all twelve calculators** (Aug 2026); the mechanism is per-module and
+optional, so a module with no content file simply gets no section.
+
+**Every number in every worked example was read off the running page, not out of a textbook.**
+The harness drives the real calculator in a real browser — fill the form, press Calculate, read
+the result tables — which is the only way to source numbers for `ball-bearing` and
+`roller-bearing`, whose arithmetic lives in the Razor component rather than in an engine. Each
+content file's header comment records the exact inputs used; re-run them if an engine changes.
+Secondary claims in the prose ("halve this and it falls to…") were run too, not computed by
+hand — three of them came back different from the estimate and were corrected before shipping.
 
 **The text lives in exactly one place: `wwwroot/content/<module-key>.html`**, a plain HTML
 fragment. Two consumers read it and neither owns it:

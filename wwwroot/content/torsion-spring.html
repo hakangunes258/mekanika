@@ -1,0 +1,150 @@
+<!--
+    The reference section shown under the torsion spring calculator.
+
+    ONE COPY, TWO READERS. See the header of interference-fit.html for the rule.
+
+    Every number in the worked example was read off the real page: d 2,5, Dm 20,
+    n 8, right-hand, tangent legs 40/40, EN 10270-1 SH, alpha1 30, alpha2 90.
+    Re-run if the engine changes.
+-->
+<section class="module-content">
+
+    <h2>How a torsion spring is calculated</h2>
+
+    <p>A torsion spring stores energy in bending, not in torsion &mdash; the name describes what
+    the spring does, not what the wire does. Twisting the legs about the coil axis bends the wire
+    along its length, so the governing stress is a bending stress and the governing modulus is E,
+    not G. Every formula on this page differs from the compression spring page for that one
+    reason.</p>
+
+    <p>The second thing that separates a torsion spring from the others is that
+    <strong>its diameter changes as it deflects</strong>. Wound in the direction of the load, the
+    coils tighten and the bore shrinks. A torsion spring running on a pin that fitted at rest can
+    seize on it at full deflection, and no stress calculation will warn you &mdash; which is why
+    the results carry a table of inner diameter against deflection.</p>
+
+    <details>
+        <summary>The equations</summary>
+        <div class="mc-body">
+            <p>Bending of the wire, with a curvature correction for the inner fibre:</p>
+<pre>R&#7504; = E d&#8308; / (3667 D&#8344; n&#7497;)              rate, Nmm per degree
+
+M = R&#7504; &middot; &#945;                             torque at deflection &#945;
+
+&sigma; = q &middot; 32 M / (&pi; d&#179;)                 bending stress
+q = (4w&#178; &minus; w &minus; 1) / (4w&#178; &minus; 4w)         correction factor, index w
+
+D&#7522; = D&#7522;&#8320; &middot; n / (n + &#945;/360)             bore shrinks as it winds up</pre>
+            <p>n<sub>e</sub> is the equivalent coil count, which includes the compliance of the
+            legs. Long legs make the spring softer than the coil count alone suggests, and the
+            calculator accounts for it &mdash; here 8 active coils behave like 8,42.</p>
+            <table class="mc-sym">
+                <thead><tr><th>Symbol</th><th>Meaning</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>d</td><td>Wire diameter</td><td>mm</td></tr>
+                    <tr><td>D<sub>m</sub></td><td>Mean coil diameter</td><td>mm</td></tr>
+                    <tr><td>n</td><td>Active coils</td><td>&ndash;</td></tr>
+                    <tr><td>E</td><td>Elastic modulus of the wire</td><td>MPa</td></tr>
+                    <tr><td>&#945;</td><td>Deflection angle</td><td>&deg;</td></tr>
+                    <tr><td>M</td><td>Torque</td><td>Nmm</td></tr>
+                    <tr><td>q</td><td>Stress correction for curvature</td><td>&ndash;</td></tr>
+                    <tr><td>&sigma;</td><td>Bending stress at the inner fibre</td><td>MPa</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </details>
+
+    <details>
+        <summary>Where the inputs come from</summary>
+        <div class="mc-body">
+            <p><strong>Winding direction.</strong> Get this right and load the spring in the
+            closing direction. A torsion spring loaded so that it unwinds opens its coils, loses
+            the benefit of the correction factor, and comes off its pin.</p>
+            <p><strong>Leg length and type.</strong> The legs are part of the spring, not
+            fittings on the end of it. They add compliance, which lowers the rate, and tangent
+            legs also carry their own bending stress at the root where they leave the coil.</p>
+            <p><strong>The two deflection angles.</strong> Position 1 is usually the pre-loaded
+            rest position and position 2 the fully worked one. A torsion spring is almost always
+            installed with some preload, so entering 0&deg; for position 1 rarely describes the
+            real installation.</p>
+            <p><strong>Allowable stress is 0,70 R<sub>m</sub></strong> for a torsion spring,
+            against 0,45 R<sub>m</sub> for a compression spring. That is not an inconsistency
+            &mdash; bending allows a higher fraction of tensile strength than shear does.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Worked example</summary>
+        <div class="mc-body">
+            <p>2,5 mm EN 10270-1 SH wire, 20 mm mean coil diameter, 8 active coils, right-hand
+            wound, 40 mm tangent legs, working between 30&deg; and 90&deg;.</p>
+<pre>Spring index  20 / 2,5                   8,00
+Body length                             23,4 mm
+Equivalent coils incl. legs             8,42
+Wire length                              614 mm      mass 23,7 g
+
+Spring rate                           13,024 Nmm/&deg;
+
+Position 1   30&deg;    M&#8321;   390,7 Nmm  (0,391 Nm)
+Position 2   90&deg;    M&#8322;  1172,2 Nmm  (1,172 Nm)
+
+Bending stress at 30&deg;                   281 MPa   &rarr; SF 4,24  &#10003;
+Bending stress at 90&deg;                   843 MPa   &rarr; SF 1,41  &#9888;
+Allowable  0,70 &times; R&#7504;                  1190 MPa
+
+Inner diameter, free                   17,50 mm
+Inner diameter at 90&deg;                  16,97 mm
+Inner diameter at maximum              16,76 mm</pre>
+            <p>Follow the bore. It starts at 17,50 mm and closes to 16,97 mm at the working angle
+            &mdash; over half a millimetre. <strong>A 17 mm pin would fit the spring at rest and
+            be gripped by it at full deflection</strong>, adding friction, wear and an unpredictable
+            contribution to the torque. Size the pin against the smallest diameter in the table,
+            not the free one.</p>
+            <p>The safety factor is 1,41 at the working angle and 4,24 at rest &mdash; the same
+            spring, a factor of three apart, because stress rises linearly with angle. There is
+            not much room left here: another 20&deg; of over-travel and this spring is at its
+            allowable stress. That is worth knowing before someone specifies a 120&deg; mechanism
+            for it.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Reading the result</summary>
+        <div class="mc-body">
+            <p><strong>Check the safety factor at the largest angle</strong>, which is the one
+            that governs. 1,5 is a reasonable target for a static spring; less than that leaves
+            no allowance for over-travel, and over-travel is what mechanisms do.</p>
+            <p><strong>Check the inner diameter against your pin or shaft</strong> at maximum
+            deflection, with clearance. This is the check that is unique to torsion springs and
+            the one most often skipped.</p>
+            <p><strong>Watch the maximum allowable deflection.</strong> The results give the angle
+            at which the spring reaches its allowable stress. Design the mechanism so it cannot
+            physically exceed it &mdash; a hard stop is cheaper than a broken spring.</p>
+            <p><strong>The legs matter.</strong> Long legs soften the spring, and a leg that is
+            loaded as a lever also bends at its root. If leg deflection is part of your mechanism,
+            the rate you get will be lower than a coil-count calculation predicts.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Frequently asked questions</summary>
+        <div class="mc-body">
+            <p class="mc-q">Why is the allowable stress higher than for a compression spring?</p>
+            <p>Because a torsion spring is loaded in bending and a compression spring in shear.
+            Steel tolerates a higher fraction of its tensile strength in bending &mdash; 0,70
+            R<sub>m</sub> against 0,45.</p>
+
+            <p class="mc-q">Which way should the spring be wound?</p>
+            <p>So that the load winds it tighter. Loading a torsion spring in the opening
+            direction reduces its capacity and makes it unstable on its pin.</p>
+
+            <p class="mc-q">Does the coil diameter really change that much?</p>
+            <p>Yes. It scales as n/(n + &#945;/360), so few coils and a large angle give the
+            biggest change. Always check the pin fit at maximum deflection.</p>
+
+            <p class="mc-q">Which standard is this?</p>
+            <p>EN 13906-3 for the design method, with wire grades from EN 10270.</p>
+        </div>
+    </details>
+
+</section>
