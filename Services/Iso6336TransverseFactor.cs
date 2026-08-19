@@ -127,9 +127,22 @@ public static class Iso6336TransverseFactor
         }
         else
         {
-            // Eq. (72)
-            double inner = (2.0 * (epsilonGamma - 1.0) / epsilonGamma) * qAlpha;
-            kAlpha = 0.9 + 0.4 * Math.Sqrt(Math.Max(0, inner));
+            // Eq. (72). The square root covers only 2(eps_gamma - 1)/eps_gamma;
+            // q_alpha multiplies it from outside.
+            //
+            // This had q_alpha inside the root. Two things show that is wrong. The
+            // branches must meet: at eps_gamma = 2 Eq. (71) gives 0.9 + 0.4 q_alpha,
+            // and so does this one with q_alpha outside, because the root is then
+            // exactly 1 - while with q_alpha inside it jumps to 0.9 + 0.4 sqrt(q).
+            // And a KISSsoft 2022 ISO 6336:2006 report on a 22/45, mn 3, beta 22.5
+            // pair prints K_Halpha = 1.016 where the form below gives 1.017 fed the
+            // report's own K_Hbeta; the rooted form gives 1.111.
+            //
+            // Direction matters: sqrt(q) > q below 1 and sqrt(q) < q above it, so
+            // the old form was conservative for a heavily loaded pair and NOT
+            // conservative for a lightly loaded or coarse one - which is exactly
+            // where this factor carries weight.
+            kAlpha = 0.9 + 0.4 * Math.Sqrt(2.0 * (epsilonGamma - 1.0) / epsilonGamma) * qAlpha;
         }
 
         double kH = kAlpha;

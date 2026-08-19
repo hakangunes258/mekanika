@@ -1361,15 +1361,38 @@ something is built to display it — and if a badge is ever added, re-read each 
 first, because a stale one shipped for over a year saying gear-pair's scuffing was out of scope
 after scuffing had been implemented.
 
-**gear-pair is benchmarked against three KISSsoft reports** (Aug 2026): two generated with
+**gear-pair is benchmarked against four KISSsoft reports** (Aug 2026): three generated with
 ISO 6336:2006 Method B, and Tutorial 8, whose printed report is DIN 3990:1987 but whose
 Figure 19 prints the ISO result. ~120 quantities diffed per case. Geometry, kinematics, forces,
 tooth thickness, W_k, M_d and the DIN 3967 allowances agree to under 0,05 %; the strength chain
 lands within 1 % of the ISO references when they are fed their own ISO 1328-1:1995 deviations,
 and −1,8 % / −3,8 % on Figure 19 as run. The reports live outside the repo (they are the user's
 own files, and `*.pdf` is gitignored) — the harness that drove them was a throwaway, per the
-"verifying a change" note further down. Twelve calculation errors came out of this exercise;
+"verifying a change" note further down. Thirteen calculation errors came out of this exercise;
 each is recorded above with the anchor that caught it.
+
+**The fourth report (KISSsoft 2022 SP3, ISO 6336:2006; z 22/45, m_n 3, β 22,5°, a 110, x₁ 0,3087,
+50 kW, ISO VG 320 at 70 °C) is the first run at an accuracy grade our own tolerances also speak —
+ISO 1328-1:2013 grade 6 — so the edition mismatch that dominated the earlier comparisons is absent
+here.** Everything upstream of the K factors agrees to under 0,5 %: x₂, every diameter, α_t, α_wt,
+β_b, ε_α/ε_β/ε_γ, F_t/F_a/F_r, v, Y_F, Y_S, Y_β, Z_H, Z_E, Z_ε, Z_β, σ_F0 and σ_H0. It caught one
+error and explained the whole of the rest:
+
+- **K_Hα: q_α belongs outside the square root of Eq. (72), not inside it.** For ε_γ > 2 the
+  standard reads `0,9 + 0,4·√(2(ε_γ−1)/ε_γ)·q_α`; it was implemented with q_α under the root.
+  **The branches must meet at ε_γ = 2**, where the root is exactly 1 and Eq. (71) gives
+  `0,9 + 0,4·q_α` — with q_α inside, the seam jumps (0,994 to 1,094 on this pair). That
+  continuity is the anchor, and it needs no reference report. On this gear the rooted form gave
+  1,111 against the report's 1,016; corrected, and fed the report's own K_Hβ, it gives 1,017.
+  **Direction: √q > q below 1 and √q < q above it, so the old form was conservative for a heavily
+  loaded pair and *not* conservative for a lightly loaded or coarse one** — where K_Hα weighs most.
+- **The residual −8,7 % on S_F and −5,7 % on S_H is K_Hβ, and it is the deliberate omission.**
+  The report declares "Tooth trace: with end relief" and "Position of contact pattern: favorable",
+  which turn on B₁ = B₂ = 0,70 *and* the compensatory Eq. (53). Fed the report's own f_sh our f_ma
+  comes out 12,73 µm against its 12,73 — identical — and our F_βx is then 1,33·f_sh + f_ma =
+  19,19 µm against its 4,50 ≈ |1,33·B₁·f_sh − B₂·f_ma|. So the difference is entirely those two
+  credits, both of which need a verified contact pattern that a web calculator cannot see. We stay
+  on the additive Eq. (52) with B = 1, and the result is conservative.
 
 Verification status is a single flag on `ModuleInfo` in
 `Services/ModuleMetadataService.cs`:
