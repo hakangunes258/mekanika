@@ -1656,26 +1656,40 @@ page-scoped block would leave it unstyled for exactly the visitors it was writte
 
 **The card spans the calculator grid, and the two consumers emit identical markup.** It is
 grey (`#edf0f4`, biased slightly toward `--primary`) so it reads as reference material next
-to the white data cards; a flat neutral disappears against the `#f8f9fa` page. Three width
-rules, and the reason for each:
+to the white data cards; a flat neutral disappears against the `#f8f9fa` page.
 
-- `.module-content` caps at 1200px with auto margins. Inside `.main-content` the parent is
-  already narrower, so the cap does nothing and the card matches `.form-grid` exactly. It
-  only bites on the **generated static page**, where Blazor has not booted and there is no
-  `.main-content` — without it the card ran the full width of the window for a crawler and
-  for a visitor with JavaScript off.
-- Prose (`h2`, `p`) caps at 74ch and the wide blocks (`pre`, `table.mc-sym`) at 880px.
-  Nothing inside the card is full width; the only thing that spans it is the rule above each
-  `<details>`, and that is what makes the width read as deliberate rather than as a layout
-  that failed to fill.
-- **Do not fix this with a wrapper `<div>`.** A wrapper has to be written twice — once in the
-  Razor component and once in the generator — and the point of this feature is that those two
-  emit the same markup from the same file. It shipped once with a `.container` wrapper in
-  both, and `.container` is not defined anywhere in the CSS.
+**There is no `max-width` on the card and none on anything inside it.** The card fills
+`.main-content` exactly as `.form-grid` above it does, and the prose, the equation block and
+the symbol table each fill the card. Both caps that were tried are recorded here because the
+first one looked right in testing and was wrong:
 
-`tools/build-preview.mjs` (in the scratchpad, not the repo) rebuilds the review artifact by
-inlining the real stylesheets and the real content file, so a preview cannot show something
-the deploy does not.
+- **A `max-width: 1200px` on `.module-content` is wrong.** At a 1440px window `.main-content`
+  is only 1140 wide, so the cap does nothing and the card looks correct — which is exactly
+  how it passed review. On a wider monitor the grid goes past 1200 and the card stops there
+  and centres itself, ending up visibly narrower than, and offset from, the grid it is
+  supposed to line up with. **Check this one at 2000px, not at 1440.** If a cap is ever
+  wanted back it has to be expressed against the grid, not as a fixed pixel value.
+- A reading measure on the prose (74ch) and on the wide blocks (880px) was also tried and
+  rejected: it is better typography in the abstract, but it leaves most of a wide card empty
+  and reads as a layout that failed to fill.
+
+**The one legitimate cap is `#app > .module-content`, and it exists only for the generated
+static page.** There Blazor has not booted, so `.main-content` does not exist and the card is
+a direct child of `#app` with nothing constraining it — it ran the full width of the window
+for a crawler and for a visitor with JavaScript off. The child combinator is what keeps the
+rule off the Blazor tree, where the card sits at
+`#app > .page > main.main-content > .module-content`. Those two chains are the only reliable
+way to tell the two renderings apart in CSS; keep them in mind before restructuring either.
+
+**Do not fix any of this with a wrapper `<div>`.** A wrapper has to be written twice — once in
+the Razor component and once in the generator — and the point of this feature is that those
+two emit the same markup from the same file. It shipped once with a `.container` wrapper in
+both, and `.container` is not defined anywhere in the CSS.
+
+`build-preview.mjs` (in the scratchpad, not the repo) rebuilds the review artifact by inlining
+the real stylesheets and the real content file, so a preview cannot show something the deploy
+does not. It renders at 1140px, i.e. a 1440px window — which is why it did not show the cap
+bug either. Preview at more than one width.
 
 **Every number in a worked example comes from running the engine**, not from a textbook and
 not from memory. The interference-fit example is `InterferenceFitEngine` driven with Ø50

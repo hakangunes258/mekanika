@@ -1164,36 +1164,32 @@ select:focus {
     border-radius: 12px;
     padding: 28px 32px 32px;
     margin-top: 4px;
-    /* Inside .main-content the parent is already narrower than this, so the cap
-       does nothing and the card matches the calculator grid exactly. It only
-       bites on the generated static page, which Blazor has not booted on and
-       where there is no .main-content to sit in - without it the card ran the
-       full width of the window for a crawler and for a visitor with JavaScript
-       off. Capping here rather than in a wrapper keeps the runtime component
-       and the build-time generator emitting the identical markup. */
-    max-width: 1200px;
-    margin-left: auto;
-    margin-right: auto;
     line-height: 1.65;
     color: #2f3640;
     font-size: 15px;
 }
 
-/* The card is full width; nothing inside it is. Running text past roughly 75
-   characters is measurably harder to track back to the next line, and a symbol
-   table stretched to 1100px puts half a screen of nothing between the meaning
-   and its unit. So the content gets two measures - a reading one for prose and
-   a wider one for the blocks that hold columns - and the only thing spanning
-   the whole card is the rule above each <details>, which is what makes the
-   width read as deliberate rather than as a layout that failed to fill. */
-.module-content h2,
-.module-content p {
-    max-width: 74ch;
-}
+/*
+    The card takes the full width of .main-content, exactly like .form-grid
+    above it, and everything inside takes the full width of the card. There is
+    no max-width on the card and none on its contents - an earlier version
+    capped the card at 1200px, which did nothing at a 1440px window (where
+    .main-content is only 1140 wide) and on a wider monitor left the card
+    visibly narrower than, and centred against, the calculator grid it is
+    supposed to line up with. If a cap is ever wanted back, it has to be
+    expressed against the grid, not as a fixed pixel value.
 
-.module-content pre,
-.module-content table.mc-sym {
-    max-width: 880px;
+    The ONE exception is the generated static page. There Blazor has not booted,
+    so .main-content does not exist and the card is a direct child of #app with
+    nothing constraining it - it ran the full width of the window for a crawler
+    and for a visitor with JavaScript off. That case, and only that case, is
+    what the #app > .module-content rule below is for; the child combinator is
+    what keeps it off the Blazor tree, where the card sits four levels down.
+*/
+#app > .module-content {
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .module-content h2 {
