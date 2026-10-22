@@ -6,9 +6,14 @@ namespace MechanicalCalculatorWeb.Services;
 /// <summary>
 /// Scuffing load capacity by the integral temperature method — ISO/TR 13989-2:2000.
 ///
-/// Scope: EXTERNAL cylindrical gears, spur and helical (Clause 6.1). Bevel (6.2) and hypoid
-/// (6.3) are not implemented. The equations are stated for transverse contact ratios up to
-/// about 2,5.
+/// Scope: cylindrical gears, spur and helical (Clause 6.1), external and internal pairs.
+/// Bevel (6.2) and hypoid (6.3) are not implemented. The equations are stated for transverse
+/// contact ratios up to about 2,5.
+///
+/// An internal pair (<see cref="Input.InternalGear"/>, geometry as magnitudes) is evaluated in
+/// the signed convention the equations are written in - u and a negative - which makes ρ_E2
+/// negative in Eq. (24) and ρ_redC = u a sin α_wt / ((1+u)² cos β_b) positive again; the
+/// annulus's addendum contact ratio ε_2 is measured from its tip OUTWARDS to the pitch point.
 ///
 /// Where Part 1 sweeps the whole path of contact and takes the peak, this method takes the
 /// flash temperature at the pinion tooth tip and converts it to a weighted mean over the path
@@ -47,6 +52,9 @@ public static class Iso13989IntegralTemperature
         public double db2 { get; set; }
         public double b { get; set; }              // face width, smaller (mm)
         public double epsilonGamma { get; set; }   // total contact ratio
+
+        /// <summary>True when gear 2 is an internal gear. All geometry stays positive.</summary>
+        public bool InternalGear { get; set; }
 
         // load
         public double Ft { get; set; }             // nominal tangential force (N)
@@ -231,6 +239,10 @@ public static class Iso13989IntegralTemperature
         double at = i.alphaT * Math.PI / 180.0;
         double bb = i.betaB * Math.PI / 180.0;
 
+        // Signed convention: u and a negative for an internal pair.
+        double uS = i.InternalGear ? -i.u : i.u;
+        double aS = i.InternalGear ? -i.a : i.a;
+
         // --- transverse unit load, Eq. (4) ---
         r.wBt = i.KA * i.KV * i.KBbeta * i.KBalpha * i.Ft / i.b;
 
@@ -248,7 +260,7 @@ public static class Iso13989IntegralTemperature
 
         // --- Eq. (2), (3) ---
         double vSigmaC = 2.0 * vForFriction * Math.Tan(awt) * Math.Cos(at);
-        r.RhoRedC = i.u / ((1 + i.u) * (1 + i.u)) * i.a * Math.Sin(awt) / Math.Cos(bb);
+        r.RhoRedC = uS / ((1 + uS) * (1 + uS)) * aS * Math.Sin(awt) / Math.Cos(bb);
 
         if (vSigmaC <= 0 || r.RhoRedC <= 0 || i.EtaOil <= 0)
         {
@@ -280,19 +292,25 @@ public static class Iso13989IntegralTemperature
 
         // --- geometry factor at the pinion tip, Eq. (22)-(24) ---
         double rhoE1 = 0.5 * Math.Sqrt(Math.Max(0, i.da1 * i.da1 - i.db1 * i.db1));   // (23)
-        double rhoE2 = i.a * Math.Sin(awt) - rhoE1;                                   // (24)
+        double rhoE2 = aS * Math.Sin(awt) - rhoE1;                                    // (24), negative on an annulus
         if (rhoE1 <= 0 || Math.Abs(rhoE2) < 1e-9)
         {
             r.Notes.Add("The integral temperature was not evaluated: the radius of curvature at the pinion tip is degenerate.");
             return r;
         }
-        r.XBE = 0.51 * Math.Sqrt(i.u + 1)
-              * (Math.Sqrt(rhoE1) - Math.Sqrt(Math.Abs(rhoE2) / i.u))
+        if (rhoE2 / uS <= 0)
+        {
+            r.Notes.Add("The integral temperature was not evaluated: the mating flank's curvature at the pinion tip has the wrong sign.");
+            return r;
+        }
+        r.XBE = 0.51 * Math.Sqrt(Math.Abs(uS + 1))
+              * Math.Abs(Math.Sqrt(rhoE1) - Math.Sqrt(rhoE2 / uS))
               / Math.Pow(rhoE1 * Math.Abs(rhoE2), 0.25);                              // (22)
 
         // --- addendum contact ratios, Eq. (30)-(31) ---
         r.Eps1 = i.z1 / (2 * Math.PI) * (Math.Sqrt(Math.Max(0, Math.Pow(i.da1 / i.db1, 2) - 1)) - Math.Tan(awt));
         r.Eps2 = Math.Abs(i.z2) / (2 * Math.PI) * (Math.Sqrt(Math.Max(0, Math.Pow(i.da2 / i.db2, 2) - 1)) - Math.Tan(awt));
+        if (i.InternalGear) r.Eps2 = -r.Eps2;   // the annulus tip lies inside its pitch circle
 
         // --- approach factor, Eq. (25)-(29) ---
         double epsF = i.PinionDrives ? r.Eps2 : r.Eps1;

@@ -40,9 +40,18 @@ public enum LubricantType
 /// <summary>
 /// Scuffing load capacity by the flash temperature method — ISO/TR 13989-1:2000.
 ///
-/// Scope of this implementation: EXTERNAL cylindrical gears, spur and helical, with
-/// unmodified profiles or a stated tip relief. Bevel and hypoid gears (Clauses 9.8, 9.9 and
-/// Annex A.4) are not implemented; neither is the internal-pair geometry factor Eq. (A.7).
+/// Scope of this implementation: external and internal cylindrical gear pairs, spur and
+/// helical, with unmodified profiles or a stated tip relief. Bevel and hypoid gears (Clauses
+/// 9.8, 9.9 and Annex A.4) are not implemented.
+///
+/// INTERNAL PAIRS (<see cref="Input.InternalGear"/>; geometry still passed as magnitudes).
+/// The standard writes Eq. (6)-(8) and (30)-(33) in the signed convention - u, a, z2
+/// negative for an internal pair - and they are evaluated that way here. The geometry factor
+/// is the internal form of Eq. (A.6),
+///     X_G = 0,51 X_αβ √(|u|−1) |√(1+Γ) − √(1+Γ/|u|)| / ((1+Γ)^0,25 (|u|+Γ)^0,25),
+/// which is what Eq. (A.6) becomes with u negative, and what the general Eq. (5) gives for a
+/// concave annulus flank (ρ_2 negative). Eq. (A.7) itself was not to hand; the Eq. (5)
+/// cross-check below runs for internal pairs too and confirms the two agree.
 ///
 /// Blok's concept: the contact temperature is the bulk temperature plus a flash temperature
 /// that varies along the path of contact, and scuffing is a temperature limit rather than a
@@ -84,6 +93,9 @@ public static class Iso13989FlashTemperature
         public double epsilonAlpha { get; set; }    // transverse contact ratio
         public double epsilonBeta { get; set; }     // overlap ratio
         public double epsilonGamma { get; set; }    // total contact ratio
+
+        /// <summary>True when gear 2 is an internal gear. All geometry stays positive.</summary>
+        public bool InternalGear { get; set; }
 
         // --- load ---
         public double Ft { get; set; }              // nominal tangential force (N)
@@ -254,6 +266,12 @@ public static class Iso13989FlashTemperature
         double alphaTr = i.alphaT * Math.PI / 180.0;
         double alphaWtr = i.alphaWt * Math.PI / 180.0;
 
+        // The standard's signed convention: u, a and z2 are negative for an internal pair.
+        double sign2 = i.InternalGear ? -1.0 : 1.0;
+        double uS = sign2 * i.u;
+        double aS = sign2 * i.a;
+        double z2S = sign2 * i.z2;
+
         // --- Transverse unit load, Eq. (11) ---
         // w_Bt is the PLAIN unit load. K_Bgamma multiplies it in the flash temperature but NOT
         // in the coefficient of friction - Part 1 and Part 2 differ here, and the reference
@@ -277,9 +295,9 @@ public static class Iso13989FlashTemperature
             return r;
         }
 
-        double gammaA = -(double)i.z2 / i.z1 * (tanAlphaA2 / tanAlphaWt - 1.0);                    // (30)
+        double gammaA = -z2S / i.z1 * (tanAlphaA2 / tanAlphaWt - 1.0);                            // (30)
         double gammaB = tanAlphaA1 / tanAlphaWt - 1.0 - 2.0 * Math.PI / (i.z1 * tanAlphaWt);       // (31)
-        double gammaD = -(double)i.z2 / i.z1 * (tanAlphaA2 / tanAlphaWt - 1.0) + 2.0 * Math.PI / (i.z1 * tanAlphaWt); // (32)
+        double gammaD = -z2S / i.z1 * (tanAlphaA2 / tanAlphaWt - 1.0) + 2.0 * Math.PI / (i.z1 * tanAlphaWt); // (32)
         double gammaE = tanAlphaA1 / tanAlphaWt - 1.0;                                             // (33)
 
         r.GammaA = gammaA;
@@ -312,7 +330,7 @@ public static class Iso13989FlashTemperature
 
         // --- Coefficient of friction, method C, Eq. (25)-(28) ---
         double vSigmaC = 2.0 * Math.Min(i.vt, 50.0) * Math.Sin(alphaWtr);                          // (26)
-        double rhoRelC = RelativeRadius(0, i.a, i.u, alphaWtr);                                    // (6) at Gamma = 0
+        double rhoRelC = RelativeRadius(0, aS, uS, alphaWtr);                                      // (6) at Gamma = 0
 
         r.XL = LubricantFactor(i.Lubricant, i.EtaOil);
         // Eq. (28). The exponent on Ra is 0,5 here - Part 2's own roughness factor is the
@@ -346,11 +364,11 @@ public static class Iso13989FlashTemperature
 
             double xGamma = LoadSharingFactor(gamma, gammaA, gammaB, gammaD, gammaE, i, r.Ceff);
             double xJ = ApproachFactor(gamma, gammaA, gammaE, i, r.Ceff);
-            double xG = GeometryFactor(gamma, i.u, r.XalphaBeta);
+            double xG = GeometryFactor(gamma, uS, r.XalphaBeta);
 
             double flash = xGamma <= 0 ? 0
                 : r.MuM * r.XM * xJ * xG
-                  * Math.Pow(xGamma * wBtFlash, 0.75) * Math.Sqrt(i.vt) / Math.Pow(i.a, 0.25);    // (A.5)
+                  * Math.Pow(xGamma * wBtFlash, 0.75) * Math.Sqrt(i.vt) / Math.Pow(i.a, 0.25);    // (A.5), |a|
 
             flashSum += flash;
             if (flash > r.FlashMax)
@@ -384,10 +402,10 @@ public static class Iso13989FlashTemperature
         }
 
         // --- Cross-check: the same flash temperature through the general Eq. (5) ---
-        r.FlashMaxAlternate = FlashViaEq5(r.GammaAtMax, loadFactorAtMax, i, r);
+        r.FlashMaxAlternate = FlashViaEq5(r.GammaAtMax, loadFactorAtMax, i, r, aS, uS);
 
         // --- Contact exposure time, Eq. (95)-(96) ---
-        r.ContactExposureTime = ContactExposureTime(r.GammaAtMax, i, wBtFlash, Er);
+        r.ContactExposureTime = ContactExposureTime(r.GammaAtMax, i, wBtFlash, Er, aS, uS);
 
         // --- Scuffing temperature, Eq. (99), and safety, Eq. (100) ---
         r.ScuffingTemperature = 80.0 + (0.85 + 1.4 * i.XW) * r.XL * i.FzgLoadStage * i.FzgLoadStage;
@@ -442,13 +460,19 @@ public static class Iso13989FlashTemperature
         return r;
     }
 
-    /// <summary>Relative radius of curvature at a point on the path, Eq. (6)-(8).</summary>
+    /// <summary>
+    /// Relative radius of curvature at a point on the path, Eq. (6)-(8). a and u are SIGNED:
+    /// for an internal pair both are negative, ρ2 comes out negative (concave flank) and the
+    /// relative radius ρ1|ρ2|/(|ρ2| − ρ1) is positive again.
+    /// </summary>
     private static double RelativeRadius(double gamma, double a, double u, double alphaWtr)
     {
         double rho1 = (1 + gamma) / (1 + u) * a * Math.Sin(alphaWtr);                               // (7)
         double rho2 = (u - gamma) / (1 + u) * a * Math.Sin(alphaWtr);                               // (8)
         double sum = rho1 + rho2;
-        return sum > 1e-12 ? rho1 * rho2 / sum : 0;                                                 // (6)
+        if (Math.Abs(sum) <= 1e-12 || rho1 <= 0) return 0;
+        double rel = rho1 * rho2 / sum;                                                             // (6)
+        return rel > 0 ? rel : 0;
     }
 
     /// <summary>
@@ -456,17 +480,21 @@ public static class Iso13989FlashTemperature
     /// square roots that Eq. (5) writes as abs(√ρ_y1 − √(ρ_y2/u)); the two are the same
     /// expression, since (u − Γ)/u = 1 − Γ/u.
     /// </summary>
+    ///
+    /// u is SIGNED. For an internal pair (u &lt; 0) the same expression is taken in magnitudes:
+    /// √|u+1| = √(|u|−1) and |u−Γ| = |u|+Γ, which is what Eq. (5) gives for ρ_2 &lt; 0.
     private static double GeometryFactor(double gamma, double u, double xAlphaBeta)
     {
         double t1 = 1 + gamma;
         double t2 = 1 - gamma / u;
-        if (t1 <= 0 || t2 <= 0) return 0;
+        double uMinusGamma = Math.Abs(u - gamma);
+        if (t1 <= 0 || t2 <= 0 || Math.Sign(u - gamma) != Math.Sign(u)) return 0;
 
         double numerator = Math.Abs(Math.Sqrt(t1) - Math.Sqrt(t2));
-        double denominator = Math.Pow(t1, 0.25) * Math.Pow(u - gamma, 0.25);
+        double denominator = Math.Pow(t1, 0.25) * Math.Pow(uMinusGamma, 0.25);
         if (denominator <= 1e-12) return 0;
 
-        return 0.51 * xAlphaBeta * Math.Sqrt(u + 1) * numerator / denominator;
+        return 0.51 * xAlphaBeta * Math.Sqrt(Math.Abs(u + 1)) * numerator / denominator;
     }
 
     /// <summary>Approach factor, Eq. (45)-(48).</summary>
@@ -553,16 +581,18 @@ public static class Iso13989FlashTemperature
     /// The same flash temperature through the general Eq. (5), used only to check Eq. (A.5).
     /// Written in ρ_y1, ρ_y2 and n1 rather than in the geometry factor.
     /// </summary>
-    private static double FlashViaEq5(double gamma, double xGamma, Input i, Result r)
+    private static double FlashViaEq5(double gamma, double xGamma, Input i, Result r, double aS, double uS)
     {
         if (xGamma <= 0) return 0;
 
+        // a and u signed: rho2 is negative on an internal pair, and rho2/u positive again.
         double alphaWtr = i.alphaWt * Math.PI / 180.0;
-        double rho1 = (1 + gamma) / (1 + i.u) * i.a * Math.Sin(alphaWtr);
-        double rho2 = (i.u - gamma) / (1 + i.u) * i.a * Math.Sin(alphaWtr);
-        if (rho1 <= 0 || rho2 <= 0) return 0;
+        double rho1 = (1 + gamma) / (1 + uS) * aS * Math.Sin(alphaWtr);
+        double rho2 = (uS - gamma) / (1 + uS) * aS * Math.Sin(alphaWtr);
+        if (rho1 <= 0 || rho2 / uS <= 0) return 0;
 
         double rhoRel = rho1 * rho2 / (rho1 + rho2);
+        if (rhoRel <= 0) return 0;
         double n1 = i.vt * 60000.0 / (Math.PI * i.d1);                                              // r/min
 
         double xJ = ApproachFactor(gamma, r.GammaA, r.GammaE, i, r.Ceff);
@@ -570,7 +600,7 @@ public static class Iso13989FlashTemperature
         return 2.52 * r.MuM * (r.XM / 50.0) * xJ
              * Math.Pow(xGamma * r.KBgamma * r.wBt, 0.75)
              * Math.Sqrt(n1 / 60.0)
-             * Math.Abs(Math.Sqrt(rho1) - Math.Sqrt(rho2 / i.u))
+             * Math.Abs(Math.Sqrt(rho1) - Math.Sqrt(rho2 / uS))
              / Math.Pow(rhoRel, 0.25);                                                              // (5)
     }
 
@@ -578,10 +608,11 @@ public static class Iso13989FlashTemperature
     /// Contact exposure time, Eq. (95)-(96): the longer of the two times a point on a flank
     /// spends inside the Hertzian band, in microseconds.
     /// </summary>
-    private static double ContactExposureTime(double gamma, Input i, double wBt, double Er)
+    private static double ContactExposureTime(double gamma, Input i, double wBt, double Er,
+                                              double aS, double uS)
     {
         double alphaWtr = i.alphaWt * Math.PI / 180.0;
-        double rhoRel = RelativeRadius(gamma, i.a, i.u, alphaWtr);
+        double rhoRel = RelativeRadius(gamma, aS, uS, alphaWtr);
         if (rhoRel <= 0 || Er <= 0) return 0;
 
         // Semi-width of the Hertzian band, from the line-contact solution.
@@ -590,7 +621,7 @@ public static class Iso13989FlashTemperature
         // Tangential (rolling) velocities of the two flanks at this point, m/s.
         double vt = i.vt;
         double vg1 = vt * (1 + gamma) / 1.0;
-        double vg2 = vt * (i.u - gamma) / i.u;
+        double vg2 = vt * (uS - gamma) / uS;
         double slowest = Math.Min(Math.Abs(vg1), Math.Abs(vg2));
         if (slowest <= 1e-9) return 0;
 

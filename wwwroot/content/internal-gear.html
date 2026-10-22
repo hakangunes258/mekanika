@@ -1,0 +1,172 @@
+<!--
+    The reference section shown under the internal gear pair calculator.
+
+    ONE COPY, TWO READERS. See the header of interference-fit.html for the rule.
+
+    Every number in the worked example was read off the real page (Chromium, the
+    published build) with the default internal pair: mn 1,5, alpha_n 20, beta 0,
+    a 30, z 20/60, b 15/15, x1 +0,3 (x2 -0,3 derived), D_o 110, ISO 1328 class 6,
+    18CrNiMo7-6 case-hardened both, Mobilgear 600 XP 220, dip lubrication,
+    P 3,5 kW, n1 2500 rpm, KA 1,0, 10 000 h, pitting NOT permissible. The x1 = 0
+    involute interference claim and the z2 - z1 = 9 threshold are pinned by
+    Tests/InternalGearTests.cs. Re-run if the engine changes.
+-->
+<section class="module-content">
+
+    <h2>How an internal gear pair is calculated</h2>
+
+    <p>An internal gear pair is a pinion running <em>inside</em> a ring gear (annulus). The
+    two turn the same way, the centre distance is the <strong>difference</strong> of the
+    pitch radii, and the concave flank of the annulus wraps around the convex flank of the
+    pinion. That conformity is the whole attraction: the contact stress is lower, the path of
+    contact longer and the sliding smaller than on an external pair with the same teeth, in a
+    package where the shafts sit close together.</p>
+
+    <p>The rating is the same ISO 6336 chain as for an external pair &mdash; root bending,
+    flank pitting, scuffing, micropitting &mdash; with the internal branches of each standard.
+    What is genuinely new are the <strong>interferences</strong>: an annulus can foul the
+    pinion in ways an external wheel cannot, and those are geometric show-stoppers that no
+    safety factor reveals. The calculator checks them before anything else.</p>
+
+    <details>
+        <summary>The equations</summary>
+        <div class="mc-body">
+            <p>Everything is entered and shown as positive numbers. The standards write the
+            internal case with z<sub>2</sub>, a and d<sub>2</sub> negative, and where that sign
+            matters it is applied for you:</p>
+<pre>a&#8320; = m&#8348;(z&#8322; &minus; z&#8321;)/2                  reference centre distance
+d&#8336;&#8322; = d&#8322; &minus; 2h&#8336;&#8322;   d&#7491;&#8322; = d&#8322; + 2h&#7491;&#8322;     annulus tip inside, root outside
+g&#945; = &radic;(r&#8336;&#8321;&sup2;&minus;r&#7471;&#8321;&sup2;) &minus; &radic;(r&#8336;&#8322;&sup2;&minus;r&#7471;&#8322;&sup2;) + a sin&#945;&#7530;&#8348;   path of contact
+
+&sigma;&#7511;&#8320; = Z&#7511; Z&#7497; Z&#949; Z&#7517; &radic;[F&#8348;(u&minus;1)/(d&#8321; b u)]   (u&minus;1), not (u+1)
+
+G&#8347; = z&#8321;(inv&#945;&#8336;&#8321; + &#948;&#8321;) + (z&#8322;&minus;z&#8321;)inv&#945;&#7530;&#8348; &minus; z&#8322;(inv&#945;&#8336;&#8322; + &#948;&#8322;) &ge; 0
+                                       tip (trochoid) interference</pre>
+            <p>The tooth root of the annulus is rated with the 60&deg; tangent construction of
+            ISO 6336-3 instead of the 30&deg; one, and its rim factor Y<sub>B</sub> has its own
+            internal-gear curve, which is why the rim outside diameter is an input.</p>
+            <table class="mc-sym">
+                <thead><tr><th>Symbol</th><th>Meaning</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>z&#8321; / z&#8322;</td><td>Teeth, pinion / internal gear</td><td>&ndash;</td></tr>
+                    <tr><td>x&#8322;</td><td>Annulus profile shift, positive towards its tooth tip (the axis)</td><td>&ndash;</td></tr>
+                    <tr><td>&#961;<sub>1A</sub></td><td>Pinion curvature where the annulus tip engages</td><td>mm</td></tr>
+                    <tr><td>G<sub>s</sub></td><td>Tip interference margin</td><td>rad</td></tr>
+                    <tr><td>D<sub>o</sub> / s<sub>R</sub></td><td>Rim outside diameter / rim thickness under the root</td><td>mm</td></tr>
+                    <tr><td>M<sub>i</sub></td><td>Dimension between balls</td><td>mm</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </details>
+
+    <details>
+        <summary>Where the inputs come from</summary>
+        <div class="mc-body">
+            <p><strong>Profile shift.</strong> On an annulus a positive x<sub>2</sub> moves the
+            profile towards the tooth tip &mdash; towards the axis &mdash; which thickens the
+            tooth but makes the tip diameter <em>smaller</em> and brings it closer to its base
+            circle. Most internal pairs need a positive x<sub>1</sub> on the pinion and a
+            negative x<sub>2</sub> on the annulus to keep clear of interference, which is what
+            the default pair below does.</p>
+            <p><strong>Tooth number difference.</strong> z<sub>2</sub> &minus; z<sub>1</sub> is
+            limited by tip interference. For unshifted 20&deg; full-depth teeth on a 40-tooth
+            pinion it has to be at least 9; a larger pressure angle, profile shift or shorter
+            tips let it come down.</p>
+            <p><strong>Rim outside diameter.</strong> A ring gear is often thin. ISO 6336-3
+            covers it only down to a rim of 1,75&middot;m<sub>n</sub> under the root; below that
+            the rim cracks radially before a tooth breaks, and the calculator says so.</p>
+            <p><strong>Reference profile.</strong> Annuli are shaped with a pinion-type cutter,
+            not hobbed. Enter the cutter's addendum and tip radius as the reference profile; the
+            root fillet radius in particular drives the stress correction factor of the
+            annulus.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Worked example</summary>
+        <div class="mc-body">
+            <p>The calculator's default pair: m<sub>n</sub> 1,5, 20&deg; pressure angle, spur,
+            z = 20/60 on 30 mm centres, 15 mm face width, x<sub>1</sub> = +0,3 (so
+            x<sub>2</sub> = &minus;0,3), rim outside diameter 110 mm, ISO 1328 class 6,
+            18CrNiMo7-6 case-hardened both, dip lubrication in Mobilgear 600 XP 220,
+            transmitting 3,5 kW at 2500 rpm with K<sub>A</sub> = 1,0 for 10 000 hours.</p>
+<pre>d          30,000 / 90,000 mm      d&#8336;  33,900 / 87,900 mm
+&#949;&#945;  1,738          v  3,93 m/s       F&#8348;  891 N
+
+Checks    &#961;&#8321;&#8336;  1,718 mm   G&#8347;  0,7817   s&#7523;  7,67 mm   &#10003;
+
+K&#8336; 1,000   K&#7515; 1,091   K&#7511;&#7517; 2,308   K&#7511;&#945; 1,132
+
+Root      Y&#7534;   1,181 / 0,999     Y&#8347;  2,282 / 3,502
+          &sigma;&#7515;   254,1 / 329,5     S&#7515;  2,96 / 2,41    &#10003;
+
+Flank     &sigma;&#7511;&#8320;  472,5 MPa         &sigma;&#7511;  797,6
+          S&#7511;    1,64 / 1,73       &#10003;
+
+Scuffing  margin 265 K            &#10003;
+Micropitting            S&#955;  1,31   &#9888;</pre>
+            <p>Look at the flank. The nominal contact stress of 472,5 MPa carries
+            &radic;((u&minus;1)/u) where an external pair carries &radic;((u+1)/u) &mdash; at
+            u = 3 that alone is a factor of 0,71 &mdash; and the longer path of contact lowers
+            Z<sub>&#949;</sub> as well. The concave annulus is doing exactly what it is there
+            for.</p>
+            <p>The root tells the opposite story for the annulus. Its form factor is low
+            (0,999: the tooth widens towards the root), but its fillet is tight, so the stress
+            correction factor is high (3,502) and the annulus, not the pinion, sets the minimum
+            root safety at 2,41. With x<sub>1</sub> = 0 instead of +0,3 the same pair has
+            involute interference &mdash; the annulus tip reaches past the pinion's base
+            circle &mdash; and the checks card goes red before any safety factor is
+            computed.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Reading the result</summary>
+        <div class="mc-body">
+            <p><strong>The interference checks come first.</strong> A red row there means the
+            gears cannot be assembled or run as drawn, whatever the safety factors say. The
+            usual cures are a positive x<sub>1</sub>, a negative x<sub>2</sub> (a larger annulus
+            tip diameter), more teeth on the annulus, or a larger pressure angle.</p>
+            <p><strong>Control dimensions.</strong> Neither a span micrometer nor a tooth caliper
+            reaches an annulus flank, so the annulus is measured <em>between</em> balls. A
+            thinner tooth lets the balls move outwards, so on the annulus both permitted limits
+            sit <strong>above</strong> the theoretical M<sub>i</sub> &mdash; the opposite of the
+            pinion.</p>
+            <p><strong>Backlash and the housing.</strong> On an internal pair the pinion moves
+            towards the annulus teeth as the centre distance grows, so a looser housing
+            <em>closes</em> the mesh. The minimum backlash therefore occurs at the largest centre
+            distance.</p>
+            <p><strong>Not yet benchmarked.</strong> The external gear pair module was checked
+            against four commercial reports; this one has not been checked against any yet.
+            Treat its strength results as an engineering estimate until it has been, and see
+            the scope note on the page for what it assumes.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Frequently asked questions</summary>
+        <div class="mc-body">
+            <p class="mc-q">Can I use this for a planetary gearbox?</p>
+            <p>For one planet&ndash;ring mesh in isolation, yes, with the planet as the pinion.
+            The load sharing between planets, the mesh with the sun and the planet bearing
+            loads are not modelled.</p>
+
+            <p class="mc-q">Why is there no 3D model on this page?</p>
+            <p>The viewer draws external pairs. Showing that next to an internal calculation
+            would draw a gear the calculation does not describe, so the internal page leaves it
+            out until it has a model of its own.</p>
+
+            <p class="mc-q">Why does the annulus have no undercut limit?</p>
+            <p>Undercut is a rack-generation effect on an external gear. An annulus has its own
+            limits instead &mdash; the tip lying outside its base circle and the interference
+            conditions &mdash; and those are in the checks card.</p>
+
+            <p class="mc-q">Which standard is this?</p>
+            <p>ISO 21771 geometry, ISO 6336 parts 1, 2, 3 and 5 with their internal-gear
+            branches, ISO 1328-1:2013 tolerances, ISO/TR 10064-2 backlash, ISO/TR 13989 scuffing
+            and ISO/TR 15144-1 micropitting. The tip interference condition is the classical
+            one, checked here against a direct simulation of the mesh.</p>
+        </div>
+    </details>
+
+</section>

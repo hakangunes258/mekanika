@@ -267,7 +267,7 @@ public class ModuleMetadataService
                 Icon = "⚙️",
                 Description = "Design spur and helical gear pairs. Calculate geometry, tooth thickness and inspection dimensions, flank tolerances, backlash, bending and contact stress, and safety factors according to ISO 6336, ISO 21771 and ISO 1328-1.",
                 Keywords = "spur gear, helical gear, gear design, gear calculation, ISO 6336, ISO 21771, ISO 1328, DIN 3990, gear strength, backlash, base tangent length, span measurement, measurement over pins, tooth thickness, gear tolerances",
-                RelatedModules = new[] { "materials", "ball-bearing", "key-connection" },
+                RelatedModules = new[] { "internal-gear", "materials", "ball-bearing", "key-connection" },
                 // Verified: KV (6336-1 cl.6 Method B), KHβ/KFβ (cl.7.5/7.6), KHα/KFα (cl.8),
                 // YF/YS (6336-3 Method B), ZB/ZD and ZL/Zv/ZR (6336-2 cl.6/12), YNT/ZNT,
                 // YδrelT, YRrelT, YX, ZX, ZW, and σFlim/σHlim from 6336-5 Table 1 are all
@@ -279,7 +279,8 @@ public class ModuleMetadataService
                 // Scuffing (ISO/TR 13989-1 flash and -2 integral temperature) and micropitting
                 // (ISO/TR 15144-1 Method B) were added in Aug 2026 and are no longer out of
                 // scope. Still OUT OF SCOPE, and stated in the results: tooth flank fracture
-                // (ISO/TS 6336-4), and planetary or internal gear arrangements.
+                // (ISO/TS 6336-4) and planetary arrangements. Internal pairs have their own
+                // module, internal-gear (Oct 2026), on the same engine with InternalGear set.
                 //
                 // BENCHMARKED, Aug 2026, against three KISSsoft 03/2017-03/2018 reports - two
                 // generated with ISO 6336:2006 Method B and one (Tutorial 8) with DIN 3990:1987
@@ -296,6 +297,35 @@ public class ModuleMetadataService
                 // and that shows up as S_H ~4 % and S_F ~8 % low on one of the three. It is
                 // conservative and it is surfaced in the UI.
                 IsVerified = true,
+                VerificationStandards = new[] { "ISO 6336-1", "ISO 6336-2", "ISO 6336-3", "ISO 6336-5", "ISO 1328-1", "ISO 21771", "ISO/TR 10064-2", "ISO/TR 13989-1", "ISO/TR 13989-2", "ISO/TR 15144-1", "DIN 3967", "ISO 286" },
+                HasVideo = false
+            },
+
+            ["internal-gear"] = new ModuleInfo
+            {
+                Key = "internal-gear",
+                Name = "Internal Gear Pair Calculator",
+                Route = "/internal-gear",
+                Category = "Gears",
+                Icon = "⚙️",
+                Description = "Design an external spur or helical pinion meshing with an internal gear (annulus, ring gear). Geometry, interference checks, dimension between balls, backlash, bending and contact stress, scuffing and micropitting per ISO 6336, ISO 21771, ISO/TR 13989 and ISO/TR 15144.",
+                Keywords = "internal gear, ring gear, annulus, internal gear pair, internal spur gear, tip interference, trochoid interference, dimension between balls, ISO 6336, ISO 21771, gear strength, ring gear rim thickness",
+                RelatedModules = new[] { "gear-pair", "materials", "ball-bearing" },
+                // NOT verified. The internal pair runs the same chain as gear-pair with the
+                // internal branches of each standard, but no reference report for an internal
+                // pair has been run yet. What it rests on, until one is:
+                //  - ISO 6336-3 internal tooth form (60° tangent, Eq. 16/19) checked against an
+                //    independent vector derivation, but Eq. (11), the substitute root radius
+                //    ρ_fPv, is not implemented - ρ_fP is used as entered.
+                //  - K_V: zn2 taken as infinite in Eq. (82) and the annulus as infinite mass in
+                //    Eq. (30). Both are assumptions from memory of the standard, not from its text.
+                //  - Z_D held at 1; the internal X_G of ISO/TR 13989-1 derived from Eq. (A.6)
+                //    with u negative and cross-checked against the general Eq. (5).
+                //  - Tip interference by the Colbourne condition, checked against a brute-force
+                //    mesh simulation (threshold z2 - z1 = 9 for z1 = 40, unshifted 20°).
+                // Promote it once a KISSsoft (or similar) internal-pair report has been diffed
+                // the way the three external ones were.
+                IsVerified = false,
                 VerificationStandards = new[] { "ISO 6336-1", "ISO 6336-2", "ISO 6336-3", "ISO 6336-5", "ISO 1328-1", "ISO 21771", "ISO/TR 10064-2", "ISO/TR 13989-1", "ISO/TR 13989-2", "ISO/TR 15144-1", "DIN 3967", "ISO 286" },
                 HasVideo = false
             },

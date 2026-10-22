@@ -83,8 +83,32 @@ public enum BacklashSplit
 ///   <see cref="Iso6336Material"/>        sigma_Flim, sigma_Hlim - ISO 6336-5 Table 1
 ///   <see cref="GearToothMeasurement"/>   tooth thickness, W_k, M_d, backlash
 ///
-/// NOT covered: scuffing (ISO/TR 13989), micropitting (ISO/TR 15144), tooth flank
-/// fracture, and planetary/internal arrangements.
+/// NOT covered: tooth flank fracture and planetary arrangements.
+///
+/// INTERNAL PAIRS. With <see cref="InternalGear"/> set, gear 2 is an annulus meshing with the
+/// external pinion (gear 1). Every input and every reported diameter stays a POSITIVE
+/// magnitude - z2, a, d2, d_a2, d_f2 - because that is how a drawing states them. The
+/// standards write the internal case in ISO 21771's signed convention instead (z2, a, d2...
+/// negative, u = z2/z1 negative), so wherever an equation needs the sign it is applied
+/// locally through <see cref="Sign2"/>. x2 keeps ISO 21771's meaning on the annulus: positive
+/// moves the profile towards the tooth TIP, i.e. towards the axis, which thickens the tooth
+/// and makes |d_a2| and |d_f2| smaller.
+///
+/// What an internal pair changes, and where:
+///   geometry      a_d = m_t(z2 − z1)/2; Σx from the signed involute relation; d_a2 = d2 − 2h_a2,
+///                 d_f2 = d2 + 2h_f2; d_w1 = 2a/(u − 1); path, approach and recess lengths
+///   kinematics    the annulus turns the SAME way as the pinion, n2 = n1/u
+///   checks        annulus tip outside its base circle, involute interference at the pinion
+///                 root, tip (trochoid) interference on leaving mesh, rim thickness
+///   K_V           zn2 → ∞ in Eq. (82), annulus as infinite mass in Eq. (30)
+///   Y_F, Y_S      ISO 6336-3 Method B with the 60° tangent (Eq. 16, 19)
+///   Y_B           the internal-gear branch of Clause 8, from the rim outside diameter
+///   σ_H0          (u − 1)/u in place of (u + 1)/u; Z_B with the annulus term signed
+///   Z_R           ρ_red of a concave–convex contact
+///   measurement   dimension between balls; no W_k and no chordal caliper on the annulus
+///   backlash      a LARGER centre distance REDUCES the backlash of an internal pair
+///   scuffing,     the services' internal branches (signed u and a)
+///   micropitting
 /// </summary>
 public class GearPairEngine
 {
@@ -106,6 +130,22 @@ public class GearPairEngine
     public int NumberOfTeeth1 { get; set; }              // z1
     public double FaceWidth1 { get; set; }               // b1 (mm)
     public double ProfileShiftCoeff1 { get; set; }       // x1
+
+    /// <summary>
+    /// True when gear 2 is an internal gear (annulus) and gear 1 the external pinion inside it.
+    /// See the class summary for what changes; every value stays a positive magnitude.
+    /// </summary>
+    public bool InternalGear { get; set; }
+
+    /// <summary>
+    /// Outside diameter of the annulus rim (mm), internal pairs only. The rim thickness under
+    /// the tooth root, s_R = (D_o − d_f2)/2, drives the ISO 6336-3 rim factor Y_B. 0 = not
+    /// given, in which case Y_B = 1 and the results say the rim was not checked.
+    /// </summary>
+    public double RingOuterDiameter { get; set; }
+
+    /// <summary>+1 for an external pair, −1 for an internal one: the sign ISO 21771 gives z2, a, d2 and u.</summary>
+    public double Sign2 => InternalGear ? -1.0 : 1.0;
 
     // Geometry - Gear 2 (Wheel)
     public int NumberOfTeeth2 { get; set; }              // z2
@@ -454,6 +494,27 @@ public class GearPairEngine
     public double SpecificSliding2 { get; set; }         // ζ2 at the wheel root (end of contact)
     public double ToothLossFactor { get; set; }          // HV (ISO/TR 14179-2 gear loss factor)
 
+    // ============ CALCULATED VALUES - INTERNAL PAIR CHECKS ============
+
+    /// <summary>
+    /// Tip interference margin of an internal pair (rad, involute-angle units): the pinion tip
+    /// must clear the annulus tip as the teeth come out of mesh. Negative = interference.
+    /// Only set for an internal pair.
+    /// </summary>
+    public double TipInterferenceMargin { get; set; }
+
+    /// <summary>
+    /// Pinion's radius of curvature where the annulus tip first touches it (mm), ρ_1A. At or
+    /// below zero the annulus tip reaches past the pinion's base circle: involute interference.
+    /// </summary>
+    public double PinionRootContactRadius { get; set; }
+
+    /// <summary>Rim thickness under the annulus root, s_R = (D_o − d_f2)/2 (mm); 0 when D_o is not given.</summary>
+    public double RingRimThickness { get; set; }
+
+    /// <summary>Plain-language findings of the internal-pair checks; empty when all pass.</summary>
+    public List<string> InternalGearWarnings { get; } = new();
+
     // ============ CALCULATED VALUES - KINEMATICS ============
 
     public double Speed2 { get; set; }                   // rpm (wheel)
@@ -684,11 +745,14 @@ public class GearPairEngine
         GearRatio = (double)NumberOfTeeth2 / NumberOfTeeth1;
 
         double alphatRad = TransversePressureAngle * Math.PI / 180.0;
-        double referenceCenter = TransverseModule * (NumberOfTeeth1 + NumberOfTeeth2) / 2.0;
+        // Signed (ISO 21771): z2 and a are negative for an internal pair, so a_d is too and
+        // the ratio below stays positive.
+        double z2Signed = Sign2 * NumberOfTeeth2;
+        double referenceCenter = TransverseModule * (NumberOfTeeth1 + z2Signed) / 2.0;
         double invAlphaT = Math.Tan(alphatRad) - alphatRad;
 
         // Working pressure angle from the actual centre distance
-        double cosAlphaWT = referenceCenter * Math.Cos(alphatRad) / CenterDistance;
+        double cosAlphaWT = referenceCenter * Math.Cos(alphatRad) / (Sign2 * CenterDistance);
         if (cosAlphaWT > 1.0) cosAlphaWT = 1.0;
         if (cosAlphaWT < -1.0) cosAlphaWT = -1.0;
         double alphaWTRad = Math.Acos(cosAlphaWT);
@@ -697,8 +761,9 @@ public class GearPairEngine
         double invAlphaWT = Math.Tan(alphaWTRad) - alphaWTRad;
         double invDiff = invAlphaWT - invAlphaT;
 
-        // Sum of profile shifts: Σx = (z1 + z2) × inv_diff / (2 × tan(αn))
-        SumProfileShift = (NumberOfTeeth1 + NumberOfTeeth2) * invDiff / (2.0 * Math.Tan(alphanRad));
+        // Sum of profile shifts: Σx = (z1 + z2) × inv_diff / (2 × tan(αn)), z2 signed.
+        // For an internal pair a centre distance LARGER than a_d gives a NEGATIVE Σx.
+        SumProfileShift = (NumberOfTeeth1 + z2Signed) * invDiff / (2.0 * Math.Tan(alphanRad));
         ProfileShiftCoeff2 = SumProfileShift - ProfileShiftCoeff1;
     }
 
@@ -713,8 +778,9 @@ public class GearPairEngine
         BaseDiameter1 = ReferenceDiameter1 * Math.Cos(alphatRad);
         BaseDiameter2 = ReferenceDiameter2 * Math.Cos(alphatRad);
 
-        WorkingPitchDiameter1 = 2.0 * CenterDistance / (1.0 + GearRatio);
-        WorkingPitchDiameter2 = 2.0 * CenterDistance * GearRatio / (1.0 + GearRatio);
+        // d_w1 = 2a/(1 + u) with a and u signed; for an internal pair 2a/(u − 1) in magnitudes.
+        WorkingPitchDiameter1 = 2.0 * CenterDistance / (GearRatio + Sign2);
+        WorkingPitchDiameter2 = 2.0 * CenterDistance * GearRatio / (GearRatio + Sign2);
 
         CalculateTipAlteration();
 
@@ -725,22 +791,29 @@ public class GearPairEngine
         Dedendum2 = NormalModule * (DedendumCoeff - ProfileShiftCoeff2);
 
         TipDiameter1 = ReferenceDiameter1 + 2.0 * Addendum1;
-        TipDiameter2 = ReferenceDiameter2 + 2.0 * Addendum2;
-
         RootDiameter1 = ReferenceDiameter1 - 2.0 * Dedendum1;
-        RootDiameter2 = ReferenceDiameter2 - 2.0 * Dedendum2;
+
+        // d_a = d + 2h_a with d signed: the annulus tip is INSIDE its reference circle and its
+        // root outside.
+        TipDiameter2 = ReferenceDiameter2 + Sign2 * 2.0 * Addendum2;
+        RootDiameter2 = ReferenceDiameter2 - Sign2 * 2.0 * Dedendum2;
 
         ToothHeight = Addendum1 + Dedendum1;
 
         // Working tip clearance: what is actually left between one tip and the mating
         // root at the operating centre distance. The nominal (mn(h*fP - h*aP)) ignores
         // the centre distance, and so hides the clearance loss that profile shift causes.
-        TipClearance = CenterDistance - TipDiameter1 / 2.0 - RootDiameter2 / 2.0;
+        // Internal: the pinion tip faces the annulus root from the inside, c = d_f2/2 − a − d_a1/2.
+        TipClearance = InternalGear
+            ? RootDiameter2 / 2.0 - CenterDistance - TipDiameter1 / 2.0
+            : CenterDistance - TipDiameter1 / 2.0 - RootDiameter2 / 2.0;
 
         // Undercut limit (ISO 21771): x_min = h*aP - z sin²(αt) / (2 cos β)
         MinProfileShift1 = AddendumCoeff
             - NumberOfTeeth1 * Math.Pow(Math.Sin(alphatRad), 2) / (2.0 * Math.Cos(betaRad));
-        MinProfileShift2 = AddendumCoeff
+        // An annulus cannot undercut in the rack sense; its limits are the internal-pair
+        // checks instead. NaN tells the page there is nothing to show.
+        MinProfileShift2 = InternalGear ? double.NaN : AddendumCoeff
             - NumberOfTeeth2 * Math.Pow(Math.Sin(alphatRad), 2) / (2.0 * Math.Cos(betaRad));
     }
 
@@ -786,7 +859,8 @@ public class GearPairEngine
                     break;
                 }
 
-                double y = (CenterDistance - ad) / NormalModule;
+                // y with a and a_d signed; for an internal pair y = −(a − a_d)/m_n in magnitudes.
+                double y = Sign2 * (CenterDistance - ad) / NormalModule;
                 TipAlterationCoeff = y - SumProfileShift;
 
                 TipAlterationNote =
@@ -818,13 +892,18 @@ public class GearPairEngine
         double tip2 = Math.Sqrt(Math.Max(0, Math.Pow(TipDiameter2 / 2.0, 2) - Math.Pow(BaseDiameter2 / 2.0, 2)));
         double lineOfAction = CenterDistance * Math.Sin(alphaWTRad);
 
-        PathOfContact = tip1 + tip2 - lineOfAction;
+        // Internal pair: both base tangent points lie on the same side of the pitch point, so
+        // g_α = tip1 − tip2 + a sin α_wt - the signed form of the same expression.
+        PathOfContact = InternalGear
+            ? tip1 - tip2 + lineOfAction
+            : tip1 + tip2 - lineOfAction;
         if (PathOfContact < 0) PathOfContact = 0;
 
         // Split at the pitch point: the recess path belongs to the pinion tip, the
-        // approach path to the wheel tip.
+        // approach path to the wheel tip. The annulus tip lies INSIDE its pitch circle, so on
+        // an internal pair its approach length is measured the other way.
         RecessPath = Math.Max(0, tip1 - BaseDiameter1 / 2.0 * Math.Tan(alphaWTRad));
-        ApproachPath = Math.Max(0, tip2 - BaseDiameter2 / 2.0 * Math.Tan(alphaWTRad));
+        ApproachPath = Math.Max(0, Sign2 * (tip2 - BaseDiameter2 / 2.0 * Math.Tan(alphaWTRad)));
 
         TransverseContactRatio = basePitch > 0 ? PathOfContact / basePitch : 0;
         ApproachContactRatio = basePitch > 0 ? ApproachPath / basePitch : 0;
@@ -839,6 +918,101 @@ public class GearPairEngine
         TotalContactRatio = TransverseContactRatio + OverlapRatio;
 
         CalculateSlidingAndLossFactor(alphaWTRad, basePitch);
+
+        if (InternalGear) CheckInternalPair(alphaWTRad);
+        else
+        {
+            InternalGearWarnings.Clear();
+            TipInterferenceMargin = 0;
+            PinionRootContactRadius = 0;
+        }
+    }
+
+    /// <summary>
+    /// The interferences an annulus can have that an external pair cannot. They are geometric
+    /// show-stoppers rather than load-capacity questions, so each one is reported in words.
+    ///
+    /// Tip (trochoid) interference: as the teeth leave mesh, the pinion tip swings out of the
+    /// annulus space on a trochoid and can foul the annulus tip next to it. The classical
+    /// condition (Colbourne; also in DIN 3993) compares the two tip-circle intersection angles:
+    ///     δ1 = arccos((r_a2² − r_a1² − a²) / (2 a r_a1))
+    ///     δ2 = arccos((r_a2² − r_a1² + a²) / (2 a r_a2))
+    ///     G  = z1 (inv α_a1 + δ1) + (z2 − z1) inv α_wt − z2 (inv α_a2 + δ2) ≥ 0
+    /// It is what limits how small z2 − z1 may be.
+    /// </summary>
+    private void CheckInternalPair(double alphaWTRad)
+    {
+        InternalGearWarnings.Clear();
+
+        double rb1 = BaseDiameter1 / 2.0, rb2 = BaseDiameter2 / 2.0;
+        double ra1 = TipDiameter1 / 2.0, ra2 = TipDiameter2 / 2.0;
+        double a = CenterDistance;
+
+        // 1. The annulus tip has to lie on its involute, i.e. outside its base circle.
+        if (ra2 <= rb2)
+        {
+            InternalGearWarnings.Add(
+                $"The internal gear's tip diameter d_a2 = {TipDiameter2:F3} mm is inside its base circle "
+              + $"d_b2 = {BaseDiameter2:F3} mm. Below the base circle there is no involute, so the annulus "
+              + "tip would interfere with the pinion. Increase d_a2 (a smaller addendum, more negative x2).");
+        }
+
+        // 2. Involute interference at the pinion root: where the annulus tip first touches the
+        //    pinion, the pinion has to be on its involute (ρ_1A > 0).
+        double rho2A = Math.Sqrt(Math.Max(0, ra2 * ra2 - rb2 * rb2));
+        PinionRootContactRadius = rho2A - a * Math.Sin(alphaWTRad);
+        if (PinionRootContactRadius <= 0)
+        {
+            InternalGearWarnings.Add(
+                $"Involute interference: the annulus tip reaches the pinion {(-PinionRootContactRadius):F3} mm "
+              + "beyond the pinion's base circle (ρ_1A ≤ 0). Increase d_a2, or the pinion's profile shift x1.");
+        }
+
+        // 3. Tip (trochoid) interference on leaving mesh.
+        double cosD1 = (ra2 * ra2 - ra1 * ra1 - a * a) / (2.0 * a * ra1);
+        double cosD2 = (ra2 * ra2 - ra1 * ra1 + a * a) / (2.0 * a * ra2);
+        if (Math.Abs(cosD1) <= 1.0 && Math.Abs(cosD2) <= 1.0 && ra1 > rb1 && ra2 > rb2)
+        {
+            double d1 = Math.Acos(cosD1), d2 = Math.Acos(cosD2);
+            double invA1 = GearToothMeasurement.Inv(Math.Acos(rb1 / ra1));
+            double invA2 = GearToothMeasurement.Inv(Math.Acos(rb2 / ra2));
+            double invW = GearToothMeasurement.Inv(alphaWTRad);
+            TipInterferenceMargin = NumberOfTeeth1 * (invA1 + d1)
+                                  + (NumberOfTeeth2 - NumberOfTeeth1) * invW
+                                  - NumberOfTeeth2 * (invA2 + d2);
+            if (TipInterferenceMargin < 0)
+            {
+                InternalGearWarnings.Add(
+                    $"Tip interference (trochoid interference): the pinion tip fouls the annulus tip as the teeth "
+                  + $"leave mesh (G_s = {TipInterferenceMargin:F4} < 0). Increase z2 − z1 (currently "
+                  + $"{NumberOfTeeth2 - NumberOfTeeth1}), the working pressure angle, or shorten the tips.");
+            }
+        }
+        else
+        {
+            TipInterferenceMargin = double.NaN;
+            InternalGearWarnings.Add(
+                "The tip interference check could not be evaluated: the two tip circles do not intersect. "
+              + "Check the centre distance and the tip diameters.");
+        }
+
+        // 4. Tip clearance between the pinion tip and the annulus root.
+        if (TipClearance < 0.1 * NormalModule)
+        {
+            InternalGearWarnings.Add(
+                $"Tip clearance c = {TipClearance:F3} mm between the pinion tip and the annulus root is below "
+              + $"0.1·m_n = {0.1 * NormalModule:F3} mm.");
+        }
+
+        // 5. Rim thickness: ISO 6336-3 covers internal gears only down to s_R = 1.75 m_n.
+        RingRimThickness = RingOuterDiameter > 0 ? (RingOuterDiameter - RootDiameter2) / 2.0 : 0;
+        if (RingOuterDiameter > 0 && RingRimThickness < 1.75 * NormalModule)
+        {
+            InternalGearWarnings.Add(
+                $"Rim thickness s_R = {RingRimThickness:F2} mm is below 1.75·m_n = {1.75 * NormalModule:F2} mm, "
+              + "the lower limit of ISO 6336-3 for internal gears. A rim this thin can crack radially from the "
+              + "root rather than break a tooth; the tooth root safety factor does not cover that.");
+        }
     }
 
     /// <summary>
@@ -858,13 +1032,16 @@ public class GearPairEngine
         double u = GearRatio;
 
         // Start of contact A: the wheel tip drives, the pinion contacts near its root.
+        // On an annulus the radius of curvature runs the other way along the path (its tip is
+        // at A, nearest its base circle), hence Sign2. Magnitudes throughout: the annulus also
+        // turns with the pinion, so the formulas keep their form.
         double rho1A = rb1TanW - ApproachPath;
-        double rho2A = rb2TanW + ApproachPath;
+        double rho2A = rb2TanW + Sign2 * ApproachPath;
         SpecificSliding1 = rho1A > 1e-9 ? 1.0 - rho2A / (u * rho1A) : 0;
 
         // End of contact E: the pinion tip drives, the wheel contacts near its root.
         double rho1E = rb1TanW + RecessPath;
-        double rho2E = rb2TanW - RecessPath;
+        double rho2E = rb2TanW - Sign2 * RecessPath;
         SpecificSliding2 = rho2E > 1e-9 ? 1.0 - u * rho1E / rho2E : 0;
 
         // Gear loss factor H_V (Niemann; ISO/TR 14179-2). Geometry only - multiplying it
@@ -875,7 +1052,8 @@ public class GearPairEngine
         {
             double e1 = ApproachContactRatio;
             double e2 = RecessContactRatio;
-            ToothLossFactor = (Math.PI * (u + 1.0)) / (NumberOfTeeth1 * u * cosBetaB)
+            // (u + 1) with u signed: (u − 1) for an internal pair, which slides less.
+            ToothLossFactor = (Math.PI * (u + Sign2)) / (NumberOfTeeth1 * u * cosBetaB)
                             * (1.0 - TransverseContactRatio + e1 * e1 + e2 * e2);
         }
     }
@@ -986,6 +1164,7 @@ public class GearPairEngine
             db1 = BaseDiameter1,
             epsilonAlpha = TransverseContactRatio,
             epsilonGamma = TotalContactRatio,
+            InternalGear = InternalGear,
             hfP = DedendumCoeff * NormalModule,
             alphaPn = PressureAngle,
             Ft = TangentialForce,
@@ -1172,9 +1351,10 @@ public class GearPairEngine
             x: ManufacturingProfileShift1, da: TipDiameter1, d: ReferenceDiameter1,
             epsilonAlpha: TransverseContactRatio, hfP: hfP, rhofP: rhofP);
 
+        // ISO 6336-3 takes an internal gear's z, d and d_a with their (negative) sign.
         var form2 = Iso6336ToothForm.Calculate(
-            z: NumberOfTeeth2, mn: NormalModule, alphaN: PressureAngle, beta: HelixAngle,
-            x: ManufacturingProfileShift2, da: TipDiameter2, d: ReferenceDiameter2,
+            z: Sign2 * NumberOfTeeth2, mn: NormalModule, alphaN: PressureAngle, beta: HelixAngle,
+            x: ManufacturingProfileShift2, da: Sign2 * TipDiameter2, d: Sign2 * ReferenceDiameter2,
             epsilonAlpha: TransverseContactRatio, hfP: hfP, rhofP: rhofP);
 
         ToothFormFactor1 = form1.YF;
@@ -1210,7 +1390,9 @@ public class GearPairEngine
 
         // Rim thickness factor YB (ISO 6336-3 Clause 8) and deep tooth factor YDT (Clause 9)
         RimThicknessFactor1 = RimThicknessFactor(RootDiameter1, BoreDiameter1, NormalModule);
-        RimThicknessFactor2 = RimThicknessFactor(RootDiameter2, BoreDiameter2, NormalModule);
+        RimThicknessFactor2 = InternalGear
+            ? InternalRimThicknessFactor(RootDiameter2, RingOuterDiameter, NormalModule)
+            : RimThicknessFactor(RootDiameter2, BoreDiameter2, NormalModule);
         DeepToothFactor = DeepToothFactorFor(VirtualContactRatio, Math.Max(QualityGrade1, QualityGrade2));
 
         // Nominal tooth root stress (ISO 6336-3 Eq. 2):
@@ -1312,9 +1494,11 @@ public class GearPairEngine
         // the two forms to the two standards exactly as the corrigendum implies.
         HelixAngleFactorFlank = 1.0 / Math.Sqrt(Math.Cos(betaRad));
 
-        // Nominal contact stress: σH0 = ZH ZE Zε Zβ sqrt(Ft/(d1 b) × (u+1)/u)
+        // Nominal contact stress: σH0 = ZH ZE Zε Zβ sqrt(Ft/(d1 b) × (u+1)/u), u signed.
+        // For an internal pair that is (u − 1)/u: the concave annulus flank conforms to the
+        // pinion, which is why an internal mesh carries more than an external one.
         double loadTerm = TangentialForce / (ReferenceDiameter1 * effectiveFaceWidth)
-                        * (GearRatio + 1.0) / GearRatio;
+                        * (GearRatio + Sign2) / GearRatio;
         NominalContactStress = ZoneFactorH * ElasticityFactor * ContactRatioFactorFlank
                              * HelixAngleFactorFlank * Math.Sqrt(loadTerm);
 
@@ -1327,7 +1511,7 @@ public class GearPairEngine
         var zbzd = Iso6336SurfaceFactors.CalculateZBZD(
             NumberOfTeeth1, NumberOfTeeth2,
             TipDiameter1, BaseDiameter1, TipDiameter2, BaseDiameter2,
-            WorkingPressureAngle, TransverseContactRatio, OverlapRatio);
+            WorkingPressureAngle, TransverseContactRatio, OverlapRatio, InternalGear);
 
         SingleToothContactFactor1 = zbzd.ZB;
         SingleToothContactFactor2 = zbzd.ZD;
@@ -1343,7 +1527,7 @@ public class GearPairEngine
         var film = Iso6336SurfaceFactors.CalculateLubricantFilm(
             sigmaHlimSofter, LubricantViscosity40, PitchLineVelocity,
             FlankRoughnessRz1, FlankRoughnessRz2,
-            BaseDiameter1, BaseDiameter2, WorkingPressureAngle);
+            BaseDiameter1, BaseDiameter2, WorkingPressureAngle, InternalGear);
 
         LubricantFilmResult = film;
         LubricationFactor = film.ZL;
@@ -1393,6 +1577,29 @@ public class GearPairEngine
         // than extrapolating a formula that is no longer valid.
         if (ratio < 0.5) ratio = 0.5;
         return 1.6 * Math.Log(2.242 / ratio);
+    }
+
+    /// <summary>
+    /// Rim thickness factor Y_B of an INTERNAL gear - ISO 6336-3:2006 Clause 8.
+    ///
+    ///     s_R/m_n >= 3.5        : Y_B = 1
+    ///     1.75 &lt; s_R/m_n &lt; 3.5 : Y_B = 1.15 ln(8.324 m_n / s_R)
+    ///
+    /// The branches meet at 3.5, where 1.15 ln(8.324/3.5) = 0.996. Below 1.75 the standard
+    /// does not apply at all (radial rim cracks take over); the ratio is clamped there and
+    /// the engine says so in <see cref="InternalGearWarnings"/>. No rim diameter given → 1.
+    /// </summary>
+    private static double InternalRimThicknessFactor(double rootDiameter, double rimOutsideDiameter, double mn)
+    {
+        if (rimOutsideDiameter <= 0 || mn <= 0) return 1.0;
+
+        double sR = (rimOutsideDiameter - rootDiameter) / 2.0;
+        if (sR <= 0) return 1.0;                            // inconsistent input; do not amplify
+
+        double ratio = sR / mn;
+        if (ratio >= 3.5) return 1.0;
+        if (ratio < 1.75) ratio = 1.75;
+        return 1.15 * Math.Log(8.324 / ratio);
     }
 
     /// <summary>
@@ -1525,10 +1732,24 @@ public class GearPairEngine
 
         Backlash = GearToothMeasurement.CalculateBacklash(
             asne1, asni1, asne2, asni2,
-            UsedCentreDistanceUpperDev, UsedCentreDistanceLowerDev,
+            CentreDeviationForMaxBacklash, CentreDeviationForMinBacklash,
             PressureAngle, WorkingPressureAngle, BaseHelixAngle,
             CenterDistance, NormalModule);
     }
+
+    /// <summary>
+    /// The centre distance deviation that gives the LEAST backlash, as the backlash relations
+    /// expect it (an increase of a opens the mesh). On an external pair that is the lower
+    /// deviation. On an internal pair the pinion moves TOWARDS the annulus teeth as a grows,
+    /// so the upper deviation closes the mesh - entered into the same relations with its sign
+    /// reversed.
+    /// </summary>
+    private double CentreDeviationForMinBacklash
+        => InternalGear ? -UsedCentreDistanceUpperDev : UsedCentreDistanceLowerDev;
+
+    /// <inheritdoc cref="CentreDeviationForMinBacklash"/>
+    private double CentreDeviationForMaxBacklash
+        => InternalGear ? -UsedCentreDistanceLowerDev : UsedCentreDistanceUpperDev;
 
     /// <summary>
     /// Scuffing by the flash temperature method, ISO/TR 13989-1.
@@ -1581,6 +1802,7 @@ public class GearPairEngine
             epsilonAlpha = TransverseContactRatio,
             epsilonBeta = OverlapRatio,
             epsilonGamma = TotalContactRatio,
+            InternalGear = InternalGear,
 
             Ft = TangentialForce,
             vt = PitchLineVelocity,
@@ -1643,6 +1865,7 @@ public class GearPairEngine
             db2 = BaseDiameter2,
             b = Math.Min(FaceWidth1, FaceWidth2),
             epsilonGamma = TotalContactRatio,
+            InternalGear = InternalGear,
 
             Ft = TangentialForce,
             v = PitchLineVelocity,
@@ -1703,6 +1926,7 @@ public class GearPairEngine
             b = Math.Min(FaceWidth1, FaceWidth2),
             epsilonAlpha = TransverseContactRatio,
             epsilonGamma = TotalContactRatio,
+            InternalGear = InternalGear,
 
             Ft = TangentialForce,
             n1 = Speed1,
@@ -1762,7 +1986,8 @@ public class GearPairEngine
             Asne = asne,
             Asni = asni,
             BallDiameter = gear == 1 ? BallDiameter1 : BallDiameter2,
-            SpanTeeth = gear == 1 ? SpanTeeth1 : SpanTeeth2
+            SpanTeeth = gear == 1 ? SpanTeeth1 : SpanTeeth2,
+            Internal = gear == 2 && InternalGear
         };
 
     /// <summary>
@@ -1780,7 +2005,7 @@ public class GearPairEngine
         double tsn2 = (Tolerance2?.CumulativePitch ?? 0) / 1000.0;
 
         var (upper, _) = GearToothMeasurement.AllowancesForTargetBacklash(
-            target, 0, UsedCentreDistanceLowerDev,
+            target, 0, CentreDeviationForMinBacklash,
             PressureAngle, WorkingPressureAngle, BaseHelixAngle);
 
         asne1 = asne2 = upper;
@@ -1844,7 +2069,7 @@ public class GearPairEngine
             double tsn = ((Tolerance1?.CumulativePitch ?? 0) + (Tolerance2?.CumulativePitch ?? 0)) / 1000.0;
             double cosAlphaN = Math.Cos(PressureAngle * Math.PI / 180.0);
             jbnMax = jbnMin + tsn * cosAlphaN
-                   + (UsedCentreDistanceUpperDev - UsedCentreDistanceLowerDev)
+                   + (CentreDeviationForMaxBacklash - CentreDeviationForMinBacklash)
                      * 2.0 * Math.Sin(WorkingPressureAngle * Math.PI / 180.0)
                      * Math.Cos(BaseHelixAngle * Math.PI / 180.0);
             extraNotes.Add(
@@ -1853,9 +2078,9 @@ public class GearPairEngine
         }
 
         double sumUpper = GearToothMeasurement.AllowanceSumForNormalBacklash(
-            jbnMin, UsedCentreDistanceLowerDev, PressureAngle, WorkingPressureAngle, BaseHelixAngle);
+            jbnMin, CentreDeviationForMinBacklash, PressureAngle, WorkingPressureAngle, BaseHelixAngle);
         double sumLower = GearToothMeasurement.AllowanceSumForNormalBacklash(
-            jbnMax, UsedCentreDistanceUpperDev, PressureAngle, WorkingPressureAngle, BaseHelixAngle);
+            jbnMax, CentreDeviationForMaxBacklash, PressureAngle, WorkingPressureAngle, BaseHelixAngle);
 
         (asne1, asne2) = SplitAllowance(sumUpper);
         (asni1, asni2) = SplitAllowance(sumLower);
@@ -2010,26 +2235,31 @@ public class GearPairEngine
         TransverseModule = NormalModule / Math.Cos(betaRad);
         double alphatRad = Math.Atan(Math.Tan(alphanRad) / Math.Cos(betaRad));
 
-        double referenceCenter = TransverseModule * (NumberOfTeeth1 + NumberOfTeeth2) / 2.0;
+        double z2Signed = Sign2 * NumberOfTeeth2;
+        double referenceCenter = TransverseModule * (NumberOfTeeth1 + z2Signed) / 2.0;
         double invAlphaT = Math.Tan(alphatRad) - alphatRad;
 
-        double cosAlphaWT = referenceCenter * Math.Cos(alphatRad) / CenterDistance;
+        double cosAlphaWT = referenceCenter * Math.Cos(alphatRad) / (Sign2 * CenterDistance);
         if (cosAlphaWT > 1.0) cosAlphaWT = 1.0;
         if (cosAlphaWT < -1.0) cosAlphaWT = -1.0;
         double alphaWTRad = Math.Acos(cosAlphaWT);
 
         double invDiff = (Math.Tan(alphaWTRad) - alphaWTRad) - invAlphaT;
 
-        SumProfileShift = (NumberOfTeeth1 + NumberOfTeeth2) * invDiff / (2.0 * Math.Tan(alphanRad));
+        SumProfileShift = (NumberOfTeeth1 + z2Signed) * invDiff / (2.0 * Math.Tan(alphanRad));
         ProfileShiftCoeff2 = SumProfileShift - ProfileShiftCoeff1;
     }
 
-    /// <summary>Reference centre distance for the current teeth, module and helix angle (Σx = 0).</summary>
+    /// <summary>
+    /// Reference centre distance for the current teeth, module and helix angle (Σx = 0), as a
+    /// positive magnitude: m_t(z1 + z2)/2, or m_t(z2 − z1)/2 for an internal pair.
+    /// </summary>
     public double ReferenceCentreDistance()
     {
         if (NormalModule <= 0 || NumberOfTeeth1 <= 0 || NumberOfTeeth2 <= 0) return 0;
+        if (InternalGear && NumberOfTeeth2 <= NumberOfTeeth1) return 0;
         double mt = NormalModule / Math.Cos(HelixAngle * Math.PI / 180.0);
-        return mt * (NumberOfTeeth1 + NumberOfTeeth2) / 2.0;
+        return mt * (NumberOfTeeth2 + Sign2 * NumberOfTeeth1) / 2.0;
     }
 
     /// <summary>Get the standard module (ISO 54) closest to a calculated value.</summary>

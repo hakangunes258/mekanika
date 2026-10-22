@@ -7,8 +7,19 @@ namespace MechanicalCalculatorWeb.Services;
 /// Equation numbers in the comments refer to ISO 6336-1:2006. Only the equations and
 /// tabulated coefficients are implemented; no text of the standard is reproduced.
 ///
-/// Scope: external spur and helical gear pairs (single mesh). Planetary/idler
-/// arrangements (6.4.7) and internal gears are not covered here.
+/// Scope: external and internal spur and helical gear pairs (single mesh). Planetary/idler
+/// arrangements (6.4.7) are not covered here.
+///
+/// An internal pair (<see cref="Input.InternalGear"/>) takes all inputs as magnitudes and
+/// differs in two places only:
+///   - Eq. (82): the polynomial was fitted to external pairs; for an internal pair zn2 is
+///     taken as infinite, so the C3/zn2 and C7·x2/zn2 terms vanish.
+///   - Eq. (30): the annulus is treated as of infinite equivalent mass, so the reduced mass
+///     is the pinion's own m*_1 - the same treatment ISO 6336-1 gives the planet/annulus
+///     mesh. A ring gear is massive and usually held by the housing; its inertia does not
+///     take part in the mesh vibration the way a wheel's does.
+/// Both are stated as assumptions until the module has been benchmarked against a reference
+/// report for an internal pair.
 /// </summary>
 public static class Iso6336DynamicFactor
 {
@@ -37,6 +48,10 @@ public static class Iso6336DynamicFactor
         public double db1 { get; set; }         // base diameter, mm
         public double epsilonAlpha { get; set; }
         public double epsilonGamma { get; set; }
+
+        /// <summary>True for an external pinion meshing with an internal gear (gear 2).
+        /// All geometry is still entered as positive magnitudes.</summary>
+        public bool InternalGear { get; set; }
 
         // Basic rack (for CB) - ISO 53 profile A: hfP = 1.25 mn, alphaPn = 20 deg
         public double hfP { get; set; }         // mm
@@ -130,10 +145,12 @@ public static class Iso6336DynamicFactor
 
         // === Single tooth stiffness c' (Clause 9.3.1) ===
         // Eq. (82): minimum flexibility of a pair of teeth
+        // For an internal pair zn2 is taken as infinite (see the class summary).
+        double invZn2 = i.InternalGear ? 0.0 : 1.0 / zn2;
         double qPrime = C1
-                      + C2 / zn1 + C3 / zn2
+                      + C2 / zn1 + C3 * invZn2
                       + C4 * i.x1 + C5 * i.x1 / zn1
-                      + C6 * i.x2 + C7 * i.x2 / zn2
+                      + C6 * i.x2 + C7 * i.x2 * invZn2
                       + C8 * i.x1 * i.x1 + C9 * i.x2 * i.x2;
 
         if (qPrime <= 0)
@@ -206,15 +223,17 @@ public static class Iso6336DynamicFactor
 
         double term1 = (1.0 - Math.Pow(q1, 4)) * i.rho1;
         double term2 = (1.0 - Math.Pow(q2, 4)) * i.rho2 * u * u;
-        if (term1 <= 0 || term2 <= 0)
+        if (term1 <= 0 || (term2 <= 0 && !i.InternalGear))
         {
             r.Warnings.Add("Reduced mass could not be evaluated (check bore diameters).");
             r.KV = 1.0;
             return r;
         }
 
+        // Internal pair: the annulus counts as infinitely heavy, 1/term2 -> 0.
+        double invTerm2 = i.InternalGear ? 0.0 : 1.0 / term2;
         double mred = (Math.PI / 8.0) * Math.Pow(dm1 / i.db1, 2)
-                    * (dm1 * dm1) / (1.0 / term1 + 1.0 / term2);      // Eq. (30)
+                    * (dm1 * dm1) / (1.0 / term1 + invTerm2);         // Eq. (30)
         r.mred = mred;
 
         // === Resonance speed and ratio (6.4.2) ===

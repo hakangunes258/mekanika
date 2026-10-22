@@ -18,8 +18,14 @@ namespace MechanicalCalculatorWeb.Services;
 /// seven points A, AB, B, C, D, DE, E on the path of contact and takes the minimum, because
 /// micropitting occurs in the areas of negative specific sliding rather than at the peak load.
 ///
-/// Scope of this implementation: EXTERNAL cylindrical gears, spur and helical, with
-/// UNMODIFIED profiles (Clause 11.1). The profile-modified branches (11.2, 11.5, 11.7) and the
+/// Scope of this implementation: cylindrical gears, spur and helical, external and internal
+/// pairs, with UNMODIFIED profiles (Clause 11.1).
+///
+/// Internal pairs (<see cref="Input.InternalGear"/>, diameters as magnitudes): the standard
+/// writes Formulae (37), (41)-(45) with d_a2, d_b2 and a negative. Evaluated that way, the
+/// annulus's radius of curvature GROWS from A to E (ρ_2 = ρ_2A + g instead of ρ_2A − g), the
+/// path is g_α = ½(√(d_a1²−d_b1²) − √(d_a2²−d_b2²)) + |a| sin α_wt, the relative radius is
+/// ρ_1ρ_2/(ρ_2 − ρ_1) for the concave flank, and the loss factor H_V carries 1/z1 − 1/|z2|. The profile-modified branches (11.2, 11.5, 11.7) and the
 /// buttressing factor (11.3) are not implemented; a stated tip relief still reaches the bulk
 /// temperature through X_Ca. Clause 8.2 also notes that ε_α &gt; 2 can only be done by Method A.
 /// </summary>
@@ -46,6 +52,9 @@ public static class Iso15144Micropitting
         public double b { get; set; }
         public double epsilonAlpha { get; set; }
         public double epsilonGamma { get; set; }
+
+        /// <summary>True when gear 2 is an internal gear. All geometry stays positive.</summary>
+        public bool InternalGear { get; set; }
 
         public double Ft { get; set; }             // transverse tangential load at reference cylinder (N)
         public double n1 { get; set; }             // pinion speed (r/min)
@@ -203,9 +212,10 @@ public static class Iso15144Micropitting
         if (r.Ra <= 0) { r.Notes.Add("Micropitting was not evaluated: the flank roughness is zero."); return r; }
 
         // --- path of contact ---
-        double gAlpha = 0.5 * (Math.Sqrt(Math.Max(0, i.da1 * i.da1 - i.db1 * i.db1))
-                             + Math.Sqrt(Math.Max(0, i.da2 * i.da2 - i.db2 * i.db2)))
-                      - i.a * Math.Sin(awt);
+        double tip2 = 0.5 * Math.Sqrt(Math.Max(0, i.da2 * i.da2 - i.db2 * i.db2));
+        double gAlpha = i.InternalGear
+            ? 0.5 * Math.Sqrt(Math.Max(0, i.da1 * i.da1 - i.db1 * i.db1)) - tip2 + i.a * Math.Sin(awt)
+            : 0.5 * Math.Sqrt(Math.Max(0, i.da1 * i.da1 - i.db1 * i.db1)) + tip2 - i.a * Math.Sin(awt);
         double pet = Math.PI * i.db1 / i.z1;                                          // transverse base pitch
         if (gAlpha <= 0 || pet <= 0) { r.Notes.Add("Micropitting was not evaluated: the path of contact is degenerate."); return r; }
 
@@ -252,11 +262,14 @@ public static class Iso15144Micropitting
         // --- load losses factor, Formulae (91)-(92) ---
         double eps1 = i.z1 / (2 * Math.PI) * (Math.Sqrt(Math.Max(0, Math.Pow(i.da1 / i.db1, 2) - 1)) - Math.Tan(awt));
         double eps2 = Math.Abs(i.z2) / (2 * Math.PI) * (Math.Sqrt(Math.Max(0, Math.Pow(i.da2 / i.db2, 2) - 1)) - Math.Tan(awt));
+        if (i.InternalGear) eps2 = -eps2;   // the annulus tip lies inside its pitch circle
         double epsA = i.epsilonAlpha > 0 ? i.epsilonAlpha : eps1 + eps2;
 
+        // 1/z1 + 1/z2 with z2 signed: an internal pair slides less, so H_V is smaller.
+        double toothTerm = 1.0 / i.z1 + (i.InternalGear ? -1.0 : 1.0) / Math.Abs(i.z2);
         r.HV = epsA < 2
-            ? (eps1 * eps1 + eps2 * eps2 + 1 - epsA) * (1.0 / i.z1 + 1.0 / Math.Abs(i.z2)) * Math.PI / Math.Cos(bb)
-            : 0.5 * epsA * (1.0 / i.z1 + 1.0 / Math.Abs(i.z2)) * Math.PI / Math.Cos(bb);
+            ? (eps1 * eps1 + eps2 * eps2 + 1 - epsA) * toothTerm * Math.PI / Math.Cos(bb)
+            : 0.5 * epsA * toothTerm * Math.PI / Math.Cos(bb);
 
         // --- tip relief factor, Method B, Formulae (100)-(101) ---
         r.XCa = TipReliefFactorMethodB(i, eps1, eps2);
@@ -386,12 +399,13 @@ public static class Iso15144Micropitting
     {
         double t1 = Math.Sqrt(Math.Max(0, i.da1 * i.da1 / 4 - i.db1 * i.db1 / 4)) - gAlpha + g;
         double dY1 = 2 * Math.Sqrt(i.db1 * i.db1 / 4 + t1 * t1);                      // (41)
-        double t2 = Math.Sqrt(Math.Max(0, i.da2 * i.da2 / 4 - i.db2 * i.db2 / 4)) - g;
+        double t2 = Rho2(g, i);
         double dY2 = 2 * Math.Sqrt(i.db2 * i.db2 / 4 + t2 * t2);                      // (42)
 
         double rt1 = Math.Sqrt(Math.Max(0, dY1 * dY1 - i.db1 * i.db1)) / 2.0;         // (44)
         double rt2 = Math.Sqrt(Math.Max(0, dY2 * dY2 - i.db2 * i.db2)) / 2.0;
-        double sum = rt1 + rt2;
+        // A concave annulus flank: ρ_2 enters negative, ρ_t = ρ_1ρ_2/(ρ_2 − ρ_1).
+        double sum = i.InternalGear ? rt2 - rt1 : rt1 + rt2;
         if (sum <= 1e-12) return 0;
         double rhoT = rt1 * rt2 / sum;                                                // (43)
         return rhoT / Math.Cos(bb);                                                   // (45)
@@ -402,7 +416,7 @@ public static class Iso15144Micropitting
     {
         double t1 = Math.Sqrt(Math.Max(0, i.da1 * i.da1 / 4 - i.db1 * i.db1 / 4)) - gAlpha + g;
         double dY1 = 2 * Math.Sqrt(i.db1 * i.db1 / 4 + t1 * t1);
-        double t2 = Math.Sqrt(Math.Max(0, i.da2 * i.da2 / 4 - i.db2 * i.db2 / 4)) - g;
+        double t2 = Rho2(g, i);
         double dY2 = 2 * Math.Sqrt(i.db2 * i.db2 / 4 + t2 * t2);
 
         if (pinion)
@@ -416,6 +430,16 @@ public static class Iso15144Micropitting
         if (denom2 <= 0) return 0;
         return 2 * Math.PI * i.n1 / (i.u * 60.0) * i.dw2 / 2000.0 * Math.Sin(awt)
              * Math.Sqrt(Math.Max(0, (dY2 * dY2 - i.db2 * i.db2) / denom2));          // (15)
+    }
+
+    /// <summary>
+    /// Gear 2's distance from its base tangent point at path position g (A at g = 0). It falls
+    /// from A to E on an external wheel and rises on an annulus, whose tip is at A.
+    /// </summary>
+    private static double Rho2(double g, Input i)
+    {
+        double tip2 = Math.Sqrt(Math.Max(0, i.da2 * i.da2 / 4 - i.db2 * i.db2 / 4));
+        return i.InternalGear ? tip2 + g : tip2 - g;
     }
 
     private static double SumTangentialVelocity(double g, double gAlpha, Input i, double awt)

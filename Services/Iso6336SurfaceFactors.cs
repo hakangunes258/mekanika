@@ -34,9 +34,18 @@ public static class Iso6336SurfaceFactors
     /// <param name="alphaWt">Working transverse pressure angle (degrees)</param>
     /// <param name="epsilonAlpha">Transverse contact ratio</param>
     /// <param name="epsilonBeta">Overlap ratio</param>
+    /// <param name="internalGear">
+    /// True when gear 2 is an internal gear. Its values are still passed as magnitudes. The
+    /// standard writes Eq. (17) and (18) in the signed convention (z2, d_a2, d_b2 negative);
+    /// with magnitudes that turns the wheel's term into t2 + (ε_α − 1)·2π/|z2|, because along
+    /// the path from A towards B the annulus's radius of curvature grows instead of shrinking.
+    /// Z_D is the annulus's own factor and is held at 1, as for every wheel with u &gt; 1,5 -
+    /// which an internal pair always is in practice.
+    /// </param>
     public static ContactFactors CalculateZBZD(double z1, double z2,
         double da1, double db1, double da2, double db2,
-        double alphaWt, double epsilonAlpha, double epsilonBeta)
+        double alphaWt, double epsilonAlpha, double epsilonBeta,
+        bool internalGear = false)
     {
         var r = new ContactFactors();
 
@@ -52,7 +61,7 @@ public static class Iso6336SurfaceFactors
         double t1 = Math.Sqrt(da1 * da1 / (db1 * db1) - 1.0);
         double t2 = Math.Sqrt(da2 * da2 / (db2 * db2) - 1.0);
         double twoPiZ1 = 2.0 * Math.PI / z1;
-        double twoPiZ2 = 2.0 * Math.PI / z2;
+        double twoPiZ2 = 2.0 * Math.PI / (internalGear ? -z2 : z2);   // signed, as the standard writes it
 
         // Eq. (17): M1
         double m1Den = (t1 - twoPiZ1) * (t2 - (epsilonAlpha - 1.0) * twoPiZ2);
@@ -102,7 +111,7 @@ public static class Iso6336SurfaceFactors
         // 6.2 note: Z_D should only be determined when u < 1,5; above that M2 is
         // usually < 1 and Z_D is set to 1,0.
         double u = z2 / z1;
-        if (u > 1.5 && r.ZD > 1.0) r.ZD = 1.0;
+        if ((u > 1.5 || internalGear) && r.ZD > 1.0) r.ZD = 1.0;
 
         return r;
     }
@@ -146,9 +155,12 @@ public static class Iso6336SurfaceFactors
     /// <param name="db1">Pinion base diameter (mm)</param>
     /// <param name="db2">Wheel base diameter (mm)</param>
     /// <param name="alphaWt">Working transverse pressure angle (degrees)</param>
+    /// <param name="internalGear">True when gear 2 is an internal gear (db2 still a magnitude).
+    /// Its flank is concave, so Eq. (47) takes ρ2 as negative and ρ_red = ρ1ρ2/(ρ2 − ρ1).</param>
     public static LubricantFilmFactors CalculateLubricantFilm(
         double sigmaHlimSofter, double nu40, double v,
-        double Rz1, double Rz2, double db1, double db2, double alphaWt)
+        double Rz1, double Rz2, double db1, double db2, double alphaWt,
+        bool internalGear = false)
     {
         var r = new LubricantFilmFactors();
 
@@ -176,7 +188,7 @@ public static class Iso6336SurfaceFactors
         // --- Radius of relative curvature, Eq. (46), (47) ---
         double tanAlphaWt = Math.Tan(alphaWt * Math.PI / 180.0);
         double rho1 = 0.5 * db1 * tanAlphaWt;
-        double rho2 = 0.5 * db2 * tanAlphaWt;
+        double rho2 = (internalGear ? -0.5 : 0.5) * db2 * tanAlphaWt;   // signed: concave annulus
         double rhoRed = (rho1 + rho2) != 0 ? rho1 * rho2 / (rho1 + rho2) : 0;
         r.RhoRed = rhoRed;
 

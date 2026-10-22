@@ -800,6 +800,7 @@ Standard emoji icons for consistency:
 | **Extension Spring** | ExtensionSpring.razor | ✅ | ✅ | ✅ | ✅ | ✅ **Full Standard** |
 | **Torsion Spring** | TorsionSpring.razor | ✅ | ✅ | ✅ | ✅ | ✅ **Full Standard** |
 | **Gear Pair** | GearPair.razor | ✅ | ✅ | ✅ | ✅ | ✅ **Full Standard** |
+| **Internal Gear Pair** | InternalGearPair.razor → GearPair.razor | ✅ | ✅ | ✅ | ✅ | ✅ **Full Standard** (same component) |
 | **Ball Bearing** | BallBearing.razor | ✅ | ✅ | ✅ | ❌ | ⚠️ **Missing GetSafetyRowClass** |
 | **Roller Bearing** | RollerBearing.razor | ✅ | ✅ | ✅ | ❌ | ⚠️ **Missing GetSafetyRowClass** |
 | **Compression Spring** | CompressionSpring.razor | ✅ | ✅ | ✅ | ❌ | ⚠️ **Missing GetSafetyRowClass** |
@@ -868,7 +869,8 @@ When updating other modules to match the keyway format:
 - Always provide units in the UI
 - Material properties are injected via `MaterialService`
 - PDF generation uses JavaScript interop with jsPDF library (`Pages/pdfGenerator.js`)
-- **Every calculator shows why Calculate refused.** All twelve fill a `List<string>` and
+- **Every calculator shows why Calculate refused.** All twelve (thirteen routes — internal-gear
+  shares gear-pair's component) fill a `List<string>` and
   render `Shared/ValidationAlert.razor` above the button (moment-of-inertia uses its own
   `validationError` string). A bare `return` in a Calculate guard is a bug: the button
   appears dead and the visitor cannot tell the app from a broken page. gear-pair was the
@@ -2204,11 +2206,79 @@ against commercial software otherwise reads them as errors:
 - **σ_Flim comes from ISO 6336-5:2016**, i.e. 425 MPa for case-hardened MQ. The 2006 edition
   gives 430, worth ~1,2 % on S_F. Both are defensible; the newer table is the one implemented.
 
-**Out of scope, stated in the results card:** tooth flank fracture, planetary and internal
-arrangements. Within micropitting: the profile-modified load sharing branches and the
+**Out of scope, stated in the results card:** tooth flank fracture and planetary
+arrangements. Internal pairs are the `internal-gear` module — see the next section. Within micropitting: the profile-modified load sharing branches and the
 buttressing factor, and ε_α > 2 which the standard restricts to Method A. Within scuffing: bevel/hypoid geometry and the profile-modified load sharing
 branches (Clauses 9.3, 9.5, 9.7) are not implemented — a stated tip relief still reaches the
 approach factor.
+
+### **Internal Gear Pair — `/internal-gear` (Oct 2026)**
+
+An external pinion in an annulus. **It is not a second engine and not a second page.**
+`Pages/InternalGearPair.razor` is three lines that render `<GearPair Internal="true" />`, and
+`GearPairEngine.InternalGear` switches each standard onto its internal branch. A copy of a
+4000-line page and a 2200-line engine would have drifted from the originals the first time
+either changed — keep it that way, and key every difference off `Internal` / `InternalGear`.
+
+**`IsVerified = false`.** No reference report for an internal pair has been run. The user has
+one to supply; when it arrives, diff it the way the external reports were and promote the flag
+only then. Until that run, these are assumptions rather than anchors:
+
+- **K_V:** zn2 → ∞ in Eq. (82) and the annulus as infinite mass in Eq. (30) (m_red = m*_1).
+  Both come from memory of ISO 6336-1, not from its text.
+- **ISO 6336-3 Eq. (11), ρ_fPv for internal gears, is not implemented** — ρ_fP is used as
+  entered. Everything else in the internal tooth form *is* anchored (below).
+- **Z_D = 1** for the annulus.
+
+**Sign convention — the main footgun.** Every input and every reported diameter stays a
+**positive magnitude** (z2, a, d2, d_a2, d_f2), because that is what a drawing states. The
+standards write the internal case with z2, a, d2… and u **negative**. `GearPairEngine.Sign2`
+(+1/−1) applies the sign locally where an equation needs it. The services take one of two
+routes, and which is which matters:
+
+- `Iso6336ToothForm.Calculate` takes the internal gear's **signed** z, d and d_a (z < 0 is
+  what selects the internal branch) — the standard's equations are written that way and the
+  code mirrors them line for line.
+- Everything else (`Iso6336DynamicFactor`, `Iso6336SurfaceFactors`, `GearToothMeasurement`,
+  both scuffing services, micropitting) takes **magnitudes plus an `InternalGear` / `Internal`
+  flag** and signs internally. The external path through each is numerically unchanged (the 41
+  pre-existing tests and the gear-pair worked example still reproduce).
+
+**x2 on an annulus** keeps ISO 21771's meaning: positive moves the profile towards the tooth
+TIP, i.e. towards the axis — thicker tooth, *smaller* |d_a2| and |d_f2|. A larger centre
+distance than a_d gives a **negative** Σx.
+
+**What is anchored, in `Tests/InternalGearTests.cs`:**
+
+- **Internal tooth form** (60° tangent, Eq. 13/14/16/17/19 in the signed form) against an
+  independent vector derivation — trochoid of the rack's tip-fillet centre, offset by ρ_fP,
+  tangent at 60°, load on the involute normal at the outer point of single contact. The same
+  derivation, run for an external gear, reproduces the existing closed form exactly, which is
+  what makes it a fair judge of the internal branch. Agreement is 1e-12.
+- **Tip (trochoid) interference** — the Colbourne condition
+  G_s = z1(inv α_a1 + δ1) + (z2−z1) inv α_wt − z2(inv α_a2 + δ2) ≥ 0 — against a brute-force
+  simulation that sweeps the pinion outline through the annulus frame: both switch at
+  z2 − z1 = 9 for z1 = 40 unshifted 20°. **Do not "simplify" it to a z2 − z1 rule of thumb.**
+- **Dimension between balls**: the ball centre computed from the signed involute relation is
+  checked by brute force to sit D_M/2 from the annulus flank. On an annulus a thinner tooth
+  moves the balls OUT, so both permitted M_i limits are *above* nominal.
+- **Backlash**: a larger centre distance *closes* an internal mesh, so the minimum backlash
+  uses the UPPER centre distance deviation (`CentreDeviationForMinBacklash`).
+- **Directions**: σ_H0 carries √((u−1)/u); the internal pair runs cooler (flash temperature,
+  integral temperature, H_V) than the external pair of the same teeth; ρ along the path
+  grows from A to E on both flanks; flash temperature is zero at C.
+- **The internal X_G** of ISO/TR 13989-1 (Eq. A.6 with u negative; Eq. A.7 was not to hand)
+  agrees with the general Eq. (5) to the same ~2,5 % it does on an external pair.
+
+**The default pair has x1 = +0,3 on purpose.** z 20/60 with unshifted full-depth teeth has
+involute interference at the pinion root (ρ_1A < 0) — the textbook reason annulus tips are
+enlarged. A form that opened on a red card would look broken.
+
+**Not on the internal page, deliberately:** the 3D viewer (its builder draws an external
+pair — "never draw something the calculation does not know"), W_k and the chordal caliper on
+the annulus (no instrument reaches its flank; the cells show "—" and the W_k tolerance route
+is not offered), and the undercut limit of the annulus. Not checked: cutter interference when
+shaping the annulus, and radial assembly of the pinion — the cutter is not an input.
 
 **Verifying a change:** `Tests/Mekanika.Tests.csproj` (xUnit, `dotnet test`), run by the
 deploy workflow before Publish. The gear anchors live there as tests rather than as prose:

@@ -19,7 +19,19 @@ namespace MechanicalCalculatorWeb.Services;
 /// allowances A_sne (upper) and A_sni (lower) are NEGATIVE, since a tooth is thinned
 /// from nominal to create backlash, and A_sni &lt;= A_sne.
 ///
-/// SCOPE: external gears only. Internal gears reverse several signs and are not handled.
+/// INTERNAL GEARS (<see cref="GearInput.Internal"/>): every diameter is still passed as a
+/// positive magnitude. What changes:
+///   - the tooth narrows towards its tip at the INNER diameter, so the thickness at a
+///     diameter d_y is s_yt = d_y (s_t/d − inv α_t + inv α_yt);
+///   - the control dimension is the dimension BETWEEN balls M_i, with the balls in two
+///     opposite spaces. It is the signed ISO 21771 expression for M_d evaluated with z, d_b
+///     negative, which works out to
+///         inv α_M = inv α_t + π/(2z) − 2x tan α_n / z − D_M / (d_b cos β_b)
+///         M_i = d_M − D_M (even z),  d_M cos(π/2z) − D_M (odd z);
+///     a thinner tooth widens the space, the balls move OUT and M_i grows - the opposite of
+///     an external gear;
+///   - a span measurement W_k and a chordal tooth caliper cannot reach an internal flank, so
+///     neither is calculated (both left at 0 with a note).
 /// </summary>
 public static class GearToothMeasurement
 {
@@ -87,6 +99,9 @@ public static class GearToothMeasurement
         /// span dimension only means anything against the k it was measured over.
         /// </summary>
         public int SpanTeeth { get; set; }
+
+        /// <summary>True for an internal gear (annulus). Diameters stay positive magnitudes.</summary>
+        public bool Internal { get; set; }
     }
 
     public class Result
@@ -151,6 +166,9 @@ public static class GearToothMeasurement
     public static Result Calculate(GearInput g)
     {
         var r = new Result { Asne = g.Asne, Asni = g.Asni, Tsn = g.Asne - g.Asni };
+
+        if (g.Internal)
+            return CalculateInternal(g, r);
 
         if (g.z <= 0 || g.mn <= 0 || g.d <= 0 || g.db <= 0 || g.da <= g.db)
         {
@@ -220,6 +238,156 @@ public static class GearToothMeasurement
         CalculateOverBalls(g, r, alphaNRad, betaRad, alphaTRad, betaBRad, invAlphaT);
 
         return r;
+    }
+
+    // ===================== Internal gears =====================
+
+    private static Result CalculateInternal(GearInput g, Result r)
+    {
+        if (g.z <= 0 || g.mn <= 0 || g.d <= 0 || g.db <= 0 || g.da <= g.db || g.df <= g.d)
+        {
+            r.Notes.Add("Invalid internal gear geometry - the tip circle must lie outside the base circle "
+                      + "and the root circle outside the reference circle. Tooth thickness and control "
+                      + "dimensions could not be evaluated.");
+            return r;
+        }
+
+        double alphaNRad = g.alphaN * Math.PI / 180.0;
+        double betaRad = g.beta * Math.PI / 180.0;
+        double alphaTRad = Math.Atan(Math.Tan(alphaNRad) / Math.Cos(betaRad));
+        double betaBRad = Math.Asin(Math.Sin(betaRad) * Math.Cos(alphaNRad));
+        r.alphaT = alphaTRad * 180.0 / Math.PI;
+        r.betaB = betaBRad * 180.0 / Math.PI;
+
+        // Tooth thickness at the reference cylinder: the same expression as an external gear,
+        // with x measured towards the tooth tip (i.e. towards the axis on an annulus).
+        r.sn = g.mn * (Math.PI / 2.0 + 2.0 * g.x * Math.Tan(alphaNRad));
+        r.st = r.sn / Math.Cos(betaRad);
+
+        // The annulus tooth widens outwards: s_yt = d_y (s_t/d − inv α_t + inv α_yt).
+        double invAlphaT = Inv(alphaTRad);
+        r.sbt = g.db * (r.st / g.d - invAlphaT);
+
+        double alphaAtRad = Math.Acos(Math.Max(-1.0, Math.Min(1.0, g.db / g.da)));
+        r.alphaAt = alphaAtRad * 180.0 / Math.PI;
+        r.sat = g.da * (r.st / g.d - invAlphaT + Inv(alphaAtRad));
+        double betaARad = Math.Atan(Math.Tan(betaRad) * g.da / g.d);
+        r.san = r.sat * Math.Cos(betaARad);
+
+        if (r.sat <= 0)
+            r.Notes.Add("The internal gear's tooth is pointed at its tip diameter. Increase the tip diameter "
+                      + "(a larger d_a2 shortens the annulus tooth) or reduce x2.");
+        else if (r.san < 0.2 * g.mn)
+            r.Notes.Add($"Normal tip tooth thickness s_an = {r.san:F3} mm is below the usual minimum of "
+                      + $"0.2 m_n = {0.2 * g.mn:F3} mm.");
+
+        double cosBetaB = Math.Cos(betaBRad);
+        r.zn = g.z / (cosBetaB * cosBetaB * Math.Cos(betaRad));
+        r.Notes.Add("Span measurement W_k and chordal tooth thickness are not calculated for an internal "
+                  + "gear: neither instrument can reach its flanks. Use the dimension between balls.");
+
+        // --- dimension between balls ---
+        // Half the angular SPACE width at the base cylinder of the annulus. The space of an
+        // internal gear is shaped like the tooth of an external one, which is why the ball
+        // equilibrium has the same form with the signs of D_M and of the space term reversed.
+        double etaI = invAlphaT + Math.PI / (2.0 * g.z) - 2.0 * g.x * Math.Tan(alphaNRad) / g.z;
+
+        // Best size: the ball touching the flank half way between the tip and the root.
+        double dTarget = (g.da + g.df) / 2.0;
+        double tanAlphaYBest = Math.Sqrt(Math.Max(0, (dTarget / g.db) * (dTarget / g.db) - 1.0));
+        double alphaMBest = tanAlphaYBest - etaI;
+        r.DMBest = alphaMBest > 0
+            ? g.db * cosBetaB * (tanAlphaYBest - Math.Tan(alphaMBest))
+            : 0;
+
+        // The preferred size nearest the best one can sit too deep in an annulus space and fail
+        // to stand proud of the tip; the next sizes either side are tried before giving up.
+        double DM = g.BallDiameter > 0 ? g.BallDiameter : PreferredInternalBall(g, r.DMBest);
+        r.DM = DM;
+        if (DM <= 0) { r.BallWarning = "No usable ball size for this internal gear."; return r; }
+
+        double? alphaM = InternalBallCentreAngle(g, DM, 0.0);
+        if (alphaM is not { } aM)
+        {
+            r.BallWarning = $"The chosen ball is too large for the space of this internal gear. Use about {r.DMBest:F2} mm.";
+            return r;
+        }
+
+        r.alphaM = aM * 180.0 / Math.PI;
+        r.dMBallCentre = g.db / Math.Cos(aM);
+        r.OddTeeth = g.z % 2 != 0;
+        r.Md = InternalBallDimension(g, DM, r.dMBallCentre);
+
+        double tanContact = aM + etaI;
+        r.dBallContact = g.db * Math.Sqrt(1.0 + tanContact * tanContact);
+
+        r.MdUpper = MiForThicknessDeviation(g, DM, g.Asne);
+        r.MdLower = MiForThicknessDeviation(g, DM, g.Asni);
+
+        var problems = new List<string>();
+        if (r.Md >= g.da)
+            problems.Add($"the balls do not stand proud of the tip (M_i = {r.Md:F3} mm, d_a = {g.da:F3} mm)");
+        if (r.dMBallCentre + DM >= g.df)
+            problems.Add($"the ball bottoms out in the root (d_f = {g.df:F3} mm)");
+        if (r.dBallContact < g.da)
+            problems.Add("the contact point falls inside the tip diameter");
+        if (r.dBallContact > g.df)
+            problems.Add("the contact point falls beyond the root diameter");
+        if (problems.Count > 0)
+            r.BallWarning = "Measurement between balls is not usable with this ball size: "
+                          + string.Join("; ", problems) + $". The best size for this gear is about {r.DMBest:F2} mm.";
+
+        if (r.OddTeeth && Math.Abs(g.beta) > 0.01)
+            r.Notes.Add("Odd tooth count with a helix angle: the dimension between balls uses the cos(π/2z) "
+                      + "correction, which is an approximation for helical gears.");
+
+        return r;
+    }
+
+    /// <summary>
+    /// Pressure angle at the ball centre of an internal gear (rad), for a tooth thickness
+    /// changed by <paramref name="deltaSn"/> (mm, negative = thinner). Null when the ball is
+    /// too large to sit in the space at all.
+    /// </summary>
+    private static double? InternalBallCentreAngle(GearInput g, double DM, double deltaSn)
+    {
+        double alphaNRad = g.alphaN * Math.PI / 180.0;
+        double betaRad = g.beta * Math.PI / 180.0;
+        double alphaTRad = Math.Atan(Math.Tan(alphaNRad) / Math.Cos(betaRad));
+        double cosBetaB = Math.Cos(Math.Asin(Math.Sin(betaRad) * Math.Cos(alphaNRad)));
+
+        // A thinner tooth (deltaSn < 0) widens the space by -deltaSn / (d cos β) in angle.
+        double invAlphaM = Inv(alphaTRad) + Math.PI / (2.0 * g.z)
+                         - 2.0 * g.x * Math.Tan(alphaNRad) / g.z
+                         - deltaSn / (g.d * Math.Cos(betaRad))
+                         - DM / (g.db * cosBetaB);
+
+        return invAlphaM > 0 ? InvertInvolute(invAlphaM) : null;
+    }
+
+    /// <summary>The preferred ball nearest the best size that actually works in this annulus.</summary>
+    private static double PreferredInternalBall(GearInput g, double best)
+    {
+        if (best <= 0) return 0;
+        foreach (double size in PreferredBallSizes.OrderBy(sz => Math.Abs(sz - best)).Take(4))
+        {
+            if (InternalBallCentreAngle(g, size, 0.0) is not { } aM) continue;
+            double dCentre = g.db / Math.Cos(aM);
+            if (InternalBallDimension(g, size, dCentre) < g.da && dCentre + size < g.df)
+                return size;
+        }
+        return NearestPreferredBall(best);
+    }
+
+    private static double InternalBallDimension(GearInput g, double DM, double dCentre)
+        => g.z % 2 != 0
+            ? dCentre * Math.Cos(Math.PI / (2.0 * g.z)) - DM
+            : dCentre - DM;
+
+    private static double MiForThicknessDeviation(GearInput g, double DM, double deltaSn)
+    {
+        double? a = InternalBallCentreAngle(g, DM, deltaSn);
+        return a is { } am ? InternalBallDimension(g, DM, g.db / Math.Cos(am)) : 0;
     }
 
     // ===================== Span measurement =====================
@@ -594,7 +762,7 @@ public static class GearToothMeasurement
     /// </summary>
     public static double? AllowanceForSpan(GearInput g, double targetWk)
     {
-        if (targetWk <= 0) return null;
+        if (targetWk <= 0 || g.Internal) return null;
 
         var nominal = Calculate(Probe(g, 0, 0));
         if (nominal.Wk <= 0) return null;
@@ -622,20 +790,31 @@ public static class GearToothMeasurement
         var nominal = Calculate(probe);
         if (nominal.DM <= 0 || nominal.Md <= 0) return null;
 
+        if (g.Internal)
+            return SolveSecant(asn =>
+            {
+                double mi = MiForThicknessDeviation(probe, nominal.DM, asn);
+                return mi <= 0 ? double.NaN : mi - targetMd;
+            }, g.mn);
+
         double alphaNRad = g.alphaN * Math.PI / 180.0;
         double betaRad = g.beta * Math.PI / 180.0;
         double alphaTRad = Math.Atan(Math.Tan(alphaNRad) / Math.Cos(betaRad));
         double cosBetaB = Math.Cos(Math.Asin(Math.Sin(betaRad) * Math.Cos(alphaNRad)));
         double invAlphaT = Inv(alphaTRad);
 
-        double Residual(double asn)
+        return SolveSecant(asn =>
         {
             double md = MdForThicknessDeviation(probe, nominal.DM, alphaNRad, alphaTRad,
                                                 cosBetaB, invAlphaT, asn);
             return md <= 0 ? double.NaN : md - targetMd;
-        }
+        }, g.mn);
+    }
 
-        double a0 = 0.0, a1 = -0.02 * g.mn;
+    /// <summary>Secant solve of residual(A_sn) = 0, starting from 0 and −0,02 m_n.</summary>
+    private static double? SolveSecant(Func<double, double> Residual, double mn)
+    {
+        double a0 = 0.0, a1 = -0.02 * mn;
         double f0 = Residual(a0), f1 = Residual(a1);
 
         for (int i = 0; i < 40; i++)
@@ -662,6 +841,7 @@ public static class GearToothMeasurement
         Asne = asne, Asni = asni, BallDiameter = g.BallDiameter,
         // Carry the span across, or inverting a W_k limit would solve against a different k
         // from the one the user measured over.
-        SpanTeeth = g.SpanTeeth
+        SpanTeeth = g.SpanTeeth,
+        Internal = g.Internal
     };
 }

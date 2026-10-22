@@ -5,14 +5,25 @@
 @inject ModuleMetadataService Metadata
 @inject IJSRuntime JSRuntime
 
-<PageTitle>Cylindrical Gear Pair Calculator - Mekanika</PageTitle>
+@* The same component serves /gear-pair and /internal-gear (Pages/InternalGearPair.razor,
+   Internal = true). One page, one engine: the internal pair is a branch of the same
+   standards chain, and a copied page would drift from this one the first time either
+   changed. Everything that differs is keyed off Internal. *@
+<PageTitle>@(Internal ? "Internal Gear Pair Calculator - Mekanika" : "Cylindrical Gear Pair Calculator - Mekanika")</PageTitle>
 
 <div class="page-header">
-    <h1><ModuleIcon Type="gear-pair" Size="large" Style="transparent" CustomStyle="margin-right: 12px;" /> Cylindrical Gear Pair Calculator</h1>
-    <p>Spur and helical gear pair design according to ISO 6336 / DIN 3990</p>
+    <h1><ModuleIcon Type="@ModuleKey" Size="large" Style="transparent" CustomStyle="margin-right: 12px;" /> @(Internal ? "Internal Gear Pair Calculator" : "Cylindrical Gear Pair Calculator")</h1>
+    @if (Internal)
+    {
+        <p>External spur or helical pinion meshing with an internal gear (annulus) &#8212; ISO 6336, ISO/TR 13989, ISO/TR 15144</p>
+    }
+    else
+    {
+        <p>Spur and helical gear pair design according to ISO 6336 / DIN 3990</p>
+    }
 </div>
 
-<SharedCalculationLoader Module="gear-pair" OnRestore="ApplyShareState" />
+<SharedCalculationLoader Module="@ModuleKey" OnRestore="ApplyShareState" />
 
 @if (!showResults)
 {
@@ -113,11 +124,11 @@
 
         </div>
 
-        <!-- Gear 2 (Wheel) Card -->
+        <!-- Gear 2 (Wheel / Internal Gear) Card -->
         <div class="card">
             <div class="card-header">
                 <ModuleIcon Type="gear" Size="medium" Style="solid" />
-                <h2>Gear 2 (Wheel)</h2>
+                <h2>@(Internal ? "Gear 2 (Internal Gear)" : "Gear 2 (Wheel)")</h2>
                 @GearAdvancedDialog(2)
             </div>
 
@@ -146,8 +157,52 @@
                            value="@engine.ProfileShiftCoeff2.ToString("F4", Inv)" />
                     <span class="unit">-</span>
                 </div>
-                <small style="color: #6c757d; font-size: 12px;">Auto-calculated from center distance</small>
+                <small style="color: #6c757d; font-size: 12px;">
+                    Auto-calculated from center distance.
+                    @if (Internal)
+                    {
+                        <text>
+                            Positive x<sub>2</sub> moves the annulus profile towards its tooth tip &#8212;
+                            towards the axis &#8212; which thickens the tooth and makes the tip diameter
+                            <em>smaller</em>.
+                        </text>
+                    }
+                </small>
             </div>
+
+            @if (Internal)
+            {
+                <div class="form-group">
+                    <label>Rim Outside Diameter (D<sub>o</sub>)</label>
+                    <div class="input-group">
+                        <input type="number" step="1" min="0" @bind="engine.RingOuterDiameter" placeholder="e.g. 110" />
+                        <span class="unit">mm</span>
+                    </div>
+                    <small style="color: #6c757d; font-size: 12px;">
+                        Sets the rim thickness under the root, s<sub>R</sub> = (D<sub>o</sub> &#8722; d<sub>f2</sub>)/2,
+                        and through it Y<sub>B</sub> (ISO 6336-3, internal gears). 0 = not checked.
+                        @if (InternalRimPreview() is { } rimI)
+                        {
+                            <text>
+                                With the geometry above: s<sub>R</sub> = @rimI.sR.ToString("F2") mm =
+                                @rimI.ratio.ToString("F2")&#183;m<sub>n</sub>
+                                @if (rimI.ratio < 1.75)
+                                {
+                                    <text>&#8212; below 1.75&#183;m<sub>n</sub>, outside ISO 6336-3.</text>
+                                }
+                                else if (rimI.ratio < 3.5)
+                                {
+                                    <text>&#8212; Y<sub>B</sub> above 1.</text>
+                                }
+                                else
+                                {
+                                    <text>&#8212; Y<sub>B</sub> = 1.</text>
+                                }
+                            </text>
+                        }
+                    </small>
+                </div>
+            }
 
             <div class="form-group">
                 <div class="label-row">
@@ -190,7 +245,7 @@
             </div>
 
             <div class="form-group">
-                <label>Wheel Material</label>
+                <label>@(Internal ? "Internal Gear Material" : "Wheel Material")</label>
                 <select @bind="selectedMaterial2Index">
                     @for (int i = 0; i < gearMaterials.Count; i++)
                     {
@@ -865,7 +920,7 @@
                 <label>Driving Gear</label>
                 <select @bind="DrivingGear">
                     <option value="pinion">Gear 1 (pinion) drives &#8212; speed reducing</option>
-                    <option value="wheel">Gear 2 (wheel) drives &#8212; speed increasing</option>
+                    <option value="wheel">Gear 2 (@(Internal ? "internal gear" : "wheel")) drives &#8212; speed increasing</option>
                 </select>
             </div>
 
@@ -983,9 +1038,14 @@ else
                 <span>Save as PDF</span>
             }
         </button>
-        <Viewer3D Module="gear-pair" Parameters="@Build3dParameters()" />
-        <ShareCalculation Module="gear-pair" State="@BuildShareState()" />
-        <SaveCalculation Module="gear-pair" State="@BuildShareState()" />
+        @* The 3D builder draws an external pair. Drawing one for an internal pair would show
+           a gear the calculation does not describe, so the internal page has no model yet. *@
+        @if (!Internal)
+        {
+            <Viewer3D Module="gear-pair" Parameters="@Build3dParameters()" />
+        }
+        <ShareCalculation Module="@ModuleKey" State="@BuildShareState()" />
+        <SaveCalculation Module="@ModuleKey" State="@BuildShareState()" />
     </div>
 
     @if (openedFromSharedLink)
@@ -1022,7 +1082,7 @@ else
                     <tr class="@(engine.ProfileShiftCoeff1 < engine.MinProfileShift1 || engine.ProfileShiftCoeff2 < engine.MinProfileShift2 ? "warning" : "")">
                         <td>Undercut Limit</td><td>x<sub>min</sub></td>
                         <td>@engine.MinProfileShift1.ToString("F4")</td>
-                        <td>@engine.MinProfileShift2.ToString("F4")</td><td>-</td>
+                        <td>@(Internal ? "—" : engine.MinProfileShift2.ToString("F4"))</td><td>-</td>
                     </tr>
                 </tbody>
             </table>
@@ -1102,6 +1162,56 @@ else
             }
         </div>
 
+        @if (Internal)
+        {
+            <!-- Internal Gear Checks -->
+            <div class="card">
+                <div class="card-header"><ModuleIcon Type="warning" Size="medium" Style="solid" /><h2>Internal Gear Checks</h2></div>
+                <table class="results-table">
+                    <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                    <tbody>
+                        <tr class="@(engine.TipDiameter2 > engine.BaseDiameter2 ? "success" : "danger")">
+                            <td>Annulus Tip outside its Base Circle</td><td>d<sub>a2</sub> &#8722; d<sub>b2</sub></td>
+                            <td>@((engine.TipDiameter2 - engine.BaseDiameter2).ToString("F3"))</td><td>mm</td></tr>
+                        <tr class="@(engine.PinionRootContactRadius > 0 ? "success" : "danger")">
+                            <td>Pinion Curvature where the Annulus Tip Engages</td><td>&#961;<sub>1A</sub></td>
+                            <td>@engine.PinionRootContactRadius.ToString("F3")</td><td>mm</td></tr>
+                        <tr class="@(double.IsNaN(engine.TipInterferenceMargin) || engine.TipInterferenceMargin < 0 ? "danger" : "success")">
+                            <td>Tip (Trochoid) Interference Margin</td><td>G<sub>s</sub></td>
+                            <td>@(double.IsNaN(engine.TipInterferenceMargin) ? "—" : engine.TipInterferenceMargin.ToString("F4"))</td><td>rad</td></tr>
+                        <tr><td>Tooth Number Difference</td><td>z<sub>2</sub> &#8722; z<sub>1</sub></td>
+                            <td>@(engine.NumberOfTeeth2 - engine.NumberOfTeeth1)</td><td>-</td></tr>
+                        <tr class="@(engine.RingOuterDiameter <= 0 ? "" : engine.RingRimThickness < 1.75 * engine.NormalModule ? "danger" : "success")">
+                            <td>Rim Thickness under the Root</td><td>s<sub>R</sub></td>
+                            <td>@(engine.RingOuterDiameter > 0 ? engine.RingRimThickness.ToString("F2") : "not given")</td><td>mm</td></tr>
+                    </tbody>
+                </table>
+                @if (engine.InternalGearWarnings.Count == 0)
+                {
+                    <div class="alert alert-success" style="margin: 16px;">
+                        <ModuleIcon Type="check" Size="small" Style="default" CustomStyle="margin-right: 8px;" />
+                        <div><strong>OK:</strong> no involute, tip or trochoid interference, and the annulus tip lies on its involute.</div>
+                    </div>
+                }
+                @foreach (var w in engine.InternalGearWarnings)
+                {
+                    <div class="alert alert-danger" style="margin: 12px 16px; font-size: 13px;">
+                        <ModuleIcon Type="warning" Size="small" Style="default" CustomStyle="margin-right: 8px;" />
+                        <div>@w</div>
+                    </div>
+                }
+                <div class="note-box">
+                    These are the failure modes an internal pair has and an external one does not.
+                    G<sub>s</sub> is the classical tip interference condition
+                    z<sub>1</sub>(inv&#945;<sub>a1</sub> + &#948;<sub>1</sub>) + (z<sub>2</sub> &#8722; z<sub>1</sub>)inv&#945;<sub>wt</sub>
+                    &#8722; z<sub>2</sub>(inv&#945;<sub>a2</sub> + &#948;<sub>2</sub>) &#8805; 0, which is what limits
+                    how small z<sub>2</sub> &#8722; z<sub>1</sub> may be (about 9 or more for unshifted 20&#176;
+                    full-depth teeth). Interference with the <em>cutter</em> when the annulus is shaped, and
+                    radial assembly of the pinion, are not checked &#8212; the cutter is not an input.
+                </div>
+            </div>
+        }
+
         <!-- Contact Ratios -->
         <div class="card">
             <div class="card-header"><ModuleIcon Type="contact" Size="medium" Style="solid" /><h2>Contact Ratios &amp; Meshing</h2></div>
@@ -1117,7 +1227,7 @@ else
                     <tr><td>Approach Path / Contact Ratio</td><td>g<sub>f</sub> / &#949;<sub>1</sub></td><td>@engine.ApproachPath.ToString("F3") / @engine.ApproachContactRatio.ToString("F3")</td><td>mm / -</td><td>-</td></tr>
                     <tr><td>Recess Path / Contact Ratio</td><td>g<sub>a</sub> / &#949;<sub>2</sub></td><td>@engine.RecessPath.ToString("F3") / @engine.RecessContactRatio.ToString("F3")</td><td>mm / -</td><td>-</td></tr>
                     <tr class="@(Math.Abs(engine.SpecificSliding1) > 3.0 ? "warning" : "")"><td>Specific Sliding at Pinion Root</td><td>&#950;<sub>1</sub></td><td>@engine.SpecificSliding1.ToString("F3")</td><td>|&#950;| &#8804; 3</td><td>@(Math.Abs(engine.SpecificSliding1) > 3.0 ? "⚠️ High" : "✓ OK")</td></tr>
-                    <tr class="@(Math.Abs(engine.SpecificSliding2) > 3.0 ? "warning" : "")"><td>Specific Sliding at Wheel Root</td><td>&#950;<sub>2</sub></td><td>@engine.SpecificSliding2.ToString("F3")</td><td>|&#950;| &#8804; 3</td><td>@(Math.Abs(engine.SpecificSliding2) > 3.0 ? "⚠️ High" : "✓ OK")</td></tr>
+                    <tr class="@(Math.Abs(engine.SpecificSliding2) > 3.0 ? "warning" : "")"><td>Specific Sliding at @(Internal ? "Internal Gear" : "Wheel") Root</td><td>&#950;<sub>2</sub></td><td>@engine.SpecificSliding2.ToString("F3")</td><td>|&#950;| &#8804; 3</td><td>@(Math.Abs(engine.SpecificSliding2) > 3.0 ? "⚠️ High" : "✓ OK")</td></tr>
                     <tr><td>Gear Loss Factor</td><td>H<sub>V</sub></td><td>@engine.ToothLossFactor.ToString("F4")</td><td>-</td><td>-</td></tr>
                 </tbody>
             </table>
@@ -1300,7 +1410,7 @@ else
                     <tbody>
                         <tr class="highlight"><td>Normal Tooth Thickness (reference)</td><td>s<sub>n</sub></td><td>@m1.sn.ToString("F4")</td><td>@m2.sn.ToString("F4")</td><td>mm</td></tr>
                         <tr><td>Transverse Tooth Thickness</td><td>s<sub>t</sub></td><td>@m1.st.ToString("F4")</td><td>@m2.st.ToString("F4")</td><td>mm</td></tr>
-                        <tr><td>Tooth Thickness at Base Circle</td><td>s<sub>bt</sub></td><td>@m1.sbt.ToString("F4")</td><td>@m2.sbt.ToString("F4")</td><td>mm</td></tr>
+                        <tr><td>Tooth Thickness at Base Circle</td><td>s<sub>bt</sub></td><td>@m1.sbt.ToString("F4")</td><td>@Gear2Span(m2.sbt.ToString("F4"))</td><td>mm</td></tr>
                         <tr class="@(m1.san < 0.2 * engine.NormalModule || m2.san < 0.2 * engine.NormalModule ? "warning" : "")">
                             <td>Normal Tip Tooth Thickness</td><td>s<sub>an</sub></td><td>@m1.san.ToString("F4")</td><td>@m2.san.ToString("F4")</td><td>mm</td></tr>
                         <tr><td>Tip Pressure Angle</td><td>&#945;<sub>at</sub></td><td>@m1.alphaAt.ToString("F3")</td><td>@m2.alphaAt.ToString("F3")</td><td>&#176;</td></tr>
@@ -1314,18 +1424,18 @@ else
                 <table class="results-table">
                     <thead><tr><th>Description</th><th>Symbol</th><th>Gear 1</th><th>Gear 2</th><th>Unit</th></tr></thead>
                     <tbody>
-                        <tr><td>Number of Teeth Spanned</td><td>k</td><td>@m1.k</td><td>@m2.k</td><td>-</td></tr>
-                        @if (m1.k != m1.kPreferred || m2.k != m2.kPreferred)
+                        <tr><td>Number of Teeth Spanned</td><td>k</td><td>@m1.k</td><td>@Gear2Span(m2.k.ToString())</td><td>-</td></tr>
+                        @if (m1.k != m1.kPreferred || (!Internal && m2.k != m2.kPreferred))
                         {
                             <tr><td>k this calculator would choose</td><td>k<sub>pref</sub></td>
-                                <td>@m1.kPreferred</td><td>@m2.kPreferred</td><td>-</td></tr>
+                                <td>@m1.kPreferred</td><td>@Gear2Span(m2.kPreferred.ToString())</td><td>-</td></tr>
                         }
-                        <tr><td>Theoretical (zero allowance)</td><td>W<sub>k</sub></td><td>@m1.Wk.ToString("F4")</td><td>@m2.Wk.ToString("F4")</td><td>mm</td></tr>
-                        <tr><td>Allowances</td><td>A<sub>We</sub>/A<sub>Wi</sub></td><td>@((m1.AWe * 1000).ToString("F1")) / @((m1.AWi * 1000).ToString("F1"))</td><td>@((m2.AWe * 1000).ToString("F1")) / @((m2.AWi * 1000).ToString("F1"))</td><td>&#956;m</td></tr>
-                        <tr class="highlight"><td>Largest Permitted (at A<sub>sne</sub>)</td><td>W<sub>k,max</sub></td><td>@m1.WkUpper.ToString("F4")</td><td>@m2.WkUpper.ToString("F4")</td><td>mm</td></tr>
-                        <tr class="highlight"><td>Smallest Permitted (at A<sub>sni</sub>)</td><td>W<sub>k,min</sub></td><td>@m1.WkLower.ToString("F4")</td><td>@m2.WkLower.ToString("F4")</td><td>mm</td></tr>
-                        <tr><td>Measuring Circle Diameter</td><td>d<sub>Mk</sub></td><td>@m1.dMk.ToString("F3")</td><td>@m2.dMk.ToString("F3")</td><td>mm</td></tr>
-                        <tr><td>Face Width Needed for the Span</td><td>b<sub>min</sub></td><td>@m1.bMinSpan.ToString("F2")</td><td>@m2.bMinSpan.ToString("F2")</td><td>mm</td></tr>
+                        <tr><td>Theoretical (zero allowance)</td><td>W<sub>k</sub></td><td>@m1.Wk.ToString("F4")</td><td>@Gear2Span(m2.Wk.ToString("F4"))</td><td>mm</td></tr>
+                        <tr><td>Allowances</td><td>A<sub>We</sub>/A<sub>Wi</sub></td><td>@((m1.AWe * 1000).ToString("F1")) / @((m1.AWi * 1000).ToString("F1"))</td><td>@Gear2Span($"{m2.AWe * 1000:F1} / {m2.AWi * 1000:F1}")</td><td>&#956;m</td></tr>
+                        <tr class="highlight"><td>Largest Permitted (at A<sub>sne</sub>)</td><td>W<sub>k,max</sub></td><td>@m1.WkUpper.ToString("F4")</td><td>@Gear2Span(m2.WkUpper.ToString("F4"))</td><td>mm</td></tr>
+                        <tr class="highlight"><td>Smallest Permitted (at A<sub>sni</sub>)</td><td>W<sub>k,min</sub></td><td>@m1.WkLower.ToString("F4")</td><td>@Gear2Span(m2.WkLower.ToString("F4"))</td><td>mm</td></tr>
+                        <tr><td>Measuring Circle Diameter</td><td>d<sub>Mk</sub></td><td>@m1.dMk.ToString("F3")</td><td>@Gear2Span(m2.dMk.ToString("F3"))</td><td>mm</td></tr>
+                        <tr><td>Face Width Needed for the Span</td><td>b<sub>min</sub></td><td>@m1.bMinSpan.ToString("F2")</td><td>@Gear2Span(m2.bMinSpan.ToString("F2"))</td><td>mm</td></tr>
                     </tbody>
                 </table>
                 @if (m1.SpanWarning != null)
@@ -1337,7 +1447,16 @@ else
                     <div class="alert alert-warning" style="margin: 12px 16px; font-size: 13px;"><strong>Gear 2:</strong> @m2.SpanWarning</div>
                 }
 
-                <h4 style="margin: 20px 16px 8px; color: #495057;">Dimension over balls / pins</h4>
+                <h4 style="margin: 20px 16px 8px; color: #495057;">
+                    @if (Internal)
+                    {
+                        <text>Dimension over balls (gear 1) / between balls M<sub>i</sub> (gear 2)</text>
+                    }
+                    else
+                    {
+                        <text>Dimension over balls / pins</text>
+                    }
+                </h4>
                 <table class="results-table">
                     <thead><tr><th>Description</th><th>Symbol</th><th>Gear 1</th><th>Gear 2</th><th>Unit</th></tr></thead>
                     <tbody>
@@ -1366,8 +1485,8 @@ else
                     <thead><tr><th>Description</th><th>Symbol</th><th>Gear 1</th><th>Gear 2</th><th>Unit</th></tr></thead>
                     <tbody>
                         <tr><td>Virtual Number of Teeth</td><td>z<sub>n</sub></td><td>@m1.zn.ToString("F3")</td><td>@m2.zn.ToString("F3")</td><td>-</td></tr>
-                        <tr class="highlight"><td>Normal Chordal Thickness</td><td>s&#772;<sub>n</sub></td><td>@m1.snChordal.ToString("F4")</td><td>@m2.snChordal.ToString("F4")</td><td>mm</td></tr>
-                        <tr class="highlight"><td>Chordal Height</td><td>h&#772;<sub>a</sub></td><td>@m1.haChordal.ToString("F4")</td><td>@m2.haChordal.ToString("F4")</td><td>mm</td></tr>
+                        <tr class="highlight"><td>Normal Chordal Thickness</td><td>s&#772;<sub>n</sub></td><td>@m1.snChordal.ToString("F4")</td><td>@Gear2Span(m2.snChordal.ToString("F4"))</td><td>mm</td></tr>
+                        <tr class="highlight"><td>Chordal Height</td><td>h&#772;<sub>a</sub></td><td>@m1.haChordal.ToString("F4")</td><td>@Gear2Span(m2.haChordal.ToString("F4"))</td><td>mm</td></tr>
                     </tbody>
                 </table>
 
@@ -1422,9 +1541,11 @@ else
 
                 <div class="note-box">
                     Backlash follows from the tooth thickness allowances and the center distance deviation:
-                    j<sub>bn</sub> = &#8722;(A<sub>sn1</sub> + A<sub>sn2</sub>)&#183;cos&#945;<sub>n</sub> +
+                    j<sub>bn</sub> = &#8722;(A<sub>sn1</sub> + A<sub>sn2</sub>)&#183;cos&#945;<sub>n</sub>
+                    @(Internal ? "−" : "+")
                     2&#183;A<sub>a</sub>&#183;sin&#945;<sub>wt</sub>&#183;cos&#946;<sub>b</sub>. The minimum occurs with the
-                    thickest teeth and the smallest center distance. Thermal expansion, housing deflection
+                    thickest teeth and the @(Internal ? "largest" : "smallest") center distance@(Internal ? " — on an internal pair the pinion moves towards the annulus teeth as a grows, so a wider housing closes the mesh" : "").
+                    Thermal expansion, housing deflection
                     and contamination all eat into it, which is why the recommended minimum exists.
                 </div>
             }
@@ -1470,11 +1591,22 @@ else
             }
             <div class="note-box">
                 Y<sub>F</sub> and Y<sub>S</sub> are calculated from the real tooth geometry per
-                <strong>ISO 6336-3 Method B</strong> (30&#176; tangent construction, load at the outer
+                <strong>ISO 6336-3 Method B</strong> (30&#176; tangent construction@(Internal ? "; 60° on the internal gear" : ""), load at the outer
                 point of single pair tooth contact). Because the load is applied at that point rather
                 than at the tip, the contact ratio factor Y<sub>&#949;</sub> of the DIN 3990 Method C
                 scheme is deliberately <em>not</em> applied &#8212; using both would count the benefit
                 of load sharing twice.
+                @if (Internal)
+                {
+                    <br /><br />
+                    <text>
+                        <strong>Internal gear:</strong> the annulus root is treated as generated by the reference
+                        profile entered above, which is the ISO 6336-3:2006 model. The standard's substitute root
+                        radius for internal gears (Eq. 11) is not implemented &#8212; &#961;<sub>fP</sub> is used as
+                        entered. For an annulus cut by a pinion-type cutter, enter the cutter's addendum and tip
+                        radius as the reference profile.
+                    </text>
+                }
             </div>
         </div>
 
@@ -1776,7 +1908,7 @@ else
                 <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
                 <tbody>
                     <tr><td>Load Cycles (Pinion)</td><td>N<sub>L1</sub></td><td>@(engine.LoadCycles1.ToString("F2")) &#215; 10&#8310;</td><td>-</td></tr>
-                    <tr><td>Load Cycles (Wheel)</td><td>N<sub>L2</sub></td><td>@(engine.LoadCycles2.ToString("F2")) &#215; 10&#8310;</td><td>-</td></tr>
+                    <tr><td>Load Cycles (@(Internal ? "Internal Gear" : "Wheel"))</td><td>N<sub>L2</sub></td><td>@(engine.LoadCycles2.ToString("F2")) &#215; 10&#8310;</td><td>-</td></tr>
                     <tr class="highlight"><td>Minimum Root Safety</td><td>S<sub>F,min</sub></td><td>@engine.MinRootSafety.ToString("F2")</td><td>-</td></tr>
                     <tr class="highlight"><td>Minimum Flank Safety</td><td>S<sub>H,min</sub></td><td>@engine.MinFlankSafety.ToString("F2")</td><td>-</td></tr>
                 </tbody>
@@ -1813,7 +1945,16 @@ else
                 (ISO 6336-1/2/3), allowable stress numbers (ISO 6336-5) and scuffing by both the
                 flash temperature (ISO/TR 13989-1) and integral temperature (ISO/TR 13989-2)
                 methods, and micropitting by ISO/TR 15144-1 Method B. It does <em>not</em> cover
-                tooth flank fracture, or planetary and internal gear arrangements. Within scuffing,
+                tooth flank fracture, or planetary arrangements@(Internal ? "" : " — internal gear pairs have their own calculator").
+                @if (Internal)
+                {
+                    <text>
+                        The internal pair has <strong>not yet been benchmarked</strong> against a reference
+                        report; the assumptions it rests on are listed in the module's source and in its
+                        reference section.
+                    </text>
+                }
+                Within scuffing,
                 bevel and hypoid geometry and the profile-modified load sharing branches of Part 1
                 are not implemented; within micropitting, the profile-modified load sharing
                 branches and the buttressing factor are not implemented, and ISO/TR 15144-1 itself
@@ -2034,9 +2175,32 @@ else
     }
 </style>
 
-<ModuleContent Module="gear-pair" />
+<ModuleContent Module="@ModuleKey" />
 
 @code {
+    /// <summary>
+    /// True on /internal-gear: gear 2 is an annulus. Set by Pages/InternalGearPair.razor; the
+    /// /gear-pair route leaves it false.
+    /// </summary>
+    [Parameter] public bool Internal { get; set; }
+
+    /// <summary>Module key, which is also the route: share links, saved calculations and content.</summary>
+    private string ModuleKey => Internal ? "internal-gear" : "gear-pair";
+
+    /// <summary>Gear 2 cells an annulus has no value for: span, chordal caliper, thickness at a base circle inside its tip.</summary>
+    private string Gear2Span(string value) => Internal ? "—" : value;
+
+    /// <summary>The annulus rim under the root as the engine will see it, while the form is filled in.</summary>
+    private (double sR, double ratio)? InternalRimPreview()
+    {
+        if (engine.RingOuterDiameter <= 0 || engine.NormalModule <= 0) return null;
+        double d2 = ReferenceDiameterOf(2);
+        if (d2 <= 0) return null;
+        double df2 = d2 + 2.0 * engine.NormalModule * (engine.DedendumCoeff - engine.ProfileShiftCoeff2);
+        double sR = (engine.RingOuterDiameter - df2) / 2.0;
+        return sR > 0 ? (sR, sR / engine.NormalModule) : null;
+    }
+
     private GearPairEngine engine = new();
 
     /// <summary>Why Calculate refused, shown by <see cref="ValidationAlert"/>.</summary>
@@ -2116,8 +2280,12 @@ else
                     <option value="@ToothThicknessAllowanceMode.NormalBacklash">Normal backlash j<sub>bn</sub></option>
                     <option value="@ToothThicknessAllowanceMode.CircumferentialBacklash">Circumferential backlash j<sub>wt</sub></option>
                     <option value="@ToothThicknessAllowanceMode.RadialBacklash">Radial backlash j<sub>r</sub></option>
-                    <option value="@ToothThicknessAllowanceMode.SpanLimits">Base tangent length W<sub>k</sub> limits</option>
-                    <option value="@ToothThicknessAllowanceMode.BallLimits">Dimension over balls M<sub>d</sub> limits</option>
+                    @* W_k cannot be measured on an annulus, so the internal page does not offer it. *@
+                    @if (!Internal)
+                    {
+                        <option value="@ToothThicknessAllowanceMode.SpanLimits">Base tangent length W<sub>k</sub> limits</option>
+                    }
+                    <option value="@ToothThicknessAllowanceMode.BallLimits">@(Internal ? "Dimension over / between balls limits" : "Dimension over balls M_d limits")</option>
                 </select>
             </div>
 
@@ -2236,14 +2404,21 @@ else
                 </div>
 
                 <div class="form-group">
-                    <label>Gear 2 M<sub>d</sub> (largest / smallest permitted)</label>
+                    <label>Gear 2 @(Internal ? "M_i, between balls" : "M_d") (largest / smallest permitted)</label>
                     <div class="input-group">
                         <input type="number" step="0.001" min="0" @bind="engine.BallLimitUpper2" />
                         <input type="number" step="0.001" min="0" @bind="engine.BallLimitLower2" style="margin-left:8px;" />
                         <span class="unit">mm</span>
                     </div>
                     <small style="color: #6c757d; font-size: 12px;">
-                        Both sit below the theoretical M<sub>d</sub>. Measured with
+                        @if (Internal)
+                        {
+                            <text>
+                                On the internal gear both sit <strong>above</strong> the theoretical
+                                M<sub>i</sub>: a thinner annulus tooth lets the balls move out.
+                            </text>
+                        }
+                        Gear 1's sit below the theoretical M<sub>d</sub>. Measured with
                         @BallDiameterCaption(1) on gear 1 and @BallDiameterCaption(2) on gear 2
                         &#8212; set the ball in that gear's <em>Advanced Gear Geometry</em> dialog.
                     </small>
@@ -3083,6 +3258,16 @@ else
                 </div>
             </div>
 
+            @if (Internal && gear == 2)
+            {
+                <h4 style="margin: 18px 0 12px; font-size: 14px; color: #2c3e50;">Rim</h4>
+                <p style="font-size: 13px; color: #495057; margin: 0;">
+                    The annulus rim is set by its outside diameter D<sub>o</sub>, on the gear 2 card,
+                    where it drives the internal-gear Y<sub>B</sub>. Bore, web and hub do not apply.
+                </p>
+            }
+            else
+            {
             <h4 style="margin: 18px 0 12px; font-size: 14px; color: #2c3e50;">Rim and hub</h4>
             <div class="dialog-form">
                 <div class="form-group">
@@ -3164,6 +3349,7 @@ else
                         }
                     </div>
                 </div>
+            }
             }
         </ChildContent>
         <Footer>
@@ -3468,6 +3654,12 @@ else
     /// </summary>
     private void ResetEngine()
     {
+        if (Internal)
+        {
+            ResetInternalEngine();
+            return;
+        }
+
         engine = new GearPairEngine
         {
             Power = 3.5,
@@ -3490,6 +3682,47 @@ else
             QualityGrade2 = 6
         };
 
+        ResetPageState();
+    }
+
+    /// <summary>
+    /// Defaults for /internal-gear: a 20-tooth pinion in a 60-tooth annulus at the reference
+    /// centre distance. x1 = +0.3 (so x2 = −0.3) is not decoration - with unshifted full-depth
+    /// teeth this pair has involute interference at the pinion root, the textbook reason
+    /// annulus tips are enlarged, and the form should open on a gear that works.
+    /// </summary>
+    private void ResetInternalEngine()
+    {
+        engine = new GearPairEngine
+        {
+            InternalGear = true,
+            Power = 3.5,
+            Speed1 = 2500,
+            ApplicationFactor = 1.0,
+            RequiredServiceLife = 10000,
+            NormalModule = 1.5,
+            PressureAngle = 20.0,
+            HelixAngle = 0.0,
+            CenterDistance = 30.0,
+            NumberOfTeeth1 = 20,
+            NumberOfTeeth2 = 60,
+            FaceWidth1 = 15,
+            FaceWidth2 = 15,
+            ProfileShiftCoeff1 = 0.3,
+            RingOuterDiameter = 110,
+            AddendumCoeff = 1.0,
+            DedendumCoeff = 1.25,
+            RootRadiusCoeff = 0.3,
+            QualityGrade1 = 6,
+            QualityGrade2 = 6
+        };
+        engine.CalculateProfileShift2();
+        ResetPageState();
+    }
+
+    /// <summary>The form state that is not on the engine, shared by both defaults.</summary>
+    private void ResetPageState()
+    {
         selectedApplicationFactor = "1.0";
 
         // Naming the default lubricant is not the same as loading it. Setting the field alone
@@ -3608,7 +3841,8 @@ else
     {
         double ad = engine.ReferenceCentreDistance();
         if (ad <= 0 || engine.NormalModule <= 0 || engine.CenterDistance <= 0) return null;
-        return (engine.CenterDistance - ad) / engine.NormalModule - engine.SumProfileShift;
+        // y is signed: on an internal pair a and a_d are both negative in ISO 21771.
+        return engine.Sign2 * (engine.CenterDistance - ad) / engine.NormalModule - engine.SumProfileShift;
     }
 
     /// <summary>
@@ -3681,11 +3915,15 @@ else
         if (engine.FaceWidth2 <= 0) validationMessages.Add("Wheel face width (b₂) must be greater than 0.");
         if (engine.CenterDistance <= 0) validationMessages.Add("Centre distance (a) must be greater than 0.");
         if (engine.RequiredServiceLife <= 0) validationMessages.Add("Required service life must be greater than 0.");
+        if (Internal && engine.NumberOfTeeth2 > 0 && engine.NumberOfTeeth2 <= engine.NumberOfTeeth1)
+            validationMessages.Add("The internal gear needs more teeth than the pinion inside it (z₂ > z₁).");
+        if (Internal && engine.RingOuterDiameter < 0)
+            validationMessages.Add("Rim outside diameter (Dₒ) cannot be negative; enter 0 to leave the rim unchecked.");
 
         if (validationMessages.Count > 0)
         {
             isCalculating = false;
-            await Analytics.TrackCalculationError("gear-pair", "validation_failed", string.Join("; ", validationMessages));
+            await Analytics.TrackCalculationError(ModuleKey, "validation_failed", string.Join("; ", validationMessages));
             return;
         }
 
@@ -3747,7 +3985,7 @@ else
     /// the wrong grade. The pinion's profile shift x1 is stored; the wheel's x2 is derived
     /// on restore. Keys are kept short because the state rides in a URL.
     /// </summary>
-    private CalculationState BuildShareState() => new CalculationState("gear-pair")
+    private CalculationState BuildShareState() => new CalculationState(ModuleKey)
         .Set("P", engine.Power)
         .Set("n1", engine.Speed1)
         .Set("Ka", selectedApplicationFactor)
@@ -3773,6 +4011,7 @@ else
         // gear blanks - the bore drives Y_B, the rest is 3D model only
         .Set("di1", engine.BoreDiameter1)
         .Set("di2", engine.BoreDiameter2)
+        .Set("ro", engine.RingOuterDiameter)
         .Set("bk1", blankType1)
         .Set("bk2", blankType2)
         .Set("fr1", finishingRoute1)
@@ -3904,6 +4143,7 @@ else
 
         engine.BoreDiameter1 = state.GetDouble("di1", engine.BoreDiameter1);
         engine.BoreDiameter2 = state.GetDouble("di2", engine.BoreDiameter2);
+        engine.RingOuterDiameter = state.GetDouble("ro", engine.RingOuterDiameter);
 
         var bk1 = state.GetString("bk1", blankType1);
         var bk2 = state.GetString("bk2", blankType2);
@@ -4056,7 +4296,7 @@ else
         try
         {
             await JSRuntime.InvokeVoidAsync("generatePdf", "results-content",
-                $"GearPair-Report-{DateTime.Now:yyyyMMdd_HHmmss}.pdf");
+                $"{(Internal ? "InternalGearPair" : "GearPair")}-Report-{DateTime.Now:yyyyMMdd_HHmmss}.pdf");
         }
         catch (Exception ex)
         {
