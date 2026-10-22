@@ -2259,9 +2259,19 @@ distance than a_d gives a **negative** Σx.
   G_s = z1(inv α_a1 + δ1) + (z2−z1) inv α_wt − z2(inv α_a2 + δ2) ≥ 0 — against a brute-force
   simulation that sweeps the pinion outline through the annulus frame: both switch at
   z2 − z1 = 9 for z1 = 40 unshifted 20°. **Do not "simplify" it to a z2 − z1 rule of thumb.**
+- **Root interference, d_Nf ≥ d_Ff at both ends of the path.** The annulus tip must meet the
+  pinion at or above the pinion's root form circle, and the pinion tip must leave the annulus
+  inside the annulus's form circle (rack-generated, nominal x — the conservative side). The
+  ISO 21771 d_Ff is anchored to a brute-force rack generation (d ≈ 28.211 for z 20, m_n 1.5,
+  ρ* 0.3). **The first version compared ρ_1A with the base circle only, passed a pair whose
+  annulus tip ran 0.12 mm down the pinion fillet, and shipped it as the page default** — caught
+  in the pre-publish review, Oct 2026. Do not go back to the base circle.
 - **Dimension between balls**: the ball centre computed from the signed involute relation is
   checked by brute force to sit D_M/2 from the annulus flank. On an annulus a thinner tooth
-  moves the balls OUT, so both permitted M_i limits are *above* nominal.
+  moves the balls OUT, so both permitted M_i limits are *above* nominal — and the LARGEST
+  permitted M_i belongs to A_sni. `ResolveAllowancesFromMeasurement` swaps the two limits for
+  the annulus and the results table labels them accordingly; both were the external way round
+  in the first version.
 - **Backlash**: a larger centre distance *closes* an internal mesh, so the minimum backlash
   uses the UPPER centre distance deviation (`CentreDeviationForMinBacklash`).
 - **Directions**: σ_H0 carries √((u−1)/u); the internal pair runs cooler (flash temperature,
@@ -2270,9 +2280,24 @@ distance than a_d gives a **negative** Σx.
 - **The internal X_G** of ISO/TR 13989-1 (Eq. A.6 with u negative; Eq. A.7 was not to hand)
   agrees with the general Eq. (5) to the same ~2,5 % it does on an external pair.
 
-**The default pair has x1 = +0,3 on purpose.** z 20/60 with unshifted full-depth teeth has
-involute interference at the pinion root (ρ_1A < 0) — the textbook reason annulus tips are
-enlarged. A form that opened on a red card would look broken.
+**The default pair (z 24/60, a 27.8, x1 +0.1 → x2 ≈ −0.69, ISO 53 profile A) is chosen, not
+decorative.** Two constraints pull against each other on every internal pair here:
+
+- with near-zero x2 the annulus tip lands on the pinion fillet (d_Nf1 < d_Ff1) — unshifted at
+  a_d the default teeth miss by 0.13 mm — so x2 has to go clearly negative;
+- in the rack-generated model ISO 6336-3 rates the annulus root with, a negative x2 shrinks the
+  annulus fillet radius (signed Eq. 17), and with profile B (ρ* 0.30) every clean pair found had
+  q_s near or past the 8 that Eq. (36) is valid to. `Negative_annulus_shift_shrinks_the_rack_model_fillet`
+  pins this.
+
+The real-world remedy is an enlarged annulus tip diameter rather than a profile shift, which
+leaves the annulus root alone. **The module cannot express that yet** — d_a2 always follows
+from x2 and k. Adding a direct d_a2 input is the next change worth making, and it is the most
+likely place a reference report will disagree. ISO 6336-3 Eq. (11) (ρ_fPv, not implemented) is
+the second.
+
+**Validation:** the page refuses a centre distance below a_d·cos α_t (no α_wt exists; the
+engine would clamp it to 0° and return an infinite Z_H). That applies to the external page too.
 
 **Not on the internal page, deliberately:** the 3D viewer (its builder draws an external
 pair — "never draw something the calculation does not know"), W_k and the chordal caliper on

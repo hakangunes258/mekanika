@@ -509,6 +509,28 @@ public class GearPairEngine
     /// </summary>
     public double PinionRootContactRadius { get; set; }
 
+    /// <summary>
+    /// Start of the pinion's active profile d_Nf1 (mm): the diameter at which the annulus tip
+    /// touches it. Must not lie below the pinion's root form circle <see cref="PinionFormDiameter"/>.
+    /// </summary>
+    public double PinionActiveRootDiameter { get; set; }
+
+    /// <summary>
+    /// Pinion root form circle d_Ff1 (mm) — where the generated involute ends and the fillet
+    /// begins — for a pinion cut by the reference profile entered (ISO 21771).
+    /// </summary>
+    public double PinionFormDiameter { get; set; }
+
+    /// <summary>End of the annulus's active profile d_Nf2 (mm): where the pinion tip leaves it.</summary>
+    public double RingActiveRootDiameter { get; set; }
+
+    /// <summary>
+    /// Annulus root form circle d_Ff2 (mm), on the OUTSIDE of its active flank. Taken from the
+    /// reference profile as the generating tool, which is the same model ISO 6336-3 rates the
+    /// annulus root with; a shaper-cut annulus has its own, from the cutter.
+    /// </summary>
+    public double RingFormDiameter { get; set; }
+
     /// <summary>Rim thickness under the annulus root, s_R = (D_o − d_f2)/2 (mm); 0 when D_o is not given.</summary>
     public double RingRimThickness { get; set; }
 
@@ -957,15 +979,50 @@ public class GearPairEngine
               + "tip would interfere with the pinion. Increase d_a2 (a smaller addendum, more negative x2).");
         }
 
-        // 2. Involute interference at the pinion root: where the annulus tip first touches the
-        //    pinion, the pinion has to be on its involute (ρ_1A > 0).
+        // 2. Root interference at both ends of the path. Where the annulus tip first touches the
+        //    pinion (A) the pinion must still be on its generated involute, i.e. at or above its
+        //    root form circle - d_Nf1 >= d_Ff1 (ISO 21771 / DIN 3960). Below it the annulus tip
+        //    meets the fillet. Comparing with the base circle alone, as this first did, misses
+        //    every case where the fillet starts above the base circle - which on a small,
+        //    positively shifted pinion is most of them. The same at E for the annulus, whose
+        //    involute ends at its form circle on the OUTSIDE.
+        //
+        //    Both form circles use the NOMINAL profile shift: the tooth thickness allowances
+        //    move the tool deeper, which lowers the pinion's form circle and raises the
+        //    annulus's, so nominal x is the conservative side for both.
+        double tanAlphaWt = Math.Tan(alphaWTRad);
         double rho2A = Math.Sqrt(Math.Max(0, ra2 * ra2 - rb2 * rb2));
         PinionRootContactRadius = rho2A - a * Math.Sin(alphaWTRad);
+        PinionActiveRootDiameter = 2.0 * Math.Sqrt(rb1 * rb1 + Math.Max(0, PinionRootContactRadius) * Math.Max(0, PinionRootContactRadius));
+
+        double rhoFf1 = FormCircleRoll(ReferenceDiameter1 / 2.0, ProfileShiftCoeff1, internalGear: false);
+        PinionFormDiameter = 2.0 * Math.Sqrt(rb1 * rb1 + Math.Max(0, rhoFf1) * Math.Max(0, rhoFf1));
+
+        double rho2E = rb2 * tanAlphaWt + RecessPath;
+        RingActiveRootDiameter = 2.0 * Math.Sqrt(rb2 * rb2 + rho2E * rho2E);
+        double rhoFf2 = FormCircleRoll(ReferenceDiameter2 / 2.0, ProfileShiftCoeff2, internalGear: true);
+        RingFormDiameter = 2.0 * Math.Sqrt(rb2 * rb2 + rhoFf2 * rhoFf2);
+
         if (PinionRootContactRadius <= 0)
         {
             InternalGearWarnings.Add(
                 $"Involute interference: the annulus tip reaches the pinion {(-PinionRootContactRadius):F3} mm "
               + "beyond the pinion's base circle (ρ_1A ≤ 0). Increase d_a2, or the pinion's profile shift x1.");
+        }
+        else if (PinionRootContactRadius < rhoFf1)
+        {
+            InternalGearWarnings.Add(
+                $"Root interference on the pinion: the annulus tip engages it at d_Nf1 = {PinionActiveRootDiameter:F3} mm, "
+              + $"below its root form circle d_Ff1 = {PinionFormDiameter:F3} mm, so it runs on the fillet rather than the "
+              + "involute. Make the annulus tip diameter larger (more negative x2) or raise x1.");
+        }
+
+        if (rho2E > rhoFf2)
+        {
+            InternalGearWarnings.Add(
+                $"Root interference on the internal gear: the pinion tip reaches it at d_Nf2 = {RingActiveRootDiameter:F3} mm, "
+              + $"beyond its root form circle d_Ff2 = {RingFormDiameter:F3} mm. Reduce the pinion tip diameter or x1, "
+              + "or move x2 towards positive.");
         }
 
         // 3. Tip (trochoid) interference on leaving mesh.
@@ -1013,6 +1070,24 @@ public class GearPairEngine
               + "the lower limit of ISO 6336-3 for internal gears. A rim this thin can crack radially from the "
               + "root rather than break a tooth; the tooth root safety factor does not cover that.");
         }
+    }
+
+    /// <summary>
+    /// Distance along the line of action (mm) from a gear's base tangent point to its root form
+    /// circle, for a tooth generated by the reference profile entered (ISO 21771):
+    ///     ρ_Ff = r sin α_t ∓ (h_FaP0 − x m_n) / sin α_t,   h_FaP0 = h_fP − ρ_fP (1 − sin α_n)
+    /// minus for an external gear, plus for an annulus, whose fillet lies OUTSIDE its flank.
+    /// For an external gear a negative value means the involute reaches the base circle.
+    /// </summary>
+    private double FormCircleRoll(double r, double x, bool internalGear)
+    {
+        double alphaT = TransversePressureAngle * Math.PI / 180.0;
+        double alphaN = PressureAngle * Math.PI / 180.0;
+        double sinAt = Math.Sin(alphaT);
+        if (sinAt <= 0) return 0;
+        double hFaP0 = NormalModule * (DedendumCoeff - RootRadiusCoeff * (1.0 - Math.Sin(alphaN)));
+        double depth = (hFaP0 - x * NormalModule) / sinAt;
+        return internalGear ? r * sinAt + depth : r * sinAt - depth;
     }
 
     /// <summary>
@@ -2128,8 +2203,11 @@ public class GearPairEngine
         void Apply(int gear, double upperTarget, double lowerTarget,
                    ref double asne, ref double asni)
         {
-            double? e = Invert(gear, upperTarget);
-            double? i = Invert(gear, lowerTarget);
+            // On an annulus a thinner tooth moves the balls OUT, so the LARGEST permitted
+            // dimension between balls belongs to the most thinning (A_sni), not to A_sne.
+            bool reversed = gear == 2 && InternalGear && !span;
+            double? e = Invert(gear, reversed ? lowerTarget : upperTarget);
+            double? i = Invert(gear, reversed ? upperTarget : lowerTarget);
 
             if (e is { } ev) asne = ev; else failed.Add($"gear {gear} upper limit");
             if (i is { } iv) asni = iv; else failed.Add($"gear {gear} lower limit");

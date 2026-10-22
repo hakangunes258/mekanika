@@ -15,7 +15,13 @@ namespace Mekanika.Tests;
 /// </summary>
 public class InternalGearTests
 {
-    private static GearPairEngine Pair(bool internalGear, double x1 = 0.3)
+    /// <summary>
+    /// z 20/60, m_n = 2, ISO 53 profile A (ρ*_fP = 0.38): at a = 40.8 against a reference 40 and
+    /// x1 = +0.3 (x2 ≈ −0.728) the pair is clear of every interference and its annulus root stays
+    /// inside the q_s &lt; 8 range of ISO 6336-3 Eq. (36). The external pair is the same teeth at
+    /// its own reference centre distance.
+    /// </summary>
+    private static GearPairEngine Pair(bool internalGear, double x1 = 0.3, double? a = null)
     {
         var e = new GearPairEngine
         {
@@ -27,11 +33,11 @@ public class InternalGearTests
             HelixAngle = 0,
             NumberOfTeeth1 = 20,
             NumberOfTeeth2 = 60,
-            // Reference centre distance either way: m(z2 ∓ z1)/2.
-            CenterDistance = internalGear ? 40 : 80,
+            CenterDistance = a ?? (internalGear ? 40.8 : 80),
             ProfileShiftCoeff1 = x1,
             FaceWidth1 = 30,
             FaceWidth2 = 30,
+            RootRadiusCoeff = 0.38,
             RingOuterDiameter = internalGear ? 150 : 0
         };
         e.Material1 = GearMaterial.ByLabel("18CrNiMo7-6 - Case-hardened")!;
@@ -45,7 +51,7 @@ public class InternalGearTests
     [Fact]
     public void Geometry_matches_hand_calculation()
     {
-        var e = Pair(true, x1: 0.3);
+        var e = Pair(true, x1: 0.3, a: 40);
 
         // a = a_d, so Σx = 0 and x2 = −x1.
         Assert.Equal(0.0, e.SumProfileShift, 9);
@@ -175,13 +181,63 @@ public class InternalGearTests
     {
         // z1 = 20 in a z2 = 60 annulus with unshifted full-depth teeth: the annulus tip reaches
         // past the pinion's base circle, the textbook reason annulus tips are enlarged.
-        var plain = Pair(true, x1: 0);
+        var plain = Pair(true, x1: 0, a: 40);
         Assert.True(plain.PinionRootContactRadius <= 0);
         Assert.Contains(plain.InternalGearWarnings, w => w.StartsWith("Involute interference"));
+    }
 
-        var shifted = Pair(true, x1: 0.3);
-        Assert.True(shifted.PinionRootContactRadius > 0);
-        Assert.Empty(shifted.InternalGearWarnings);
+    [Fact]
+    public void Annulus_tip_below_the_pinion_form_circle_is_root_interference()
+    {
+        // x1 = +0.3 / x2 = −0.3 at the reference centre distance: the annulus tip stays outside
+        // the pinion's base circle (ρ_1A > 0) but engages it BELOW its root form circle, i.e. on
+        // the fillet. The first version of the checks compared with the base circle only, passed
+        // this pair and shipped it as the page default.
+        var fillet = Pair(true, x1: 0.3, a: 40);
+        Assert.True(fillet.PinionRootContactRadius > 0);
+        Assert.True(fillet.PinionActiveRootDiameter < fillet.PinionFormDiameter);
+        Assert.Contains(fillet.InternalGearWarnings, w => w.StartsWith("Root interference on the pinion"));
+
+        var clear = Pair(true);
+        Assert.True(clear.PinionActiveRootDiameter > clear.PinionFormDiameter);
+        Assert.True(clear.RingActiveRootDiameter < clear.RingFormDiameter);
+        Assert.Empty(clear.InternalGearWarnings);
+        Assert.Null(clear.ToothFormWarning2);   // q_s inside Eq. (36)
+    }
+
+    [Fact]
+    public void Negative_annulus_shift_shrinks_the_rack_model_fillet()
+    {
+        // The tension any internal design here runs into: the negative x2 that keeps the annulus
+        // tip off the pinion fillet also tightens the annulus root fillet in the rack-generated
+        // model of ISO 6336-3 - with profile B (ρ*_fP = 0.30) far enough to leave Eq. (36).
+        // Pinned so that a change to the internal tooth form, or to Eq. (11) once it is
+        // implemented, shows up here rather than silently.
+        var profileA = Pair(true);
+        var profileB = Pair(true);
+        profileB.RootRadiusCoeff = 0.30;
+        profileB.Calculate();
+
+        Assert.True(profileB.RootFilletRadius2 < profileA.RootFilletRadius2);
+        Assert.True(profileA.NotchParameter2 < 8);
+        Assert.True(profileB.NotchParameter2 >= 8);
+        Assert.NotNull(profileB.ToothFormWarning2);
+    }
+
+    [Fact]
+    public void Pinion_form_circle_matches_a_simulated_rack_generation()
+    {
+        // ISO 21771 d_Ff against a brute-force generation (rack with the ρ_fP tip fillet rolled
+        // over the pinion, generated flank compared with the involute): z = 20, m_n = 1.5,
+        // x = 0, h*_fP = 1.25, ρ*_fP = 0.3 → the involute starts at d ≈ 28.211 mm.
+        var e = new GearPairEngine
+        {
+            InternalGear = true, Power = 1, Speed1 = 1000, RequiredServiceLife = 1000,
+            NormalModule = 1.5, NumberOfTeeth1 = 20, NumberOfTeeth2 = 60, CenterDistance = 30.6,
+            ProfileShiftCoeff1 = 0, FaceWidth1 = 15, FaceWidth2 = 15, RootRadiusCoeff = 0.3
+        };
+        e.Calculate();
+        Assert.Equal(28.211, e.PinionFormDiameter, 2);
     }
 
     // ------------------------------------------------------------------ strength
@@ -190,7 +246,7 @@ public class InternalGearTests
     public void Internal_pair_has_lower_nominal_contact_stress()
     {
         var ext = Pair(false, x1: 0);
-        var inn = Pair(true, x1: 0);
+        var inn = Pair(true, x1: 0, a: 40);   // same α_wt (20°) as the external pair
 
         // σ_H0 ∝ Z_ε √((u ± 1)/u): the (u − 1) of the conforming contact, times the Z_ε of the
         // longer path of contact. Everything else is identical for the two.
@@ -284,6 +340,29 @@ public class InternalGearTests
         double? asn = GearToothMeasurement.AllowanceForBallDimension(g, m.MdLower);
         Assert.NotNull(asn);
         Assert.Equal(m.Asni, asn!.Value, 6);
+    }
+
+    [Fact]
+    public void Ball_limits_on_an_annulus_map_largest_to_most_thinning()
+    {
+        // The drawing states largest / smallest permitted M_i. On an annulus the largest is the
+        // thinnest tooth (A_sni) - the reverse of an external gear - so the inversion has to swap.
+        var reference = Pair(true);
+        var m2 = reference.Measurement2!;
+
+        var e = Pair(true);
+        e.AllowanceMode = ToothThicknessAllowanceMode.BallLimits;
+        e.BallDiameter2 = m2.DM;
+        e.BallDiameter1 = reference.Measurement1!.DM;
+        e.BallLimitUpper1 = reference.Measurement1.MdUpper;
+        e.BallLimitLower1 = reference.Measurement1.MdLower;
+        e.BallLimitUpper2 = Math.Max(m2.MdUpper, m2.MdLower);   // largest permitted M_i
+        e.BallLimitLower2 = Math.Min(m2.MdUpper, m2.MdLower);
+        e.Calculate();
+
+        Assert.Equal(m2.Asne, e.Asne2, 6);
+        Assert.Equal(m2.Asni, e.Asni2, 6);
+        Assert.DoesNotContain("Could not be resolved", e.AllowanceNote);
     }
 
     [Fact]

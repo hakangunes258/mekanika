@@ -322,7 +322,11 @@ public class ModuleMetadataService
                 //  - Z_D held at 1; the internal X_G of ISO/TR 13989-1 derived from Eq. (A.6)
                 //    with u negative and cross-checked against the general Eq. (5).
                 //  - Tip interference by the Colbourne condition, checked against a brute-force
-                //    mesh simulation (threshold z2 - z1 = 9 for z1 = 40, unshifted 20°).
+                //    mesh simulation (38 of 38 pairs agree, shifted ones included).
+                //  - Root interference d_Nf >= d_Ff with rack-generated form circles; for a
+                //    shaper-cut annulus d_Ff2 is an estimate.
+                //  - The annulus tip diameter follows from x2 and k only; there is no direct d_a2
+                //    input yet, which is how real designs avoid root interference.
                 // Promote it once a KISSsoft (or similar) internal-pair report has been diffed
                 // the way the three external ones were.
                 IsVerified = false,

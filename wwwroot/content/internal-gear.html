@@ -5,11 +5,13 @@
 
     Every number in the worked example was read off the real page (Chromium, the
     published build) with the default internal pair: mn 1,5, alpha_n 20, beta 0,
-    a 30, z 20/60, b 15/15, x1 +0,3 (x2 -0,3 derived), D_o 110, ISO 1328 class 6,
-    18CrNiMo7-6 case-hardened both, Mobilgear 600 XP 220, dip lubrication,
-    P 3,5 kW, n1 2500 rpm, KA 1,0, 10 000 h, pitting NOT permissible. The x1 = 0
-    involute interference claim and the z2 - z1 = 9 threshold are pinned by
-    Tests/InternalGearTests.cs. Re-run if the engine changes.
+    a 27,8, z 24/60, b 15/15, x1 +0,1 (x2 -0,6877 derived), ISO 53 profile A
+    (h*aP 1, h*fP 1,25, rho*fP 0,38), D_o 110, ISO 1328 class 6, 18CrNiMo7-6
+    case-hardened both, Mobilgear 600 XP 220, dip lubrication, P 3,5 kW,
+    n1 2500 rpm, KA 1,0, 10 000 h, pitting NOT permissible. The two
+    "root interference" figures (a 27 / x1 0 and a 27,5 / x1 0) were read off the
+    same page with only those inputs changed. The z2 - z1 = 9 threshold is pinned
+    by Tests/InternalGearTests.cs. Re-run if the engine changes.
 -->
 <section class="module-content">
 
@@ -64,10 +66,11 @@ G&#8347; = z&#8321;(inv&#945;&#8336;&#8321; + &#948;&#8321;) + (z&#8322;&minus;z
         <div class="mc-body">
             <p><strong>Profile shift.</strong> On an annulus a positive x<sub>2</sub> moves the
             profile towards the tooth tip &mdash; towards the axis &mdash; which thickens the
-            tooth but makes the tip diameter <em>smaller</em> and brings it closer to its base
-            circle. Most internal pairs need a positive x<sub>1</sub> on the pinion and a
-            negative x<sub>2</sub> on the annulus to keep clear of interference, which is what
-            the default pair below does.</p>
+            tooth but makes the tip diameter <em>smaller</em>, pushing it towards the pinion's
+            fillet. Most internal pairs need a clearly negative x<sub>2</sub> to keep the annulus
+            tip on the pinion's involute, which is what the default pair below does. The price is
+            a tighter annulus root fillet: watch the notch parameter q<sub>s</sub> of the annulus,
+            which ISO 6336-3 only covers up to 8.</p>
             <p><strong>Tooth number difference.</strong> z<sub>2</sub> &minus; z<sub>1</sub> is
             limited by tip interference. For unshifted 20&deg; full-depth teeth on a 40-tooth
             pinion it has to be at least 9; a larger pressure angle, profile shift or shorter
@@ -78,7 +81,9 @@ G&#8347; = z&#8321;(inv&#945;&#8336;&#8321; + &#948;&#8321;) + (z&#8322;&minus;z
             <p><strong>Reference profile.</strong> Annuli are shaped with a pinion-type cutter,
             not hobbed. Enter the cutter's addendum and tip radius as the reference profile; the
             root fillet radius in particular drives the stress correction factor of the
-            annulus.</p>
+            annulus. The default uses ISO 53 profile A (&#961;*<sub>fP</sub> = 0,38): with the
+            tighter profile B (0,30) the annulus fillet of the same pair falls outside the range
+            the stress correction formula is valid for.</p>
         </div>
     </details>
 
@@ -86,37 +91,42 @@ G&#8347; = z&#8321;(inv&#945;&#8336;&#8321; + &#948;&#8321;) + (z&#8322;&minus;z
         <summary>Worked example</summary>
         <div class="mc-body">
             <p>The calculator's default pair: m<sub>n</sub> 1,5, 20&deg; pressure angle, spur,
-            z = 20/60 on 30 mm centres, 15 mm face width, x<sub>1</sub> = +0,3 (so
-            x<sub>2</sub> = &minus;0,3), rim outside diameter 110 mm, ISO 1328 class 6,
-            18CrNiMo7-6 case-hardened both, dip lubrication in Mobilgear 600 XP 220,
-            transmitting 3,5 kW at 2500 rpm with K<sub>A</sub> = 1,0 for 10 000 hours.</p>
-<pre>d          30,000 / 90,000 mm      d&#8336;  33,900 / 87,900 mm
-&#949;&#945;  1,738          v  3,93 m/s       F&#8348;  891 N
+            z = 24/60 on 27,8 mm centres (the reference is 27), 15 mm face width,
+            x<sub>1</sub> = +0,1 (so x<sub>2</sub> = &minus;0,688), ISO 53 profile A, rim outside
+            diameter 110 mm, ISO 1328 class 6, 18CrNiMo7-6 case-hardened both, dip lubrication in
+            Mobilgear 600 XP 220, transmitting 3,5 kW at 2500 rpm with K<sub>A</sub> = 1,0 for
+            10 000 hours.</p>
+<pre>d          36,000 / 90,000 mm      d&#8336;  39,300 / 89,063 mm
+&#949;&#945;  1,672          v  4,71 m/s       F&#8348;  743 N
 
-Checks    &#961;&#8321;&#8336;  1,718 mm   G&#8347;  0,7817   s&#7523;  7,67 mm   &#10003;
+Checks    d_Nf1 34,226 &gt; d_Ff1 34,116 mm    G&#8347;  1,2175    &#10003;
 
-K&#8336; 1,000   K&#7515; 1,091   K&#7511;&#7517; 2,308   K&#7511;&#945; 1,132
+K&#8336; 1,000   K&#7515; 1,146   K&#7511;&#7517; 2,304   K&#7511;&#945; 1,094
 
-Root      Y&#7534;   1,181 / 0,999     Y&#8347;  2,282 / 3,502
-          &sigma;&#7515;   254,1 / 329,5     S&#7515;  2,96 / 2,41    &#10003;
+Root      Y&#7534;   1,429 / 0,872     Y&#8347;  1,926 / 3,603   q&#8347;&#8322; 6,90
+          &sigma;&#7515;   219,1 / 250,0     S&#7515;  3,41 / 3,16    &#10003;
 
-Flank     &sigma;&#7511;&#8320;  472,5 MPa         &sigma;&#7511;  797,6
-          S&#7511;    1,64 / 1,73       &#10003;
+Flank     &sigma;&#7511;&#8320;  341,6 MPa         &sigma;&#7511;  580,4
+          S&#7511;    1,90 / 2,41       &#10003;
 
-Scuffing  margin 265 K            &#10003;
-Micropitting            S&#955;  1,31   &#9888;</pre>
-            <p>Look at the flank. The nominal contact stress of 472,5 MPa carries
+Scuffing  margin 268 K            &#10003;
+Micropitting            S&#955;  2,28   &#10003;</pre>
+            <p>Look at the flank. The nominal contact stress of 341,6 MPa carries
             &radic;((u&minus;1)/u) where an external pair carries &radic;((u+1)/u) &mdash; at
-            u = 3 that alone is a factor of 0,71 &mdash; and the longer path of contact lowers
+            u = 2,5 that alone is a factor of 0,65 &mdash; and the longer path of contact lowers
             Z<sub>&#949;</sub> as well. The concave annulus is doing exactly what it is there
             for.</p>
             <p>The root tells the opposite story for the annulus. Its form factor is low
-            (0,999: the tooth widens towards the root), but its fillet is tight, so the stress
-            correction factor is high (3,502) and the annulus, not the pinion, sets the minimum
-            root safety at 2,41. With x<sub>1</sub> = 0 instead of +0,3 the same pair has
-            involute interference &mdash; the annulus tip reaches past the pinion's base
-            circle &mdash; and the checks card goes red before any safety factor is
-            computed.</p>
+            (0,872: the tooth widens towards the root), but its fillet is tight, so the stress
+            correction factor is high (3,603) and the annulus, not the pinion, sets the minimum
+            root safety at 3,16.</p>
+            <p>Now the reason for the shifts. Unshifted, at the reference centre distance of
+            27 mm, the annulus tip engages the pinion at d<sub>Nf1</sub> = 33,885 mm &mdash;
+            below the pinion's root form circle of 34,014 mm, i.e. on its fillet, not its
+            involute. Opening the centre distance to 27,5 mm (x<sub>2</sub> = &minus;0,355) still
+            leaves it 20 &micro;m short. Only around x<sub>2</sub> = &minus;0,69 does the checks
+            card go green, and every one of those designs is rated anyway &mdash; a safety factor
+            says nothing about whether the gears can run.</p>
         </div>
     </details>
 

@@ -1173,9 +1173,12 @@ else
                         <tr class="@(engine.TipDiameter2 > engine.BaseDiameter2 ? "success" : "danger")">
                             <td>Annulus Tip outside its Base Circle</td><td>d<sub>a2</sub> &#8722; d<sub>b2</sub></td>
                             <td>@((engine.TipDiameter2 - engine.BaseDiameter2).ToString("F3"))</td><td>mm</td></tr>
-                        <tr class="@(engine.PinionRootContactRadius > 0 ? "success" : "danger")">
-                            <td>Pinion Curvature where the Annulus Tip Engages</td><td>&#961;<sub>1A</sub></td>
-                            <td>@engine.PinionRootContactRadius.ToString("F3")</td><td>mm</td></tr>
+                        <tr class="@(engine.PinionRootContactRadius > 0 && engine.PinionActiveRootDiameter >= engine.PinionFormDiameter ? "success" : "danger")">
+                            <td>Pinion: Start of Active Profile vs Root Form Circle</td><td>d<sub>Nf1</sub> / d<sub>Ff1</sub></td>
+                            <td>@engine.PinionActiveRootDiameter.ToString("F3") / @engine.PinionFormDiameter.ToString("F3")</td><td>mm</td></tr>
+                        <tr class="@(engine.RingActiveRootDiameter <= engine.RingFormDiameter ? "success" : "danger")">
+                            <td>Internal Gear: End of Active Profile vs Root Form Circle</td><td>d<sub>Nf2</sub> / d<sub>Ff2</sub></td>
+                            <td>@engine.RingActiveRootDiameter.ToString("F3") / @engine.RingFormDiameter.ToString("F3")</td><td>mm</td></tr>
                         <tr class="@(double.IsNaN(engine.TipInterferenceMargin) || engine.TipInterferenceMargin < 0 ? "danger" : "success")">
                             <td>Tip (Trochoid) Interference Margin</td><td>G<sub>s</sub></td>
                             <td>@(double.IsNaN(engine.TipInterferenceMargin) ? "—" : engine.TipInterferenceMargin.ToString("F4"))</td><td>rad</td></tr>
@@ -1190,7 +1193,7 @@ else
                 {
                     <div class="alert alert-success" style="margin: 16px;">
                         <ModuleIcon Type="check" Size="small" Style="default" CustomStyle="margin-right: 8px;" />
-                        <div><strong>OK:</strong> no involute, tip or trochoid interference, and the annulus tip lies on its involute.</div>
+                        <div><strong>OK:</strong> no root, tip or trochoid interference, and the annulus tip lies on its involute.</div>
                     </div>
                 }
                 @foreach (var w in engine.InternalGearWarnings)
@@ -1206,8 +1209,12 @@ else
                     z<sub>1</sub>(inv&#945;<sub>a1</sub> + &#948;<sub>1</sub>) + (z<sub>2</sub> &#8722; z<sub>1</sub>)inv&#945;<sub>wt</sub>
                     &#8722; z<sub>2</sub>(inv&#945;<sub>a2</sub> + &#948;<sub>2</sub>) &#8805; 0, which is what limits
                     how small z<sub>2</sub> &#8722; z<sub>1</sub> may be (about 9 or more for unshifted 20&#176;
-                    full-depth teeth). Interference with the <em>cutter</em> when the annulus is shaped, and
-                    radial assembly of the pinion, are not checked &#8212; the cutter is not an input.
+                    full-depth teeth). d<sub>Nf</sub> &#8805; d<sub>Ff</sub> keeps each tip on the mating
+                    involute rather than on its fillet; the form circles are those the reference profile
+                    above would generate, at the nominal profile shift (the conservative side). For an annulus
+                    cut by a pinion-type cutter its d<sub>Ff2</sub> comes from the cutter, so treat that row as
+                    an estimate. Interference with the <em>cutter</em> when the annulus is shaped, and radial
+                    assembly of the pinion, are not checked &#8212; the cutter is not an input.
                 </div>
             </div>
         }
@@ -1334,6 +1341,15 @@ else
                 @foreach (var wmsg in dyn.Warnings)
                 {
                     <div class="alert alert-warning" style="margin: 12px 16px;">@wmsg</div>
+                }
+                @if (Internal)
+                {
+                    <div class="note-box tight">
+                        <strong>Internal pair:</strong> the annulus is taken as infinitely heavy, so
+                        m<sub>red</sub> is the pinion's own, and z<sub>n2</sub> &#8594; &#8734; in the
+                        single tooth stiffness c&#8242; (Eq. 82). Both are assumptions until this module has
+                        been checked against a reference calculation of an internal pair.
+                    </div>
                 }
             }
 
@@ -1463,8 +1479,10 @@ else
                         <tr><td>Ball Diameter Used</td><td>D<sub>M</sub></td><td>@m1.DM.ToString("F3")</td><td>@m2.DM.ToString("F3")</td><td>mm</td></tr>
                         <tr><td>Best Size for this Gear</td><td>D<sub>M,best</sub></td><td>@m1.DMBest.ToString("F3")</td><td>@m2.DMBest.ToString("F3")</td><td>mm</td></tr>
                         <tr><td>Theoretical (zero allowance)</td><td>M<sub>d</sub></td><td>@m1.Md.ToString("F4")</td><td>@m2.Md.ToString("F4")</td><td>mm</td></tr>
-                        <tr class="highlight"><td>Largest Permitted (at A<sub>sne</sub>)</td><td>M<sub>d,max</sub></td><td>@m1.MdUpper.ToString("F4")</td><td>@m2.MdUpper.ToString("F4")</td><td>mm</td></tr>
-                        <tr class="highlight"><td>Smallest Permitted (at A<sub>sni</sub>)</td><td>M<sub>d,min</sub></td><td>@m1.MdLower.ToString("F4")</td><td>@m2.MdLower.ToString("F4")</td><td>mm</td></tr>
+                        @* On an annulus a thinner tooth moves the balls OUT, so its largest permitted
+                           M_i is the one at A_sni - the opposite of the pinion. *@
+                        <tr class="highlight"><td>Largest Permitted (at A<sub>sne</sub>@if (Internal) {<text>; annulus at A<sub>sni</sub></text>})</td><td>M<sub>d,max</sub></td><td>@m1.MdUpper.ToString("F4")</td><td>@((Internal ? m2.MdLower : m2.MdUpper).ToString("F4"))</td><td>mm</td></tr>
+                        <tr class="highlight"><td>Smallest Permitted (at A<sub>sni</sub>@if (Internal) {<text>; annulus at A<sub>sne</sub></text>})</td><td>M<sub>d,min</sub></td><td>@m1.MdLower.ToString("F4")</td><td>@((Internal ? m2.MdUpper : m2.MdLower).ToString("F4"))</td><td>mm</td></tr>
                         <tr><td>Ball Centre Circle</td><td>d<sub>M</sub></td><td>@m1.dMBallCentre.ToString("F3")</td><td>@m2.dMBallCentre.ToString("F3")</td><td>mm</td></tr>
                         <tr><td>Pressure Angle at Ball Centre</td><td>&#945;<sub>M</sub></td><td>@m1.alphaM.ToString("F3")</td><td>@m2.alphaM.ToString("F3")</td><td>&#176;</td></tr>
                         <tr><td>Ball Contact Diameter</td><td>d<sub>y</sub></td><td>@m1.dBallContact.ToString("F3")</td><td>@m2.dBallContact.ToString("F3")</td><td>mm</td></tr>
@@ -1512,7 +1530,9 @@ else
                         <tr class="highlight"><td>Normal Backlash</td><td>j<sub>bn</sub></td><td>@((bl.jbnMin * 1000).ToString("F1"))</td><td>@((bl.jbnMax * 1000).ToString("F1"))</td><td>&#956;m</td></tr>
                         <tr><td>Circumferential Backlash</td><td>j<sub>wt</sub></td><td>@((bl.jwtMin * 1000).ToString("F1"))</td><td>@((bl.jwtMax * 1000).ToString("F1"))</td><td>&#956;m</td></tr>
                         <tr><td>Radial Backlash</td><td>j<sub>r</sub></td><td>@((bl.jrMin * 1000).ToString("F1"))</td><td>@((bl.jrMax * 1000).ToString("F1"))</td><td>&#956;m</td></tr>
-                        <tr><td>Center Distance Deviation</td><td>A<sub>a</sub></td><td>@((engine.UsedCentreDistanceLowerDev * 1000).ToString("F1"))</td><td>@((engine.UsedCentreDistanceUpperDev * 1000).ToString("F1"))</td><td>&#956;m</td></tr>
+                        @* The deviation that gives each limit: on an internal pair the LARGER centre
+                           distance closes the mesh, so the columns swap. *@
+                        <tr><td>Center Distance Deviation</td><td>A<sub>a</sub></td><td>@(((Internal ? engine.UsedCentreDistanceUpperDev : engine.UsedCentreDistanceLowerDev) * 1000).ToString("F1"))</td><td>@(((Internal ? engine.UsedCentreDistanceLowerDev : engine.UsedCentreDistanceUpperDev) * 1000).ToString("F1"))</td><td>&#956;m</td></tr>
                         <tr class="@(bl.jbnMin >= bl.jbnRecommended ? "success" : bl.jbnMin > 0 ? "warning" : "danger")">
                             <td>Recommended Minimum</td><td>j<sub>bn,min</sub></td>
                             <td colspan="2">@((bl.jbnRecommended * 1000).ToString("F1"))</td><td>&#956;m</td>
@@ -3241,7 +3261,7 @@ else
                 </div>
 
                 <div class="form-group full">
-                    <label>Ball / Pin Diameter for M<sub>d</sub> (D<sub>M</sub>)</label>
+                    <label>Ball / Pin Diameter for @if (Internal && gear == 2) {<text>M<sub>i</sub></text>} else {<text>M<sub>d</sub></text>} (D<sub>M</sub>)</label>
                     <div class="input-group">
                         <input type="number" step="0.1" min="0"
                                value="@(gear == 1 ? engine.BallDiameter1 : engine.BallDiameter2)"
@@ -3249,8 +3269,21 @@ else
                         <span class="unit">mm</span>
                     </div>
                     <small style="color: #6c757d; font-size: 12px;">
-                        The ball this gear's dimension over balls is measured with &#8212; a bigger ball
-                        sits higher on the flank and reads larger, so use the size you actually have.
+                        @if (Internal && gear == 2)
+                        {
+                            <text>
+                                The ball the internal gear's dimension <em>between</em> balls is measured
+                                with &#8212; a bigger ball sits nearer the tip and reads smaller, so use the
+                                size you actually have.
+                            </text>
+                        }
+                        else
+                        {
+                            <text>
+                                The ball this gear's dimension over balls is measured with &#8212; a bigger ball
+                                sits higher on the flank and reads larger, so use the size you actually have.
+                            </text>
+                        }
                         <strong>0</strong> lets the calculator pick a best size; the results report both
                         the size used and the best size. It belongs to the gear, not to the tolerance,
                         which is why it lives here.
@@ -3686,10 +3719,15 @@ else
     }
 
     /// <summary>
-    /// Defaults for /internal-gear: a 20-tooth pinion in a 60-tooth annulus at the reference
-    /// centre distance. x1 = +0.3 (so x2 = −0.3) is not decoration - with unshifted full-depth
-    /// teeth this pair has involute interference at the pinion root, the textbook reason
-    /// annulus tips are enlarged, and the form should open on a gear that works.
+    /// Defaults for /internal-gear: a 24-tooth pinion in a 60-tooth annulus, a = 27.8 against a
+    /// reference of 27, x1 = +0.1, so x2 ≈ −0.69, ISO 53 profile A (ρ*_fP = 0.38). None of it is
+    /// decoration. With unshifted full-depth teeth an annulus tip lands on the pinion's FILLET
+    /// (below its root form circle) - the textbook reason annulus tips are enlarged - so x2 has
+    /// to go clearly negative. But in the rack-generated model ISO 6336-3 rates the annulus root
+    /// with, a negative x2 also shrinks the annulus fillet radius, and with profile B
+    /// (ρ*_fP = 0.30) every pair clear of interference had q_s near or past the 8 that Eq. (36)
+    /// is valid to. This pair is clear of every interference check, with q_s2 ≈ 6.9.
+    /// The form should open on a gear that works, and inside the standard's validity range.
     /// </summary>
     private void ResetInternalEngine()
     {
@@ -3703,16 +3741,16 @@ else
             NormalModule = 1.5,
             PressureAngle = 20.0,
             HelixAngle = 0.0,
-            CenterDistance = 30.0,
-            NumberOfTeeth1 = 20,
+            CenterDistance = 27.8,
+            NumberOfTeeth1 = 24,
             NumberOfTeeth2 = 60,
             FaceWidth1 = 15,
             FaceWidth2 = 15,
-            ProfileShiftCoeff1 = 0.3,
+            ProfileShiftCoeff1 = 0.1,
             RingOuterDiameter = 110,
             AddendumCoeff = 1.0,
             DedendumCoeff = 1.25,
-            RootRadiusCoeff = 0.3,
+            RootRadiusCoeff = 0.38,
             QualityGrade1 = 6,
             QualityGrade2 = 6
         };
@@ -3859,6 +3897,16 @@ else
         aaLowerMicron = dev?.lower ?? 0;
     }
 
+    /// <summary>a_d·cos α_t, the smallest centre distance at which α_wt exists; null when not computable.</summary>
+    private double? MinimumCentreDistance()
+    {
+        double ad = engine.ReferenceCentreDistance();
+        if (ad <= 0) return null;
+        double beta = engine.HelixAngle * Math.PI / 180.0;
+        double alphaT = Math.Atan(Math.Tan(engine.PressureAngle * Math.PI / 180.0) / Math.Cos(beta));
+        return ad * Math.Cos(alphaT);
+    }
+
     private void UseReferenceCentreDistance()
     {
         double a = engine.ReferenceCentreDistance();
@@ -3919,6 +3967,12 @@ else
             validationMessages.Add("The internal gear needs more teeth than the pinion inside it (z₂ > z₁).");
         if (Internal && engine.RingOuterDiameter < 0)
             validationMessages.Add("Rim outside diameter (Dₒ) cannot be negative; enter 0 to leave the rim unchecked.");
+
+        // cos α_wt = a_d cos α_t / a must not exceed 1. Below a_d cos α_t no working pressure
+        // angle exists; the engine would clamp it to 0° and return an infinite zone factor.
+        if (validationMessages.Count == 0 && MinimumCentreDistance() is { } aMin && engine.CenterDistance < aMin)
+            validationMessages.Add($"Centre distance (a) is too small for these teeth: no working pressure angle exists "
+                                 + $"below a_d·cos αt = {aMin:F3} mm.");
 
         if (validationMessages.Count > 0)
         {
