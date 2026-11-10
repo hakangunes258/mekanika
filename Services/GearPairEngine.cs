@@ -2224,8 +2224,13 @@ public class GearPairEngine
         AllowanceNote =
             (span
                 ? "Allowances back-calculated from the base tangent length limits (A_sn = A_W / cos α_n)."
-                : "Allowances back-calculated from the dimension over balls limits, by re-solving the "
-                + "involute for the thinned tooth rather than through a sensitivity factor.")
+                : (InternalGear
+                    ? "Allowances back-calculated from the dimension over balls (pinion) and between balls "
+                    + "(internal gear) limits, by re-solving the involute for the thinned tooth rather than "
+                    + "through a sensitivity factor. On the internal gear the largest permitted M_i belongs "
+                    + "to the most thinning (A_sni)."
+                    : "Allowances back-calculated from the dimension over balls limits, by re-solving the "
+                    + "involute for the thinned tooth rather than through a sensitivity factor."))
           + (failed.Count > 0
                 ? " Could not be resolved for: " + string.Join(", ", failed)
                 + ". Those allowances were left unchanged — check the entered limits against the "
