@@ -2318,6 +2318,81 @@ test can check direction as well as a point — monotonic life factors, a roughe
 scoring better, doubling the power never raising a safety factor — it does, because that is
 the part a single point cannot see.
 
+### **Parallel Key — the Nov 2026 review**
+
+Driven from the user's own browser test notes (Joplin, `Business / Programlar / Mekanika`),
+checked against the code, then fixed. **Every finding in that note reproduced**; the numbers
+below are from `Tests/KeyConnectionTests.cs`, which now carries one anchor per fix.
+
+Seven were wrong in the **unsafe** direction or contradicted the page's own text:
+
+- **The key material reached the shear check only.** Both flanks of a contact pair carry the
+  same pressure, so the weaker of the two materials governs. A C45 shaft and hub with an S235
+  key reported exactly the same pressure safety factors as an all-C45 joint and a verdict of
+  "✓ OK", while the key's own flank sits at 219,3 MPa against an allowable of 211,5 — i.e.
+  S = 0,96. The allowable is now `0,9 · min(R_e,part, R_e,key)` and the results name which
+  part supplied it, because otherwise a soft key changes the answer with no visible cause.
+- **Degenerate geometry kept the PREVIOUS run's stresses.** `CalculateStresses` wrote its three
+  fields only inside `if (area > 0)`, and the page reuses one engine instance across *Back to
+  Input* — so re-running with l = b showed `l_eff 0,0` and `A 0,0` in the geometry table above
+  a full set of safety factors from the run before (p_shaft 555,6, S 0,70/0,42/1,11). Always
+  assigned through `SafeDivide` now. **This class of bug is invisible to a test that news up an
+  engine per case**; the test for it deliberately calls `Calculate()` twice on one instance.
+- **Zero contact area returned the 999 sentinel**, which painted all three rows green: a fresh
+  form with l = b produced an impossible key reported as "✓ OK" three times. The torque is
+  validated positive before `Calculate`, so a zero pressure means a zero area — a key that
+  carries nothing, and the honest factor is 0.
+- **l < b was silently replaced by `0.9 * l`.** On a 12 mm wide key, l = 10 reported
+  `l_eff = 9,0` and a safety factor to match. (The note guessed the hidden floor was 0,75·b;
+  it is 0,9·l. The two coincide at exactly that test point, which is how the guess looked
+  right.) No fallback now; the page refuses it.
+- **t₁ ≥ h fell back to bearing on t₂**, reporting a working joint (S_hub 1,94) for a key
+  buried flush in the shaft with nothing standing proud to reach the hub. And **t₁ > h was
+  taken at face value**, so entering 9 on an 8 mm key *improved* S_shaft from 2,94 to 5,29.
+  Bearing height is capped at h, the hub height is `h − t₁` with no fallback, and both are
+  refused in the page's validation.
+- **No length limit existed.** DIN 6892 stops crediting key length at about 1,3 d — the shaft
+  twists along the key and the far end stops taking its share — and the page's own text said
+  so while nothing enforced it. A 100 mm key on a 40 mm shaft was rated on all 88 mm of
+  bearing length and came out S_hub 4,09; on `l_tr = min(l_eff, 1,3 d) = 52` it is 2,41.
+- **The required length was sized for S = 1,0 while the status column demanded 1,5.** At
+  T = 820 Nm it returned exactly the 50 mm key already fitted, margin 0, next to a hub factor
+  of 1,08 marked "⚠️ Marginal". `TargetSafetyFactor` (1,5) now divides the allowables.
+
+Two were presentation, and both mattered:
+
+- **The allowables were computed and never shown.** p_allow and τ_allow are rows in the
+  Stresses table now, each naming the part it came from, with the formula under the table.
+  A reader could not otherwise check what a safety factor was measured against — or notice
+  that the key material now takes part.
+- **The reference content's formula block had a EURO SIGN in it.** `A&#8341;&#8364;&#8331;`
+  rendered as "Aₕ€₋" for `A_hub`, and `l&#8337;&#8319;&#8331;` put a *superscript* n
+  inside `l_eff`. Unicode has no subscript f, u or b, so "shaft" and "hub" cannot be spelled
+  in subscript characters at all. The `<pre>` blocks use plain `A_shaft` / `l_eff` notation
+  now and the file says not to go back. **`clamp-connection.html:34` and `gear-pair.html:36`
+  still carry the same mangling** — fix them in those modules' own passes.
+
+**One thing the review introduced and then had to fix:** past the 1,3 d limit there is no key
+length that reaches the target, so printing `l_req 75` *and* a positive margin against it
+contradicted the warning right below. Those two rows read "not reachable" in that case.
+
+**Open, and waiting on the standards** (`references/key-connection/`, gitignored):
+
+- **The module advertises DIN 6892 and does not implement it.** `ModuleMetadataService`'s
+  description, keywords and `VerificationStandards` all name it, but the allowables are
+  `0,9 · R_e` / `0,6 · R_e` practice values — not 6892's f_S and f_H support and hardness
+  factors, equivalent torque, or its treatment of cast iron (where 0,9 · R_e is a stand-in
+  for a material with no real yield point). **Decide `IsVerified` and the public description
+  together when the standard is to hand**; today the flag says `true`.
+- **The DIN 6885 suggestion table stops at 130 mm** (the standard runs to 500: 36×20, 40×22,
+  45×25 …). Above 130 the page simply offers no recommendation, which is honest but thin.
+- **`RequiredKeyLength` rounds up to 5 mm, which is not a standard length.** DIN 6885-1 has
+  its own series (… 28, 32, 36, 40, 45, 50, 56 …). The label says "rounded up to 5 mm" rather
+  than implying otherwise, and the content text points the reader at the series.
+
+**Not in scope and now stated on the page:** the shaft's own torsion/bending check with the
+keyway's notch effect, and key forms B and C (`l_eff = l − b` is the round-ended form A).
+
 ### **Related Calculators Feature**
 
 ```razor

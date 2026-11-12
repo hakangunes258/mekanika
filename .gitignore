@@ -61,3 +61,7 @@ $RECYCLE.BIN/
 
 # Output of `dotnet publish`, which the static page generator writes into.
 publish/
+
+# Local reference standards (licensed copies). Only the README is tracked.
+references/*
+!references/README.md

@@ -22,6 +22,16 @@ public class KeyConnectionEngine
     public double AppliedTorque { get; set; }         // Nm
     public double LoadFactor { get; set; } = 1.0;     // Application factor
 
+    /// <summary>
+    /// The safety factor <see cref="RequiredKeyLength"/> is sized for.
+    ///
+    /// It is 1.5 because that is the figure the page tells the reader to aim for
+    /// and the threshold GetSafetyStatus draws the line at. It used to be sized
+    /// for 1.0, so the key the calculator recommended came back "Marginal" -
+    /// a design recommendation that its own verdict disagreed with.
+    /// </summary>
+    public double TargetSafetyFactor { get; set; } = 1.5;
+
     // Materials
     public Material ShaftMaterial { get; set; } = new();
     public Material HubMaterial { get; set; } = new();
@@ -34,6 +44,18 @@ public class KeyConnectionEngine
     public double BearingHeightShaft { get; set; }    // mm (t1)
     public double BearingHeightHub { get; set; }      // mm (t2)
     public double ShearArea { get; set; }             // mm²
+
+    /// <summary>
+    /// The part of the effective length that is counted as carrying load:
+    /// min(l_eff, 1.3 d). See <see cref="LoadCarryingLengthFactor"/>.
+    /// </summary>
+    public double LoadCarryingLength { get; set; }    // mm
+
+    /// <summary>1.3 d - the length beyond which extra key buys nothing.</summary>
+    public double LoadCarryingLengthLimit { get; set; } // mm
+
+    /// <summary>True when l_eff was longer than the limit and had to be cut back.</summary>
+    public bool LoadCarryingLengthLimited { get; set; }
 
     // Calculated Values - Forces
     public double TangentialForce { get; set; }       // N
@@ -49,6 +71,15 @@ public class KeyConnectionEngine
     public double AllowablePressureHub { get; set; }   // MPa
     public double AllowableShear { get; set; }         // MPa
 
+    /// <summary>
+    /// Which part supplied the allowable pressure on each flank pair, e.g.
+    /// "key (S235JR)". Both flanks of a pair see the same pressure, so the
+    /// weaker material governs and the results have to say which one it was -
+    /// otherwise a soft key silently changes the answer with no visible cause.
+    /// </summary>
+    public string GoverningPartShaft { get; set; } = "";
+    public string GoverningPartHub { get; set; } = "";
+
     // Safety Factors
     public double SafetyFactorShaft { get; set; }
     public double SafetyFactorHub { get; set; }
@@ -57,6 +88,26 @@ public class KeyConnectionEngine
 
     // Required Length
     public double RequiredKeyLength { get; set; }     // mm
+
+    /// <summary>
+    /// The bearing length the three checks need at <see cref="TargetSafetyFactor"/>,
+    /// before the key width is added back on and before rounding.
+    /// </summary>
+    public double RequiredBearingLength { get; set; } // mm
+
+    /// <summary>
+    /// True when that bearing length is longer than 1.3 d, i.e. no key length
+    /// reaches the target safety factor and the joint itself has to change.
+    /// </summary>
+    public bool RequiredLengthExceedsLimit { get; set; }
+
+    /// <summary>
+    /// 1.3 - DIN 6892 does not credit key length past this multiple of the shaft
+    /// diameter: the shaft twists along the key, so the far end stops taking its
+    /// share. The page text already told the reader this; nothing enforced it, so
+    /// a 2.5 d key was rated on its full length and came out "OK".
+    /// </summary>
+    public const double LoadCarryingLengthFactor = 1.3;
 
     // Standard key dimensions from DIN 6885
     public static readonly List<KeyDimension> StandardKeys = new()
@@ -102,18 +153,46 @@ public class KeyConnectionEngine
     private static double SafeDivide(double numerator, double divisor)
         => divisor > 0 ? numerator / divisor : 0;
 
+    /// <summary>
+    /// A rectangle only has an area when both of its sides are real. A negative
+    /// height times a negative length is a positive number and would otherwise
+    /// sail through as a contact area.
+    /// </summary>
+    private static double Area(double length, double height)
+        => length > 0 && height > 0 ? length * height : 0;
+
     private void CalculateGeometry()
     {
-        // Effective length (assuming round-end key)
+        // Effective length of a round-ended (form A) key: the rounded ends carry
+        // nothing, so l - b bears.
+        //
+        // There is deliberately NO fallback here. l <= b was silently replaced by
+        // 0.9 * l, which turned an impossible key into a plausible-looking result
+        // (l = 10 with b = 12 reported l_eff = 9.0 and a safety factor to match).
+        // The page refuses that geometry now; the engine reports it as the zero
+        // area it is.
         EffectiveLength = KeyLength - KeyWidth;
-        if (EffectiveLength < 0) EffectiveLength = KeyLength * 0.9;
+
+        // DIN 6892 does not credit the whole length: past about 1.3 d the shaft
+        // has twisted enough that the far end of the key stops taking its share.
+        // The pressures are therefore computed on the limited length, and
+        // LoadCarryingLengthLimited lets the page say when that bit.
+        LoadCarryingLengthLimit = LoadCarryingLengthFactor * ShaftDiameter;
+        LoadCarryingLengthLimited = EffectiveLength > LoadCarryingLengthLimit
+                                    && LoadCarryingLengthLimit > 0;
+        LoadCarryingLength = LoadCarryingLengthLimited
+            ? LoadCarryingLengthLimit
+            : EffectiveLength;
 
         // Load-bearing flank heights (DIN 6892).
         // These are the SINGLE source of truth for both the surface pressure
         // (CalculateStresses) and the required length (CalculateRequiredLength) -
         // previously the two used different heights on the shaft side, so the
         // required length contradicted the safety factor shown next to it.
-        BearingHeightShaft = KeywayDepthShaft;  // t1
+        // Capped at the key's own height: t1 > h is a contradiction, not a deeper
+        // contact. Entering t1 = 9 on an 8 mm key used to be read as 9 mm of
+        // bearing height and *improved* the reported safety factor.
+        BearingHeightShaft = Math.Min(KeywayDepthShaft, KeyHeight);
 
         // Hub side: the key can only bear on the part of itself that sticks OUT of
         // the shaft, which is h - t1. It is NOT t2. The hub keyway is cut slightly
@@ -127,17 +206,18 @@ public class KeyConnectionEngine
         //
         // min() covers inconsistent input: if someone enters t2 shallower than the
         // protrusion the key bottoms out in the hub slot, and t2 is what bears.
-        double keyProtrusion = KeyHeight - KeywayDepthShaft;
-        BearingHeightHub = keyProtrusion > 0
-            ? Math.Min(keyProtrusion, KeywayDepthHub)
-            : KeywayDepthHub;
+        //
+        // When t1 >= h there is no protrusion at all and the key cannot reach the
+        // hub. That used to fall back to t2 and report a working joint for a key
+        // buried flush in the shaft; it is now the zero (or negative) height it is,
+        // and the page refuses it.
+        BearingHeightHub = Math.Min(KeyHeight - KeywayDepthShaft, KeywayDepthHub);
 
-        // Contact areas
-        ContactAreaShaft = EffectiveLength * BearingHeightShaft;
-        ContactAreaHub = EffectiveLength * BearingHeightHub;
-
-        // Shear area
-        ShearArea = EffectiveLength * KeyWidth;
+        // Contact and shear areas, on the load-carrying length rather than the
+        // full effective length.
+        ContactAreaShaft = Area(LoadCarryingLength, BearingHeightShaft);
+        ContactAreaHub = Area(LoadCarryingLength, BearingHeightHub);
+        ShearArea = Area(LoadCarryingLength, KeyWidth);
     }
 
     private void CalculateForces()
@@ -153,23 +233,17 @@ public class KeyConnectionEngine
 
     private void CalculateStresses()
     {
-        // Surface pressure on shaft side
-        if (ContactAreaShaft > 0)
-        {
-            SurfacePressureShaft = ForcePerKey / ContactAreaShaft;
-        }
-
-        // Surface pressure on hub side
-        if (ContactAreaHub > 0)
-        {
-            SurfacePressureHub = ForcePerKey / ContactAreaHub;
-        }
-
-        // Shear stress in key
-        if (ShearArea > 0)
-        {
-            ShearStress = ForcePerKey / ShearArea;
-        }
+        // Every one of these is assigned unconditionally, via SafeDivide.
+        //
+        // They used to be written only inside `if (area > 0)`, which left the
+        // PREVIOUS calculation's values in place when a later one came out
+        // degenerate. Re-running the same engine with l = b showed l_eff = 0.0 and
+        // A = 0.0 in the geometry table while the stresses and safety factors below
+        // it were still those of the run before - and the page reuses one engine
+        // instance across Back to Input, so that is the normal path, not a corner.
+        SurfacePressureShaft = SafeDivide(ForcePerKey, ContactAreaShaft);
+        SurfacePressureHub = SafeDivide(ForcePerKey, ContactAreaHub);
+        ShearStress = SafeDivide(ForcePerKey, ShearArea);
     }
 
     private void CalculateAllowableValues()
@@ -179,24 +253,60 @@ public class KeyConnectionEngine
         // For heavy shock: ~0.6 × Re
         double pressureFactor = 0.9; // Assuming normal operation
 
-        AllowablePressureShaft = ShaftMaterial.YieldStrength * pressureFactor;
-        AllowablePressureHub = HubMaterial.YieldStrength * pressureFactor;
+        // Both flanks of a contact pair carry the same pressure, so the weaker of
+        // the two materials decides it (DIN 6892 and ordinary practice).
+        //
+        // The key material used to reach the shear check only. A C45 shaft and hub
+        // with an S235 key reported exactly the same pressure safety factors as an
+        // all-C45 joint and a verdict of "OK", while the key's own flank is at
+        // 219 MPa against an allowable of 212 - i.e. wrong in the unsafe direction,
+        // in the common case of a soft key in hard parts.
+        var shaftPair = Weaker(ShaftMaterial, "shaft", KeyMaterial, "key");
+        var hubPair = Weaker(HubMaterial, "hub", KeyMaterial, "key");
 
-        // Allowable shear stress: ~0.6 × Re
+        AllowablePressureShaft = shaftPair.Material.YieldStrength * pressureFactor;
+        AllowablePressureHub = hubPair.Material.YieldStrength * pressureFactor;
+        GoverningPartShaft = shaftPair.Label;
+        GoverningPartHub = hubPair.Label;
+
+        // Allowable shear stress: ~0.6 × Re. Shear is carried by the key alone.
         AllowableShear = KeyMaterial.YieldStrength * 0.6;
+    }
+
+    /// <summary>
+    /// The lower-yield material of a contact pair, with a label naming it, e.g.
+    /// "key (S235JR)". Ties go to the first argument so an all-one-material joint
+    /// is described by its part rather than by the key.
+    /// </summary>
+    private static (Material Material, string Label) Weaker(
+        Material first, string firstPart, Material second, string secondPart)
+    {
+        var (material, part) = second.YieldStrength < first.YieldStrength
+            ? (second, secondPart)
+            : (first, firstPart);
+
+        return (material, string.IsNullOrWhiteSpace(material.Name)
+            ? part
+            : $"{part} ({material.Name})");
     }
 
     private void CalculateSafetyFactors()
     {
-        // Safety factors
-        SafetyFactorShaft = SurfacePressureShaft > 0 
-            ? AllowablePressureShaft / SurfacePressureShaft : 999;
-        
-        SafetyFactorHub = SurfacePressureHub > 0 
-            ? AllowablePressureHub / SurfacePressureHub : 999;
-        
-        SafetyFactorShear = ShearStress > 0 
-            ? AllowableShear / ShearStress : 999;
+        // A zero pressure here means a zero contact area, not an unloaded joint -
+        // the torque is validated to be positive before Calculate is called. So it
+        // is a key that carries nothing, and the honest safety factor is 0.
+        //
+        // It used to return the 999 sentinel, which painted all three rows green:
+        // entering l = b on a fresh form produced an impossible key reported as
+        // "✓ OK" three times over.
+        SafetyFactorShaft = SurfacePressureShaft > 0
+            ? AllowablePressureShaft / SurfacePressureShaft : 0;
+
+        SafetyFactorHub = SurfacePressureHub > 0
+            ? AllowablePressureHub / SurfacePressureHub : 0;
+
+        SafetyFactorShear = ShearStress > 0
+            ? AllowableShear / ShearStress : 0;
 
         // Minimum safety factor
         SafetyFactorMin = Math.Min(Math.Min(SafetyFactorShaft, SafetyFactorHub), SafetyFactorShear);
@@ -207,16 +317,32 @@ public class KeyConnectionEngine
         // Minimum required EFFECTIVE length, using the same bearing heights that
         // CalculateStresses used - so the required length is consistent with the
         // safety factors reported alongside it.
-        double requiredFromShaft = SafeDivide(ForcePerKey / AllowablePressureShaft, BearingHeightShaft);
-        double requiredFromHub = SafeDivide(ForcePerKey / AllowablePressureHub, BearingHeightHub);
-        double requiredFromShear = SafeDivide(ForcePerKey / AllowableShear, KeyWidth);
+        //
+        // Sized for TargetSafetyFactor, not for 1.0. Dividing the allowables by
+        // the target is the same thing as multiplying the load by it. Sizing for
+        // 1.0 meant the length this card recommended scored "⚠️ Marginal" in the
+        // table above it - at T = 820 Nm it returned exactly the 50 mm key that
+        // was already fitted, with a margin of 0, next to a hub factor of 1.08.
+        double demand = ForcePerKey * TargetSafetyFactor;
 
-        double maxRequired = Math.Max(Math.Max(requiredFromShaft, requiredFromHub), requiredFromShear);
-        
+        double requiredFromShaft = SafeDivide(SafeDivide(demand, AllowablePressureShaft), BearingHeightShaft);
+        double requiredFromHub = SafeDivide(SafeDivide(demand, AllowablePressureHub), BearingHeightHub);
+        double requiredFromShear = SafeDivide(SafeDivide(demand, AllowableShear), KeyWidth);
+
+        RequiredBearingLength = Math.Max(Math.Max(requiredFromShaft, requiredFromHub), requiredFromShear);
+
+        // Past 1.3 d the extra length is not counted, so if that is what the
+        // checks need, no key length reaches the target and the joint has to
+        // change instead. Saying "fit a 220 mm key" would be worse than useless.
+        RequiredLengthExceedsLimit = LoadCarryingLengthLimit > 0
+                                     && RequiredBearingLength > LoadCarryingLengthLimit;
+
         // Add key width for round-end key
-        RequiredKeyLength = maxRequired + KeyWidth;
-        
-        // Round up to nearest 5mm
+        RequiredKeyLength = RequiredBearingLength + KeyWidth;
+
+        // Round up to nearest 5mm. DIN 6885-1 has its own length series
+        // (… 28, 32, 36, 40, 45, 50, 56 …) and this is not it; the results label
+        // says "rounded up to 5 mm" rather than implying a standard length.
         RequiredKeyLength = Math.Ceiling(RequiredKeyLength / 5.0) * 5.0;
     }
 }

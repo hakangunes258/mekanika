@@ -268,6 +268,25 @@ else
                     <tr><td>Key Height</td><td>h</td><td>@engine.KeyHeight.ToString("F1")</td><td>mm</td></tr>
                     <tr><td>Total Key Length</td><td>l</td><td>@engine.KeyLength.ToString("F1")</td><td>mm</td></tr>
                     <tr class="highlight"><td>Effective Key Length</td><td>l<sub>eff</sub></td><td>@engine.EffectiveLength.ToString("F1")</td><td>mm</td></tr>
+                    @* The length the pressures are actually computed on. DIN 6892 stops
+                       crediting key length at 1.3 d, and nothing used to enforce that -
+                       a 2.5 d key was rated on all of it. *@
+                    <tr class="@(engine.LoadCarryingLengthLimited ? "warning" : "")">
+                        <td>
+                            Load-Carrying Length
+                            @if (engine.LoadCarryingLengthLimited)
+                            {
+                                <text>= 1.3 d (limited)</text>
+                            }
+                            else
+                            {
+                                <text>= l<sub>eff</sub> (under the 1.3 d limit of @engine.LoadCarryingLengthLimit.ToString("F1") mm)</text>
+                            }
+                        </td>
+                        <td>l<sub>tr</sub></td>
+                        <td>@engine.LoadCarryingLength.ToString("F1")</td>
+                        <td>mm</td>
+                    </tr>
                     <tr><td>Keyway Depth (Shaft)</td><td>t₁</td><td>@engine.KeywayDepthShaft.ToString("F2")</td><td>mm</td></tr>
                     <tr><td>Keyway Depth (Hub)</td><td>t₂</td><td>@engine.KeywayDepthHub.ToString("F2")</td><td>mm</td></tr>
                     @* The heights the pressures are actually computed on. Shown because
@@ -319,8 +338,20 @@ else
                     <tr><td>Surface Pressure (Shaft)</td><td>p<sub>shaft</sub></td><td>@engine.SurfacePressureShaft.ToString("F1")</td><td>MPa</td></tr>
                     <tr><td>Surface Pressure (Hub)</td><td>p<sub>hub</sub></td><td>@engine.SurfacePressureHub.ToString("F1")</td><td>MPa</td></tr>
                     <tr><td>Key Shear Stress</td><td>τ<sub>key</sub></td><td>@engine.ShearStress.ToString("F1")</td><td>MPa</td></tr>
+                    @* The allowables were computed and never shown, so the reader saw a
+                       safety factor with no way to check what it was measured against -
+                       and no way to notice that the key material now takes part. *@
+                    <tr><td>Allowable Pressure (Shaft) — from @engine.GoverningPartShaft</td><td>p<sub>allow,shaft</sub></td><td>@engine.AllowablePressureShaft.ToString("F1")</td><td>MPa</td></tr>
+                    <tr><td>Allowable Pressure (Hub) — from @engine.GoverningPartHub</td><td>p<sub>allow,hub</sub></td><td>@engine.AllowablePressureHub.ToString("F1")</td><td>MPa</td></tr>
+                    <tr><td>Allowable Shear (Key)</td><td>τ<sub>allow</sub></td><td>@engine.AllowableShear.ToString("F1")</td><td>MPa</td></tr>
                 </tbody>
             </table>
+            <p style="font-size: 12px; color: #6c757d; margin: 12px 16px 0;">
+                Allowable pressure is taken as 0.9 · R<sub>e</sub> and allowable shear as
+                0.6 · R<sub>e</sub>. Both flanks of a contact pair carry the same pressure, so
+                the weaker of the two materials governs — which is why the key material appears
+                above even when the shaft and hub are stronger.
+            </p>
         </div>
 
         <!-- Safety Factors -->
@@ -348,13 +379,68 @@ else
             <table class="results-table">
                 <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
                 <tbody>
-                    <tr class="highlight"><td>Required Key Length (min)</td><td>l<sub>req</sub></td><td>@engine.RequiredKeyLength.ToString("F0")</td><td>mm</td></tr>
-                    <tr><td>Provided Key Length</td><td>l</td><td>@engine.KeyLength.ToString("F0")</td><td>mm</td></tr>
-                    <tr><td>Length Margin</td><td>Δl</td><td>@((engine.KeyLength - engine.RequiredKeyLength).ToString("F0"))</td><td>mm</td></tr>
+                    <tr><td>Required Bearing Length (at SF @engine.TargetSafetyFactor.ToString("F1"))</td><td>l<sub>tr,req</sub></td><td>@engine.RequiredBearingLength.ToString("F1")</td><td>mm</td></tr>
+                    @* Past the 1.3 d limit there IS no key length that reaches the target,
+                       so printing one — and a positive margin against it — would contradict
+                       the warning below. A 100 mm key showed "l_req 75, Δl +25" next to a
+                       hub factor of 1.32, because the length past the cap is not credited. *@
+                    @if (engine.RequiredLengthExceedsLimit)
+                    {
+                        <tr class="danger"><td>Required Key Length (for SF ≥ @engine.TargetSafetyFactor.ToString("F1"))</td><td>l<sub>req</sub></td><td>not reachable</td><td>&mdash;</td></tr>
+                        <tr><td>Provided Key Length</td><td>l</td><td>@engine.KeyLength.ToString("F0")</td><td>mm</td></tr>
+                    }
+                    else
+                    {
+                        <tr class="highlight"><td>Required Key Length (min, for SF ≥ @engine.TargetSafetyFactor.ToString("F1"), rounded up to 5 mm)</td><td>l<sub>req</sub></td><td>@engine.RequiredKeyLength.ToString("F0")</td><td>mm</td></tr>
+                        <tr><td>Provided Key Length</td><td>l</td><td>@engine.KeyLength.ToString("F0")</td><td>mm</td></tr>
+                        <tr><td>Length Margin</td><td>Δl</td><td>@((engine.KeyLength - engine.RequiredKeyLength).ToString("F0"))</td><td>mm</td></tr>
+                    }
                 </tbody>
             </table>
-            
-            @if (engine.KeyLength < engine.RequiredKeyLength)
+
+            @if (engine.LoadCarryingLengthLimited)
+            {
+                <div class="alert alert-warning" style="margin-top: 16px;">
+                    <ModuleIcon Type="warning" Size="small" Style="default" />
+                    <div>
+                        <strong>Note:</strong> the key is longer than 1.3 d, so only
+                        @engine.LoadCarryingLength.ToString("F1") mm of its
+                        @engine.EffectiveLength.ToString("F1") mm effective length is counted.
+                        The shaft twists along the key and the far end stops taking its share —
+                        the results above are for the shorter length, and lengthening the key
+                        further will not change them.
+                    </div>
+                </div>
+            }
+
+            @if (engine.NumberOfKeys >= 3)
+            {
+                <div class="alert alert-warning" style="margin-top: 16px;">
+                    <ModuleIcon Type="warning" Size="small" Style="default" />
+                    <div>
+                        <strong>Note:</strong> three keys are credited here as 3 × 0.75 = 2.25 keys.
+                        The literature does not generally recommend three keys — the load cannot be
+                        shared that evenly in practice, so treat this as optimistic. Two keys at 180°
+                        is the usual limit; past that, change the joint rather than add keys.
+                    </div>
+                </div>
+            }
+
+            @if (engine.RequiredLengthExceedsLimit)
+            {
+                <div class="alert alert-danger" style="margin-top: 16px;">
+                    <ModuleIcon Type="error" Size="small" Style="default" />
+                    <div>
+                        <strong>Warning:</strong> the checks need
+                        @engine.RequiredBearingLength.ToString("F1") mm of bearing length, which is
+                        past the 1.3 d limit of @engine.LoadCarryingLengthLimit.ToString("F1") mm.
+                        <strong>No key length reaches SF @engine.TargetSafetyFactor.ToString("F1") here.</strong>
+                        Use two keys at 180°, a larger shaft, stronger parts, or a friction-based
+                        joint such as an interference or clamp connection.
+                    </div>
+                </div>
+            }
+            else if (engine.KeyLength < engine.RequiredKeyLength)
             {
                 <div class="alert alert-danger" style="margin-top: 16px;">
                     <ModuleIcon Type="error" Size="small" Style="default" />
@@ -560,7 +646,23 @@ else
             if (engine.KeyWidth <= 0) validationMessages.Add("Key width (b) must be greater than 0.");
             if (engine.KeyHeight <= 0) validationMessages.Add("Key height (h) must be greater than 0.");
             if (engine.KeyLength <= 0) validationMessages.Add("Key length (l) must be greater than 0.");
+            if (engine.KeywayDepthShaft <= 0) validationMessages.Add("Keyway depth in shaft (t₁) must be greater than 0.");
+            if (engine.KeywayDepthHub <= 0) validationMessages.Add("Keyway depth in hub (t₂) must be greater than 0.");
             if (engine.AppliedTorque <= 0) validationMessages.Add("Applied torque (T) must be greater than 0.");
+
+            // Geometry consistency. The engine used to "correct" each of these in
+            // silence and return a plausible-looking result for a key that cannot
+            // exist - l < b became 0.9 l, t₁ ≥ h fell back to bearing on t₂, and
+            // t₁ > h was read as more bearing height than the key is tall, which
+            // *improved* the safety factor. Refuse them instead.
+            if (engine.KeyWidth > 0 && engine.KeyLength > 0 && engine.KeyLength <= engine.KeyWidth)
+                validationMessages.Add($"Key length (l) must be greater than key width (b = {engine.KeyWidth:0.#} mm). A round-ended key bears on l − b, so this key has no bearing length at all.");
+
+            if (engine.KeyHeight > 0 && engine.KeywayDepthShaft > 0 && engine.KeywayDepthShaft >= engine.KeyHeight)
+                validationMessages.Add($"Keyway depth in shaft (t₁) must be less than key height (h = {engine.KeyHeight:0.#} mm). The key would sit flush in the shaft with nothing standing proud to bear on the hub.");
+
+            if (engine.KeyHeight > 0 && engine.KeywayDepthHub > 0 && engine.KeywayDepthHub >= engine.KeyHeight)
+                validationMessages.Add($"Keyway depth in hub (t₂) must be less than key height (h = {engine.KeyHeight:0.#} mm). The key only stands h − t₁ proud of the shaft; a hub slot deeper than the whole key is not a keyway.");
 
             if (validationMessages.Count > 0)
             {

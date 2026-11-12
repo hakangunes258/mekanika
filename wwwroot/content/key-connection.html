@@ -6,9 +6,15 @@
     Shared/ModuleContent.razor fetches the same file and renders it once Blazor
     has taken over #app. Editing the text here changes both.
 
-    Every number in the worked example was read off the real page: d 40, key
-    12x8, l 50, t1 5,0, t2 3,3, one key, phi 1,0, C45 throughout, T 500 Nm.
-    Re-run them if the engine changes.
+    Every number in the worked example was read off the engine: d 40, key 12x8,
+    l 50, t1 5,0, t2 3,3, one key, phi 1,0, C45 throughout, T 500 Nm. The soft-key
+    variant is the same with an S235JR key. Re-run them if the engine changes.
+
+    SUBSCRIPTS: the <pre> blocks use plain l_eff / A_shaft notation on purpose.
+    Unicode has no subscript f, u or b, so "shaft" and "hub" cannot be spelled in
+    subscript characters. An earlier version tried per-letter entities and shipped
+    a EURO SIGN in the middle of a formula plus a superscript n inside l_eff.
+    Do not go back to per-letter entities here.
 -->
 <section class="module-content">
 
@@ -32,29 +38,47 @@
         <div class="mc-body">
             <p>The torque becomes a tangential force at the shaft surface, and that force is
             spread over the bearing area of each keyway:</p>
-<pre>F&#8348; = 2000 T &phi; / d                    tangential force at the shaft radius
+<pre>F_t     = 2000 T &phi; / d             tangential force at the shaft radius
+F_key   = F_t / (0,75 n)            n &gt; 1; a single key carries F_t
 
-l&#8337;&#8319;&#8331; = l &minus; b                          round-ended key
-A&#8347;&#8341;&#8336;&#8342;&#8348; = l&#8337;&#8319;&#8331; &middot; t&#8321;                     shaft bears on the keyway depth
-A&#8341;&#8364;&#8331; = l&#8337;&#8319;&#8331; &middot; (h &minus; t&#8321;)             hub bears on what is left of the key
+l_eff   = l &minus; b                     round-ended key: the ends do not bear
+l_tr    = min(l_eff, 1,3 d)         length credited with carrying load
+A_shaft = l_tr &middot; t&#8321;                shaft bears on the keyway depth
+A_hub   = l_tr &middot; (h &minus; t&#8321;)          hub bears on what is left of the key
 
-p = F&#8348; / A          &tau; = F&#8348; / (l&#8337;&#8319;&#8331; &middot; b)</pre>
-            <p>With more than one key the load does not divide evenly &mdash; manufacturing
-            differences mean one key takes more than its share. The calculator uses the
-            conventional 0,75 efficiency per additional key rather than assuming perfect
-            sharing.</p>
+p       = F_key / A                 &tau; = F_key / (l_tr &middot; b)
+
+p_allow = 0,9 &middot; min(R_e,part, R_e,key)
+&tau;_allow = 0,6 &middot; R_e,key</pre>
+            <p><strong>Why the key material appears in the pressure check.</strong> Both flanks of
+            a contact pair are loaded by the same pressure &mdash; the keyway flank and the side of
+            the key itself &mdash; so the weaker of the two materials is what decides. A soft key in
+            a hard hub crushes on the key, not on the hub, and the calculator names which part
+            supplied the allowable next to the value.</p>
+            <p><strong>Why the length is capped at 1,3 d.</strong> The shaft twists along the
+            length of the key, so the far end of a long key stops taking its share of the load.
+            Past about 1,3&times; the shaft diameter the extra length is not credited; the pressures
+            are computed on l_tr and the results say when the cap bit.</p>
+            <p><strong>With more than one key the load does not divide evenly</strong> &mdash;
+            manufacturing differences mean one key takes more than its share. Each key is credited
+            at 0,75, so <strong>two keys carry 1,5 times the load of one</strong> and three carry
+            2,25 times, not 2 and 3.</p>
             <table class="mc-sym">
                 <thead><tr><th>Symbol</th><th>Meaning</th><th>Unit</th></tr></thead>
                 <tbody>
                     <tr><td>d</td><td>Shaft diameter</td><td>mm</td></tr>
                     <tr><td>b &times; h</td><td>Key width and height</td><td>mm</td></tr>
                     <tr><td>l</td><td>Total key length</td><td>mm</td></tr>
-                    <tr><td>l<sub>eff</sub></td><td>Effective (bearing) length</td><td>mm</td></tr>
+                    <tr><td>l<sub>eff</sub></td><td>Effective (bearing) length, l &minus; b</td><td>mm</td></tr>
+                    <tr><td>l<sub>tr</sub></td><td>Load-carrying length, capped at 1,3 d</td><td>mm</td></tr>
                     <tr><td>t&#8321; / t&#8322;</td><td>Keyway depth in shaft / in hub</td><td>mm</td></tr>
+                    <tr><td>n</td><td>Number of keys</td><td>&ndash;</td></tr>
                     <tr><td>&phi;</td><td>Load factor for shock and reversal</td><td>&ndash;</td></tr>
                     <tr><td>F<sub>t</sub></td><td>Tangential force at the shaft surface</td><td>N</td></tr>
+                    <tr><td>F<sub>key</sub></td><td>Force carried by one key</td><td>N</td></tr>
                     <tr><td>p</td><td>Surface pressure on a keyway flank</td><td>MPa</td></tr>
                     <tr><td>&tau;</td><td>Shear stress across the key</td><td>MPa</td></tr>
+                    <tr><td>R<sub>e</sub></td><td>Yield strength of the part concerned</td><td>MPa</td></tr>
                 </tbody>
             </table>
         </div>
@@ -66,18 +90,29 @@ p = F&#8348; / A          &tau; = F&#8348; / (l&#8337;&#8319;&#8331; &middot; b)
             <p><strong>Key size.</strong> Do not choose it. DIN 6885 fixes b, h, t&#8321; and
             t&#8322; from the shaft diameter, and the calculator suggests the right key as soon
             as you enter the diameter &mdash; press <em>Apply</em> to fill all four. A
-            non-standard key means a non-standard cutter and a non-standard hub.</p>
+            non-standard key means a non-standard cutter and a non-standard hub. The suggestion
+            covers shafts up to 130 mm; above that, take the dimensions from the standard
+            itself.</p>
             <p><strong>Key length.</strong> This is the real design variable, and the only one
-            you get to pick freely. Keep it under about 1,5&times; the shaft diameter; beyond
-            that the far end of the key stops carrying load because the shaft twists along its
-            length, so extra length buys nothing.</p>
+            you get to pick freely. It has to be longer than the key is wide &mdash; a round-ended
+            key bears on l &minus; b, so l = b is a key with no bearing length at all &mdash; and
+            there is little point going past about 1,3&times; the shaft diameter, because the shaft
+            twists along the key and the far end stops carrying load. The calculator refuses the
+            first and caps the second rather than quietly rating length that does nothing.</p>
+            <p><strong>Keyway depths.</strong> t&#8321; must be less than the key height: the key
+            has to stand h &minus; t&#8321; proud of the shaft to reach the hub at all, and that
+            protrusion &mdash; not t&#8322; &mdash; is what bears on the hub. t&#8322; is cut
+            slightly deeper on purpose, so the key seats on its flanks rather than on its top
+            face.</p>
             <p><strong>Load factor.</strong> Use 1,0 only for a genuinely steady drive. An
             electric motor into a pump is around 1,25; anything with reversal or impact needs
             1,75 to 2,0. This factor multiplies straight into the pressure, so it moves the
-            result more than any other single input.</p>
-            <p><strong>Materials.</strong> Enter all three. The hub is usually the softest part
-            and therefore the one that decides the answer &mdash; a cast iron hub on a steel
-            shaft will fail at the hub keyway long before anything else complains.</p>
+            result more than any other single input. Note what it is: a static allowance. With a
+            reversing load the real risks are fatigue and the keyway hammering itself oversize,
+            and neither is captured by a single multiplier.</p>
+            <p><strong>Materials.</strong> Enter all three &mdash; the key included. The hub is
+            usually the softest part and therefore the one that decides the answer, but a mild
+            steel key in a hardened hub makes the key the governing part instead.</p>
         </div>
     </details>
 
@@ -86,17 +121,18 @@ p = F&#8348; / A          &tau; = F&#8348; / (l&#8337;&#8319;&#8331; &middot; b)
         <div class="mc-body">
             <p>A &#216;40 shaft, the DIN 6885 key for that size (12 &times; 8, t&#8321; = 5,0,
             t&#8322; = 3,3), 50 mm long, one key, steady load, C45 throughout, carrying 500 Nm.</p>
-<pre>Effective length   50 &minus; 12         38,0 mm
+<pre>Effective length     50 &minus; 12       38,0 mm
+Load-carrying length min(38; 52)    38,0 mm   1,3 d = 52, so not capped
 Contact area, shaft  38 &times; 5,0      190,0 mm&#178;
 Contact area, hub    38 &times; 3,0      114,0 mm&#178;
 
 Tangential force  2&middot;500&middot;1000/40    25 000 N
 
-Surface pressure, shaft            131,6 MPa   &rarr; SF 2,94
-Surface pressure, hub              219,3 MPa   &rarr; SF 1,76
-Shear stress in key                 54,8 MPa   &rarr; SF 4,71
+Surface pressure, shaft    131,6 MPa   allow 387,0   &rarr; SF 2,94
+Surface pressure, hub      219,3 MPa   allow 387,0   &rarr; SF 1,76
+Shear stress in key         54,8 MPa   allow 258,0   &rarr; SF 4,71
 
-Required key length (min)             35 mm
+Required key length, for SF 1,5       45 mm
 Provided                              50 mm</pre>
             <p>Look at the two pressures. The hub carries the same force on 114 mm&#178; where
             the shaft has 190 mm&#178;, so its pressure is two-thirds higher and its safety
@@ -104,8 +140,12 @@ Provided                              50 mm</pre>
             check</strong>, because the key stands only h &minus; t&#8321; = 3 mm proud of the
             shaft while it sits 5 mm deep in it.</p>
             <p>Shear is not close &mdash; 4,71 against 1,76. That is typical: on a standard key
-            the flanks crush long before the key shears, which is why a &quot;key shear&quot;
-            calculation on its own gives a dangerously optimistic answer.</p>
+            the flanks crush long before the key shears, which is why a key shear calculation on
+            its own gives a dangerously optimistic answer.</p>
+            <p>Change nothing but the key material, from C45 to S235JR, and the allowable
+            pressure falls from 387,0 to 211,5 MPa, because the key is now the weaker side of
+            both contacts. The hub factor goes from 1,76 to <strong>0,96</strong> &mdash; the same
+            joint, failing, on a part most people would not think to check.</p>
         </div>
     </details>
 
@@ -115,14 +155,23 @@ Provided                              50 mm</pre>
             <p><strong>Aim for 1,5 on the lowest of the three factors</strong>, and expect that
             to be the hub. Below 1,0 the keyway flank yields; the key does not break, it beds
             into the hub, the fit becomes sloppy, and then it hammers.</p>
-            <p><strong>Required key length</strong> tells you the shortest key that satisfies all
-            three checks, rounded up to 5 mm. If it comes out longer than 1,5&times; the shaft
-            diameter, lengthening the key is not the fix &mdash; use two keys at 180&deg;, a
-            larger shaft, or a friction-based joint such as an interference or clamp
-            connection.</p>
-            <p><strong>Two keys do not double the capacity.</strong> The calculator credits 0,75
-            per additional key. If you need much more than that, the honest answer is that a
-            keyed joint is the wrong choice for the load.</p>
+            <p><strong>Required key length</strong> is the shortest key that reaches 1,5 on all
+            three checks, rounded up to the next 5 mm. It is sized for the same figure the status
+            column judges by, so fitting it lands you in the green rather than one step short of
+            it. DIN 6885 has its own length series (&hellip; 28, 32, 36, 40, 45, 50, 56
+            &hellip;) &mdash; round up to a standard length from there.</p>
+            <p><strong>If the required length comes out past 1,3&times; the shaft diameter</strong>,
+            lengthening the key is not the fix, and the calculator says so instead of recommending
+            a key that cannot work. Use two keys at 180&deg;, a larger shaft, harder parts, or a
+            friction-based joint such as an interference or clamp connection.</p>
+            <p><strong>Two keys do not double the capacity.</strong> Each key is credited at
+            0,75, so two carry 1,5 times the load of one. Three are offered but not recommended:
+            the load cannot be shared that evenly in practice, and the 2,25 the calculator
+            credits is optimistic.</p>
+            <p><strong>The allowable values are shown next to the stresses</strong>, with the part
+            that supplied each one named. If a safety factor looks wrong, that row is where to
+            look first &mdash; particularly on a cast iron hub, where 0,9 &middot; R<sub>e</sub> is
+            a rough stand-in for a material that has no real yield point.</p>
         </div>
     </details>
 
@@ -135,16 +184,30 @@ Provided                              50 mm</pre>
 
             <p class="mc-q">Should I use the total length or the effective length?</p>
             <p>Effective. A round-ended key does not bear on its rounded ends, so l &minus; b is
-            what carries load. The calculator does this for you.</p>
+            what carries load. The calculator does this for you, and then caps the result at
+            1,3 d.</p>
+
+            <p class="mc-q">Why does a longer key stop improving the result?</p>
+            <p>Because the shaft twists along the key. The end nearest the load takes far more
+            than its share, and past roughly 1,3&times; the shaft diameter the far end contributes
+            nothing. A 100 mm key on a 40 mm shaft is rated on 52 mm of bearing length here, not
+            on all 88.</p>
 
             <p class="mc-q">Does the key also centre the hub?</p>
             <p>No. A parallel key transmits torque only. Centring is the job of the shaft-hub
             fit, which is why keyed hubs are normally mounted on a transition or interference
             fit as well.</p>
 
+            <p class="mc-q">Is the shaft itself checked?</p>
+            <p>No. The keyway is a stress raiser, and the shaft needs its own torsion and bending
+            check with that notch effect included. This calculator sizes the connection, not the
+            shaft.</p>
+
             <p class="mc-q">Which standard is this?</p>
             <p>DIN 6885 for the key dimensions and keyway depths; the surface pressure and shear
-            checks follow standard machine-design practice.</p>
+            checks follow standard machine-design practice. The allowable pressures are
+            0,9 &middot; R<sub>e</sub> rather than the hardness- and support-factor route of
+            DIN 6892.</p>
         </div>
     </details>
 
