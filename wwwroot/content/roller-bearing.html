@@ -117,7 +117,27 @@ Static safety  S&#8320;                      6,92   &#10003;</pre>
         <div class="mc-body">
             <p class="mc-q">Why can I not enter an axial load?</p>
             <p>Because an NU or N type cannot carry one. If you need combined loading, use a
-            deep groove, angular contact or tapered roller bearing instead.</p>
+            deep groove, angular contact or tapered roller bearing instead. Note that only the
+            NU series is in the database: NJ and NUP have a flange and do carry a limited thrust,
+            on a different pair of X/Y factors, and neither is offered here.</p>
+
+            <p class="mc-q">A tapered roller bearing generates its own axial force. Is that in here?</p>
+            <p><strong>No &mdash; and it is the most important thing to get right about these
+            bearings.</strong> Under a radial load a single tapered roller bearing produces an
+            axial reaction F<sub>a,ind</sub> = 0,5&middot;F<sub>r</sub>/Y, which is why they are
+            always fitted in opposed pairs (O or X arrangement). Each bearing of the pair has to
+            carry at least the induced force of the other one, so on an H-E30206 at
+            F<sub>r</sub> = 5 kN with Y = 1,6 the axial load is never below 1 563 N, whatever the
+            external thrust is. Enter F<sub>a</sub> = 0 there and the equivalent load comes out
+            5 000 N instead of the real figure, and the life is optimistic. The calculator takes
+            F<sub>a</sub> as entered and warns when it is below the induced value; working the
+            pair out &mdash; from the two radial loads, the external thrust and the arrangement
+            &mdash; is still yours to do.</p>
+
+            <p class="mc-q">Can I calculate pure thrust?</p>
+            <p>On a tapered bearing, yes: leave F<sub>r</sub> at 0 and the axial branch applies,
+            P = Y&middot;F<sub>a</sub>. On a cylindrical NU there is nothing to carry it, so a
+            radial load is still required.</p>
 
             <p class="mc-q">What does the E suffix mean?</p>
             <p>A reinforced internal design with larger rolling elements. Same mounting

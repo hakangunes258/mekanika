@@ -31,7 +31,7 @@
             <div class="form-group">
                 <label>Bearing Type</label>
                 <select @bind="selectedBearingType" @bind:after="OnBearingTypeChanged">
-                    <option value="Cylindrical">Cylindrical Roller Bearing (NU/N series)</option>
+                    <option value="Cylindrical">Cylindrical Roller Bearing (NU series)</option>
                     <option value="Tapered">Tapered Roller Bearing (3xxxx series)</option>
                 </select>
             </div>
@@ -311,7 +311,7 @@ else
                     else
                     {
                         <tr><td>Axial Load</td><td>F<sub>a</sub></td><td>@(axialLoad.ToString("F0"))</td><td>N</td></tr>
-                        <tr><td>Fa / Fr Ratio</td><td>-</td><td>@(faFrRatio.ToString("F3"))</td><td>-</td></tr>
+                        <tr><td>Fa / Fr Ratio</td><td>-</td><td>@FormatRatio(faFrRatio)</td><td>-</td></tr>
                         <tr><td>Load Condition</td><td>-</td><td>Fa/Fr @(faFrRatio <= eFactor ? "≤" : ">") e (@eFactor.ToString("F2"))</td><td>-</td></tr>
                         <tr class="highlight"><td>Radial Factor</td><td>X</td><td>@(xFactor.ToString("F2"))</td><td>-</td></tr>
                         <tr class="highlight"><td>Axial Factor (used in P calculation)</td><td>Y₁</td><td>@(yFactorUsed.ToString("F2"))</td><td>-</td></tr>
@@ -363,7 +363,7 @@ else
             @if (basicLifeHours < 3000)
             {
                 <div class="alert alert-warning" style="margin-top: 16px;">
-                    ⚠️ <strong>Short Life:</strong> Consider using a bearing with higher load rating.
+                    ⚠️ <strong>Short Life (below 3 000 h, the threshold this page flags):</strong> Consider using a bearing with higher load rating.
                 </div>
             }
             else if (basicLifeHours >= 20000)
@@ -384,7 +384,7 @@ else
                 <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Status</th></tr></thead>
                 <tbody>
                     <tr>
-                        <td>Static Equivalent Load @(selectedBearingType == "Tapered" ? "(P₀ = 0.5Fr + Y₀Fa)" : "(P₀ = Fr)")</td>
+                        <td>Static Equivalent Load @(selectedBearingType == "Tapered" ? "(P₀ = max(Fr, 0,5Fr + Y₀Fa))" : "(P₀ = Fr)")</td>
                         <td>P₀</td>
                         <td>@((staticEquivalentLoad / 1000.0).ToString("F2")) kN</td>
                         <td>-</td>
@@ -408,7 +408,37 @@ else
                     ⚠️ <strong>Note:</strong> Static safety is marginal. Consider higher load rating for shock loads.
                 </div>
             }
+
+            <div class="alert alert-info" style="margin-top: 16px;">
+                <ModuleIcon Type="info" Size="small" Style="default" />
+                <div>
+                    <strong>The machine factor f<sub>w</sub> does not reach S₀, and should not.</strong>
+                    f<sub>w</sub> raises the <em>equivalent dynamic</em> load because it stands for the
+                    average severity of service over the bearing's life. P₀ is a check against a single
+                    static peak, so it is computed from the loads as entered. If shock loading is the
+                    concern, enter the <em>peak</em> load here and judge it against the thresholds below.
+                    <br /><br />
+                    <strong>Thresholds.</strong> ISO 76 and the catalogues ask for S₀ ≥ 1 for a
+                    non-rotating or slowly rotating roller bearing under smooth load, 1,5 for normal
+                    rotating service and 2 or more under shock — higher than for a ball bearing, because
+                    the line contact of a roller makes a flat spot that much more damaging. This page
+                    flags below 2 as marginal for that reason.
+                </div>
+            </div>
         </div>
+
+        @if (rangeWarnings.Count > 0)
+        {
+            <div class="card">
+                <div class="card-header"><ModuleIcon Type="warning" Size="medium" Style="solid" /><h2>Where This Result Stops Being Reliable</h2></div>
+                <ul style="margin: 0; padding-left: 20px; line-height: 1.7;">
+                    @foreach (var w in rangeWarnings)
+                    {
+                        <li>@w</li>
+                    }
+                </ul>
+            </div>
+        }
 
     </div>
 
@@ -470,6 +500,9 @@ else
     private double modifiedLifeHours = 0;
     private double reliabilityFactor = 1.0;
     private double staticEquivalentLoad = 0;
+
+    /// <summary>Where the result stops being reliable. Shown as a warning, never a refusal.</summary>
+    private List<string> rangeWarnings = new();
     private double staticSafety = 0;
 
     private bool showResults = false;
@@ -516,6 +549,7 @@ else
         eFactor = 0;
         yFactor = 0;
         y0Factor = 0;
+        rangeWarnings.Clear();
         axialLoad = 0;
         validationMessages.Clear();
     }
@@ -560,13 +594,37 @@ else
             validationMessages.Clear();
             if (dynamicRating <= 0) validationMessages.Add("Dynamic load rating C must be greater than 0 — select a bearing or enter it.");
             if (staticRating <= 0) validationMessages.Add("Static load rating C₀ must be greater than 0.");
-            if (radialLoad <= 0) validationMessages.Add("Radial load Fr must be greater than 0.");
+            // Fr = 0 is allowed on a tapered bearing: pure thrust is a real load
+            // case and P = Y*Fa. A cylindrical NU carries essentially no thrust,
+            // so it still needs a radial load.
+            if (radialLoad < 0) validationMessages.Add("Radial load Fr cannot be negative.");
+            if (axialLoad < 0) validationMessages.Add("Axial load Fa cannot be negative. Enter its magnitude — the direction does not change the equivalent load.");
+            if (selectedBearingType == "Cylindrical")
+            {
+                if (radialLoad <= 0) validationMessages.Add("Radial load Fr must be greater than 0 for a cylindrical roller bearing — an NU type carries essentially no thrust.");
+            }
+            else if (radialLoad <= 0 && axialLoad <= 0)
+            {
+                validationMessages.Add("Enter a radial load, an axial load, or both.");
+            }
             if (speed <= 0) validationMessages.Add("Rotational speed n must be greater than 0.");
 
             if (selectedBearingType == "Tapered")
             {
                 if (eFactor <= 0) validationMessages.Add("Axial load factor e is required for a tapered bearing (from the catalogue).");
                 if (yFactor <= 0) validationMessages.Add("Axial load factor Y is required for a tapered bearing (from the catalogue).");
+                if (y0Factor <= 0) validationMessages.Add("Static axial load factor Y₀ is required for a tapered bearing (from the catalogue).");
+                // e and Y both come from the same contact angle: e ≈ 1,5 tanα and
+                // Y ≈ 0,4 cotα, so their product is about 0,6 for every tapered
+                // roller bearing ever made. Every catalogue row in this database
+                // lands between 0,57 and 0,61; a hand-entered pair at 0,5 is a
+                // typo, not an unusual bearing.
+                if (eFactor > 0 && yFactor > 0)
+                {
+                    double eY = eFactor * yFactor;
+                    if (eY < 0.40 || eY > 0.85)
+                        validationMessages.Add($"e × Y = {eY:F2} is not a possible combination for a tapered roller bearing. Both factors come from the same contact angle (e ≈ 1,5 tanα, Y ≈ 0,4 cotα), so their product is always close to 0,6. Check the two values against the catalogue.");
+                }
             }
 
             if (validationMessages.Count > 0)
@@ -589,8 +647,11 @@ else
             }
             else
             {
-                // Tapered: combined radial and axial loads
-                faFrRatio = radialLoad > 0 ? axialLoad / radialLoad : 0;
+                // Tapered: combined radial and axial loads.
+                // Fr = 0 makes the ratio infinite, which is above e, so the axial
+                // branch applies and P = Y*Fa.
+                faFrRatio = radialLoad > 0 ? axialLoad / radialLoad
+                                           : (axialLoad > 0 ? double.PositiveInfinity : 0);
 
                 if (faFrRatio <= eFactor)
                 {
@@ -627,7 +688,30 @@ else
 
             // Static safety
             double P0_kN = staticEquivalentLoad / 1000.0;
-            staticSafety = staticRating / P0_kN;
+            staticSafety = P0_kN > 0 ? staticRating / P0_kN : 0;
+
+            // Range checks. None of these stops the calculation - they say where
+            // the answer stops being reliable, which nothing used to.
+            rangeWarnings.Clear();
+
+            if (dynamicRating > 0 && P_kN >= dynamicRating)
+                rangeWarnings.Add($"P = {P_kN:F2} kN has reached C = {dynamicRating:F2} kN. The ISO 281 life equation is only valid "
+                                  + "for P < C; the life shown is not meaningful.");
+            else if (dynamicRating > 0 && P_kN > 0.5 * dynamicRating)
+                rangeWarnings.Add($"P = {P_kN:F2} kN is above 0,5·C. Catalogues mark this as the high-load region, where the "
+                                  + "calculated life is optimistic because the contact stress is past the basis of the rating.");
+
+            if (selectedBearingType == "Tapered" && yFactor > 0 && radialLoad > 0)
+            {
+                double induced = 0.5 * radialLoad / yFactor;
+                if (axialLoad < induced)
+                    rangeWarnings.Add($"A single tapered roller bearing generates its OWN axial force under radial load, "
+                                      + $"F_a,ind = 0,5·Fr/Y = {induced:F0} N here. That is why these bearings are always used in "
+                                      + $"pairs (O or X arrangement): each one has to carry at least the opposing bearing's induced "
+                                      + $"force, so an axial load below {induced:F0} N is not physically possible for this radial load. "
+                                      + "This calculator takes Fa as entered and does not resolve the pair, so the life shown is "
+                                      + "optimistic unless you work the real axial load out from the arrangement first.");
+            }
 
             showResults = true;
 
@@ -747,6 +831,10 @@ else
         // Calculate() validates, so a damaged link just leaves the user on the form.
         await Calculate();
     }
+
+    /// <summary>Fa/Fr, or an infinity sign when there is no radial load to divide by.</summary>
+    private static string FormatRatio(double ratio)
+        => double.IsPositiveInfinity(ratio) ? "∞ (pure thrust)" : ratio.ToString("F3");
 
     private string FormatLife(double hours)
     {

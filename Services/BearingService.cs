@@ -530,18 +530,22 @@ public static class BearingService
     /// </summary>
     public static (double X, double Y, double e, double f0FaC0) CalculateXYFactors(double Fa, double Fr, double C0, double f0)
     {
-        if (Fr <= 0 || C0 <= 0 || f0 <= 0)
+        if (C0 <= 0 || f0 <= 0)
             return (1.0, 0, 0, 0);
 
         // Step 1: Calculate relative axial load = f0 * Fa / C0
         double f0FaC0 = f0 * Fa / C0;
-        
+
         // Step 2: Get e and Y from ISO 281 Table 3 (with interpolation)
         var (e, Y) = GetEandY_ISO281(f0FaC0);
-        
-        // Step 3: Calculate Fa/Fr
-        double faFr = Fa / Fr;
-        
+
+        // Step 3: Calculate Fa/Fr.
+        //
+        // Fr = 0 is a REAL load case - a ball bearing taking pure thrust - and
+        // used to be refused outright. The ratio is then infinite, which is
+        // certainly above e, so the axial branch applies and P = Y*Fa.
+        double faFr = Fr > 0 ? Fa / Fr : (Fa > 0 ? double.PositiveInfinity : 0);
+
         // Step 4: Determine X and Y based on Fa/Fr vs e
         if (faFr <= e)
         {
@@ -554,6 +558,59 @@ public static class BearingService
             return (0.56, Y, e, f0FaC0);
         }
     }
+
+    /// <summary>
+    /// Highest f0·Fa/C0 the ISO 281 table covers. Beyond it the last row's e and
+    /// Y are held, which is an extrapolation the user should be told about.
+    /// </summary>
+    public static double MaxTabulatedRelativeAxialLoad => ISO281_XY_Table[^1].f0FaC0;
+
+    /// <summary>
+    /// ISO 76 static factors for an angular contact BALL bearing, by contact
+    /// angle. Single row: X0 = 0,5, Y0 from this series. A matched pair or a
+    /// double row: X0 = 1,0 and Y0 doubled.
+    ///
+    /// The calculator used to take Y0 from the catalogue column, which holds the
+    /// DOUBLE ROW values (0,52 at 40°, 0,66 at 30°) - exactly twice these - and
+    /// something that matches neither at 15°. On a single-row 7205B that made P0
+    /// 3,33 kN instead of 2,50 and S0 2,91 instead of 3,88: conservative, but
+    /// wrong, and it sends the user to a larger bearing than they need.
+    /// </summary>
+    private static readonly (double Angle, double Y0)[] Iso76AngularY0 =
+    {
+        (15, 0.46), (20, 0.42), (25, 0.38), (30, 0.33), (35, 0.29), (40, 0.26), (45, 0.22)
+    };
+
+    /// <summary>ISO 76 Y0 for the given contact angle, linearly interpolated.</summary>
+    public static double StaticAxialFactorY0(double contactAngleDegrees, bool doubleRowOrPaired)
+    {
+        double single;
+
+        if (contactAngleDegrees <= Iso76AngularY0[0].Angle)
+            single = Iso76AngularY0[0].Y0;
+        else if (contactAngleDegrees >= Iso76AngularY0[^1].Angle)
+            single = Iso76AngularY0[^1].Y0;
+        else
+        {
+            single = Iso76AngularY0[^1].Y0;
+            for (int i = 0; i < Iso76AngularY0.Length - 1; i++)
+            {
+                var lo = Iso76AngularY0[i];
+                var hi = Iso76AngularY0[i + 1];
+                if (contactAngleDegrees >= lo.Angle && contactAngleDegrees <= hi.Angle)
+                {
+                    double t = (contactAngleDegrees - lo.Angle) / (hi.Angle - lo.Angle);
+                    single = lo.Y0 + t * (hi.Y0 - lo.Y0);
+                    break;
+                }
+            }
+        }
+
+        return doubleRowOrPaired ? 2.0 * single : single;
+    }
+
+    /// <summary>ISO 76 X0 for an angular contact ball bearing.</summary>
+    public static double StaticRadialFactorX0(bool doubleRowOrPaired) => doubleRowOrPaired ? 1.0 : 0.5;
 
     // Reliability factors (a1) based on ISO 281
     public static readonly Dictionary<int, double> ReliabilityFactors = new()

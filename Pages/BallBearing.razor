@@ -117,6 +117,7 @@
                     <input type="number" step="1" @bind="radialLoad" placeholder="e.g. 2500" />
                     <span class="unit">N</span>
                 </div>
+                <small style="color: #6c757d; font-size: 12px;">0 is allowed — pure thrust is a valid load case</small>
             </div>
 
             <div class="form-group">
@@ -130,6 +131,24 @@
                     <small style="color: #6c757d; font-size: 12px;">Angular contact bearings support axial loads in one direction</small>
                 }
             </div>
+
+            @if (selectedBearingType == "AngularContact")
+            {
+                <div class="form-group">
+                    <label>Arrangement</label>
+                    @* String-backed, not bool-backed: @bind on a select goes through
+                       the value attribute and the renderer drops that attribute when
+                       handed a bool false, so a bool-bound select cannot tell its two
+                       options apart. Same reason ToleranceSource is a string. *@
+                    <select @bind="selectedArrangement">
+                        <option value="single">Single bearing</option>
+                        <option value="paired">Matched pair (DB/DF) or double row</option>
+                    </select>
+                    <small style="color: #6c757d; font-size: 12px;">
+                        ISO 76 doubles Y₀ and sets X₀ = 1 for a pair, so the static safety depends on this
+                    </small>
+                </div>
+            }
 
             <div class="form-group">
                 <label>Rotational Speed (n)</label>
@@ -275,7 +294,10 @@ else
                         <tr><td>e Factor (Limit Value)</td><td>e</td><td>@(selectedAngularBearing.e.ToString("F2"))</td><td>-</td></tr>
                         <tr><td>Radial Factor (Fa/Fr > e)</td><td>X</td><td>@(selectedAngularBearing.X.ToString("F2"))</td><td>-</td></tr>
                         <tr><td>Axial Factor (Fa/Fr > e)</td><td>Y</td><td>@(selectedAngularBearing.Y.ToString("F2"))</td><td>-</td></tr>
-                        <tr><td>Static Axial Factor</td><td>Y₀</td><td>@(selectedAngularBearing.Y0.ToString("F2"))</td><td>-</td></tr>
+                        @* The catalogue column holds DOUBLE ROW values. The static
+                           check uses ISO 76 by contact angle instead - see the
+                           Static Safety card. Shown here only for reference. *@
+                        <tr><td>Catalogue Y₀ <span style="color:#6c757d">(double row; not used below)</span></td><td>Y₀</td><td>@(selectedAngularBearing.Y0.ToString("F2"))</td><td>-</td></tr>
                         <tr><td>Limiting Speed (Oil)</td><td>n<sub>oil</sub></td><td>@(selectedAngularBearing.LimitSpeedOil)</td><td>rpm</td></tr>
                     }
                     @* With hand-entered ratings there is no catalogue row, so n_lim is 0
@@ -327,7 +349,7 @@ else
                 <tbody>
                     <tr><td>Radial Load</td><td>F<sub>r</sub></td><td>@radialLoad.ToString("F0")</td><td>N</td></tr>
                     <tr><td>Axial Load</td><td>F<sub>a</sub></td><td>@axialLoad.ToString("F0")</td><td>N</td></tr>
-                    <tr><td>Fa / Fr Ratio</td><td>-</td><td>@faFrRatio.ToString("F4")</td><td>-</td></tr>
+                    <tr><td>Fa / Fr Ratio</td><td>-</td><td>@FormatRatio(faFrRatio)</td><td>-</td></tr>
                     @if (selectedBearingType == "DeepGroove")
                     {
                         <tr><td>f₀ × Fa / C₀</td><td>-</td><td>@f0FaC0.ToString("F3")</td><td>-</td></tr>
@@ -374,7 +396,11 @@ else
             @if (basicLifeHours < 3000)
             {
                 <div class="alert alert-warning" style="margin-top: 16px;">
-                    ⚠️ <strong>Short Life:</strong> Consider using a bearing with higher load rating or reducing the load.
+                    ⚠️ <strong>Short Life:</strong> L₁₀h is below 3 000 hours, which is the threshold this
+                    page flags. There is no required-life input, so whether that is short depends on the
+                    application: a hand tool may want 500 h, an industrial gearbox 20 000 h and a machine
+                    tool spindle 30 000. Either accept it against your own target, use a bearing with a
+                    higher load rating, or reduce the load.
                 </div>
             }
             else if (basicLifeHours >= 20000)
@@ -391,7 +417,9 @@ else
             <table class="results-table">
                 <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Status</th></tr></thead>
                 <tbody>
-                    <tr><td>Static Equivalent Load@(selectedBearingType == "AngularContact" ? " (P₀ = X₀Fr + Y₀Fa)" : "")</td><td>P₀</td><td>@((staticEquivalentLoad / 1000.0).ToString("F3")) kN</td><td>-</td></tr>
+                    <tr><td>Static Radial Factor</td><td>X₀</td><td>@staticX0.ToString("F2")</td><td>-</td></tr>
+                    <tr><td>Static Axial Factor (ISO 76@(selectedBearingType == "AngularContact" ? isPairedMounting ? ", pair" : ", single row" : ""))</td><td>Y₀</td><td>@staticY0.ToString("F2")</td><td>-</td></tr>
+                    <tr><td>Static Equivalent Load (P₀ = max(Fr, X₀Fr + Y₀Fa))</td><td>P₀</td><td>@((staticEquivalentLoad / 1000.0).ToString("F3")) kN</td><td>-</td></tr>
                     <tr class="@(staticSafety < 1.0 ? "danger" : staticSafety < 1.5 ? "warning" : "success")">
                         <td>Static Safety Factor</td><td>S₀</td><td>@staticSafety.ToString("F2")</td>
                         <td>@(staticSafety < 1.0 ? "❌ FAIL" : staticSafety < 1.5 ? "⚠️ Marginal" : "✓ OK")</td>
@@ -411,7 +439,43 @@ else
                     ⚠️ <strong>Warning:</strong> Static safety is marginal. Consider higher load rating for critical applications.
                 </div>
             }
+
+            <div class="alert alert-info" style="margin-top: 16px;">
+                <ModuleIcon Type="info" Size="small" Style="default" />
+                <div>
+                    <strong>The machine factor f<sub>w</sub> does not reach S₀, and should not.</strong>
+                    f<sub>w</sub> raises the <em>equivalent dynamic</em> load because it stands for the
+                    average severity of service over the bearing's life. P₀ is a check against a single
+                    static peak, so it is computed from the loads as entered. If shock loading is the
+                    concern, enter the <em>peak</em> load here and judge it against the thresholds below —
+                    doubling it twice over would be the wrong answer.
+                    @if (selectedBearingType == "AngularContact")
+                    {
+                        <text>
+                            Y₀ comes from ISO 76 by contact angle and arrangement rather than from the
+                            catalogue column, which carries double-row values.
+                        </text>
+                    }
+                    <br /><br />
+                    <strong>Thresholds.</strong> ISO 76 and the catalogues ask for S₀ ≥ 1 for a
+                    non-rotating or slowly rotating ball bearing under smooth load, 1,5 for normal
+                    rotating service, and 2 or more where shock load or quiet running matters.
+                </div>
+            </div>
         </div>
+
+        @if (rangeWarnings.Count > 0)
+        {
+            <div class="card">
+                <div class="card-header"><ModuleIcon Type="warning" Size="medium" Style="solid" /><h2>Where This Result Stops Being Reliable</h2></div>
+                <ul style="margin: 0; padding-left: 20px; line-height: 1.7;">
+                    @foreach (var w in rangeWarnings)
+                    {
+                        <li>@w</li>
+                    }
+                </ul>
+            </div>
+        }
     </div>
 
 
@@ -518,6 +582,22 @@ else
     private double modifiedLifeHours = 0;
     private double reliabilityFactor = 1.0;
     private double staticEquivalentLoad = 0;
+    private double staticX0 = 0;
+    private double staticY0 = 0;
+
+    /// <summary>
+    /// Whether the angular contact bearings are mounted as a matched pair (DB/DF)
+    /// or as a double row. ISO 76 doubles Y0 and sets X0 = 1 for that case, so it
+    /// cannot be guessed — it has to be an input.
+    ///
+    /// String-backed because a bool-bound &lt;select&gt; cannot distinguish its
+    /// options: the renderer drops a value attribute set to a bool false.
+    /// </summary>
+    private string selectedArrangement = "single";
+    private bool isPairedMounting => selectedArrangement == "paired";
+
+    /// <summary>Where the result stops being reliable. Shown as a warning, never a refusal.</summary>
+    private List<string> rangeWarnings = new();
     private double staticSafety = 0;
 
     private bool showResults = false;
@@ -620,7 +700,12 @@ else
             validationMessages.Clear();
             if (dynamicRating <= 0) validationMessages.Add("Dynamic load rating C must be greater than 0 — select a bearing or enter it.");
             if (staticRating <= 0) validationMessages.Add("Static load rating C₀ must be greater than 0.");
-            if (radialLoad <= 0) validationMessages.Add("Radial load Fr must be greater than 0.");
+            // Fr = 0 is allowed: pure thrust is a real load case for both a deep
+            // groove and an angular contact bearing, and refusing it was simply a
+            // missing branch. Fr and Fa cannot BOTH be zero.
+            if (radialLoad < 0) validationMessages.Add("Radial load Fr cannot be negative.");
+            if (axialLoad < 0) validationMessages.Add("Axial load Fa cannot be negative. Enter its magnitude — the direction does not change the equivalent load.");
+            if (radialLoad <= 0 && axialLoad <= 0) validationMessages.Add("Enter a radial load, an axial load, or both.");
             if (speed <= 0) validationMessages.Add("Rotational speed n must be greater than 0.");
 
             if (validationMessages.Count > 0)
@@ -635,7 +720,11 @@ else
             double Fr_kN = radialLoad / 1000.0;
             double Fa_kN = axialLoad / 1000.0;
 
-            faFrRatio = radialLoad > 0 ? axialLoad / radialLoad : 0;
+            // Fr = 0 under thrust makes the ratio unbounded, not zero. Reporting
+            // zero contradicted the X and Y actually used, which came from the
+            // axial branch.
+            faFrRatio = radialLoad > 0 ? axialLoad / radialLoad
+                                       : (axialLoad > 0 ? double.PositiveInfinity : 0);
 
             if (selectedBearingType == "DeepGroove")
             {
@@ -689,19 +778,57 @@ else
             basicLifeHours = (basicLifeRevolutions * 1_000_000) / (60 * speed);
             modifiedLifeHours = reliabilityFactor * basicLifeHours;
 
-            // Static safety
+            // Static safety, ISO 76. P0 = max(Fr, X0*Fr + Y0*Fa).
             if (selectedBearingType == "AngularContact" && selectedAngularBearing != null)
             {
-                double x0 = 0.5;
-                staticEquivalentLoad = x0 * radialLoad + selectedAngularBearing.Y0 * axialLoad;
+                // Y0 from ISO 76 by contact angle and arrangement, NOT from the
+                // catalogue column - that column holds double-row values.
+                staticX0 = BearingService.StaticRadialFactorX0(isPairedMounting);
+                staticY0 = BearingService.StaticAxialFactorY0(selectedAngularBearing.ContactAngle, isPairedMounting);
+                staticEquivalentLoad = staticX0 * radialLoad + staticY0 * axialLoad;
                 if (staticEquivalentLoad < radialLoad) staticEquivalentLoad = radialLoad;
             }
             else
             {
+                staticX0 = 0.6;
+                staticY0 = 0.5;
                 staticEquivalentLoad = Math.Max(radialLoad, 0.6 * radialLoad + 0.5 * axialLoad);
             }
             double P0_kN = staticEquivalentLoad / 1000.0;
-            staticSafety = staticRating / P0_kN;
+            staticSafety = P0_kN > 0 ? staticRating / P0_kN : 0;
+
+            // Range checks. None of these stops the calculation - they say where
+            // the answer stops being reliable, which nothing used to.
+            rangeWarnings.Clear();
+
+            if (selectedBearingType == "DeepGroove" && f0FaC0 > BearingService.MaxTabulatedRelativeAxialLoad)
+                rangeWarnings.Add($"f₀·Fa/C₀ = {f0FaC0:F2} is past the end of the ISO 281 table ({BearingService.MaxTabulatedRelativeAxialLoad:F2}). " +
+                                  "The last row's e and Y are held, which is an extrapolation.");
+
+            if (staticRating > 0 && axialLoad > 0.5 * staticRating * 1000)
+                rangeWarnings.Add($"The axial load is {axialLoad / (staticRating * 1000) * 100:F0} % of C₀. " +
+                                  "Catalogues limit a ball bearing to roughly 0,5·C₀ in thrust; beyond that the contact ellipse " +
+                                  "runs over the raceway shoulder and the life equation no longer describes the failure mode.");
+
+            if (dynamicRating > 0 && P_kN >= dynamicRating)
+                rangeWarnings.Add($"P = {P_kN:F2} kN has reached C = {dynamicRating:F2} kN. The ISO 281 life equation is only valid " +
+                                  "for P < C; the life shown is not meaningful.");
+            else if (dynamicRating > 0 && P_kN > 0.5 * dynamicRating)
+                rangeWarnings.Add($"P = {P_kN:F2} kN is above 0,5·C. Catalogues mark this as the high-load region, where the " +
+                                  "calculated life is optimistic because the contact stress is past the basis of the rating.");
+
+            if (dynamicRating > 0 && staticRating > 0 && staticRating / dynamicRating > 1.8)
+                rangeWarnings.Add($"C₀/C = {staticRating / dynamicRating:F2} is well outside the usual range for a ball bearing " +
+                                  "(about 0,5 to 1,2). Check the two ratings have not been swapped or mistyped.");
+
+            // Known gap, pending ISO 281 Table 3 for the shallow-angle series.
+            if (selectedBearingType == "AngularContact" && selectedAngularBearing != null
+                && selectedAngularBearing.ContactAngle < 20)
+                rangeWarnings.Add($"At a {selectedAngularBearing.ContactAngle:F0}° contact angle, ISO 281 makes e and Y depend on " +
+                                  "i·Fa/C₀ rather than fixing them per bearing. This calculator uses the single catalogue pair " +
+                                  $"(e = {selectedAngularBearing.e:F2}, Y = {selectedAngularBearing.Y:F2}) for the whole range, which can " +
+                                  "run either side of the standard — Y reaches about 1,47 at light axial load. The 25°–40° series " +
+                                  "does not have this dependence and is unaffected.");
 
             showResults = true;
 
@@ -741,10 +868,12 @@ else
         dynamicRating = 0;
         staticRating = 0;
         f0Factor = 0;
+        rangeWarnings.Clear();
         radialLoad = 0;
         axialLoad = 0;
         speed = 0;
         selectedMachineFactor = "1.0";
+        selectedArrangement = "single";
         selectedReliability = 90;
         showResults = false;
         showInfoModal = false;
@@ -772,6 +901,7 @@ else
         .Set("Fa", axialLoad)
         .Set("nrpm", speed)
         .Set("mf", selectedMachineFactor)
+        .Set("arr", selectedArrangement)
         .Set("rel", selectedReliability);
 
     /// <summary>
@@ -826,11 +956,19 @@ else
         var rel = state.GetInt("rel", selectedReliability);
         if (BearingService.ReliabilityFactors.ContainsKey(rel)) selectedReliability = rel;
 
+        // Validated against its option set, or the select renders blank.
+        var arr = state.GetString("arr", selectedArrangement);
+        if (arr == "single" || arr == "paired") selectedArrangement = arr;
+
         openedFromSharedLink = true;
 
         // Calculate() validates, so a damaged link just leaves the user on the form.
         await Calculate();
     }
+
+    /// <summary>Fa/Fr, or an infinity sign when there is no radial load to divide by.</summary>
+    private static string FormatRatio(double ratio)
+        => double.IsPositiveInfinity(ratio) ? "∞ (pure thrust)" : ratio.ToString("F4");
 
     private string FormatLife(double hours)
     {

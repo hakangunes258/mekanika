@@ -144,8 +144,37 @@ Static safety  S&#8320;                       3,95   &#10003;</pre>
             <p>Because C depends on internal geometry and steel quality, which differ between
             manufacturers. Use the rating from the maker you will actually buy.</p>
 
+            <p class="mc-q">Can I calculate pure thrust?</p>
+            <p>Yes &mdash; leave F<sub>r</sub> at 0. F<sub>a</sub>/F<sub>r</sub> is then unbounded,
+            which is certainly above e, so the axial branch applies and P = Y&middot;F<sub>a</sub>.
+            Watch the thrust limit while you are there: catalogues cap a ball bearing at roughly
+            0,5&middot;C<sub>0</sub> in pure thrust, because beyond that the contact ellipse runs
+            over the raceway shoulder and the life equation stops describing the failure mode. The
+            calculator says so when you cross it.</p>
+
+            <p class="mc-q">Why does the machine factor not change the static safety?</p>
+            <p>Because f<sub>w</sub> and S₀ answer different questions. f<sub>w</sub> raises the
+            <em>equivalent dynamic</em> load: it stands for the average severity of service over
+            the whole life. S₀ compares a single static <em>peak</em> against C<sub>0</sub>, so it
+            has to be computed from the load actually present at that instant. If a shock peak is
+            what worries you, enter the peak load and read S₀ against the usual thresholds &mdash;
+            1 for a stationary bearing, 1,5 for normal rotating service, 2 or more under shock.</p>
+
+            <p class="mc-q">Why is the static Y₀ different from the one in the bearing database?</p>
+            <p>Because the database column carries the <em>double row</em> value and most angular
+            contact bearings are fitted singly. ISO 76 gives Y₀ = 0,26 for a single-row 40&deg;
+            bearing, 0,33 at 30&deg; and 0,46 at 15&deg;, doubled for a matched pair or a double
+            row &mdash; which is why the arrangement is an input. The calculator takes Y₀ from the
+            standard by contact angle rather than from that column.</p>
+
             <p class="mc-q">Which standard is this?</p>
             <p>ISO 281 for the rating life and the X/Y factors, ISO 76 for static load rating.</p>
+            <p>Two gaps worth knowing about. The life modifier a<sub>ISO</sub> is not included, so
+            lubrication, contamination and the fatigue load limit do not reach the result. And for
+            the 15&deg; angular contact series ISO 281 makes e and Y depend on i&middot;F<sub>a</sub>/C<sub>0</sub>
+            rather than fixing them per bearing; this calculator uses the single catalogue pair over
+            the whole range, which the results flag. The 25&deg;&ndash;40&deg; series does not have
+            that dependence.</p>
         </div>
     </details>
 
