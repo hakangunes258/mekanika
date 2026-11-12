@@ -301,11 +301,45 @@ else
                     <tr><td>Number of Bolts</td><td>n</td><td>@engine.NumberOfBolts</td><td>-</td></tr>
                     <tr><td>Tightening Torque</td><td>M<sub>A</sub></td><td>@engine.BoltTighteningTorque.ToString("F1")</td><td>Nm</td></tr>
                     <tr><td>Stress Area</td><td>A<sub>s</sub></td><td>@engine.BoltStressArea.ToString("F1")</td><td>mm²</td></tr>
-                    <tr class="highlight"><td>Preload Force (per bolt)</td><td>F<sub>v</sub></td><td>@engine.BoltPreloadForce.ToString("F0")</td><td>N</td></tr>
-                    <tr><td>Bolt Stress</td><td>σ<sub>b</sub></td><td>@engine.BoltStress.ToString("F0")</td><td>MPa</td></tr>
-                    <tr class="@(engine.BoltUtilization > 90 ? "warning" : engine.BoltUtilization > 100 ? "danger" : "")"><td>Bolt Utilization</td><td>-</td><td>@engine.BoltUtilization.ToString("F1")</td><td>%</td></tr>
+                    <tr class="highlight"><td>Preload Force from M<sub>A</sub> (per bolt)</td><td>F<sub>v</sub></td><td>@engine.BoltPreloadForce.ToString("F0")</td><td>N</td></tr>
+                    <tr><td>Tensile Stress</td><td>σ<sub>b</sub></td><td>@engine.BoltStress.ToString("F0")</td><td>MPa</td></tr>
+                    <tr><td>Torsion Factor (VDI 2230)</td><td>-</td><td>@engine.BoltTorsionFactor.ToString("F3")</td><td>-</td></tr>
+                    <tr class="highlight"><td>Assembly Equivalent Stress</td><td>σ<sub>red</sub></td><td>@engine.BoltEquivalentStress.ToString("F0")</td><td>MPa</td></tr>
+                    <tr class="@(engine.BoltUtilization > 100 ? "danger" : engine.BoltUtilization > 90 ? "warning" : "")"><td>Bolt Utilization (on σ<sub>red</sub>)</td><td>-</td><td>@engine.BoltUtilization.ToString("F1")</td><td>%</td></tr>
+                    <tr><td>Allowable Preload (F<sub>M,zul</sub>, 90 % of yield)</td><td>F<sub>M,zul</sub></td><td>@engine.AllowablePreloadForce.ToString("F0")</td><td>N</td></tr>
+                    <tr><td>Torque that Produces It</td><td>M<sub>A,zul</sub></td><td>@engine.AllowableTighteningTorque.ToString("F1")</td><td>Nm</td></tr>
+                    @if (engine.PreloadExceedsAllowable)
+                    {
+                        <tr class="danger"><td><strong>Preload Used for the Capacities Below</strong></td><td>F<sub>v,eff</sub></td><td>@engine.EffectivePreloadForce.ToString("F0")</td><td>N</td></tr>
+                    }
                 </tbody>
             </table>
+
+            @if (engine.PreloadExceedsAllowable)
+            {
+                <div class="alert alert-danger" style="margin-top: 16px;">
+                    <ModuleIcon Type="warning" Size="small" Style="default" />
+                    <div>
+                        <strong>This tightening torque would yield the bolt.</strong>
+                        @engine.BoltTighteningTorque.ToString("F1") Nm asks for
+                        @engine.BoltPreloadForce.ToString("F0") N of preload against an allowable
+                        @engine.AllowablePreloadForce.ToString("F0") N
+                        (@engine.BoltUtilization.ToString("F0") % of yield on the equivalent stress).
+                        A bolt that has yielded or snapped cannot deliver more, so every capacity below is
+                        computed at F<sub>M,zul</sub>, not at the figure the torque implies. Reduce the torque
+                        to @engine.AllowableTighteningTorque.ToString("F1") Nm, use a larger bolt, or a higher
+                        strength class.
+                    </div>
+                </div>
+            }
+            <p style="margin: 12px 0 0 0; font-size: 13px; color: #6c757d;">
+                The bolt carries <strong>torsion as well as tension</strong> while it is tightened, and that
+                torsion is still there when the wrench comes off. The utilization above is on the VDI 2230
+                assembly equivalent stress
+                σ<sub>red</sub> = σ<sub>M</sub>·√(1 + 3[1,5(d₂/d<sub>S</sub>)(P/(πd₂) + 1,155 μ<sub>G</sub>)]²),
+                which on an M8 at μ<sub>G</sub> = 0,12 is 13 % above the tensile stress — the difference
+                between reading 78 % of yield and 88 %.
+            </p>
         </div>
 
         <!-- Contact Pressure -->
@@ -317,9 +351,19 @@ else
                     <tr class="highlight"><td>Normal Force (Clamping)</td><td>F<sub>n</sub></td><td>@engine.NormalForce.ToString("F0")</td><td>N</td></tr>
                     <tr><td>Average Contact Pressure</td><td>p</td><td>@engine.ContactPressure.ToString("F1")</td><td>MPa</td></tr>
                     <tr class="highlight"><td>Maximum Contact Pressure</td><td>p<sub>max</sub></td><td>@engine.MaxContactPressure.ToString("F1")</td><td>MPa</td></tr>
-                    <tr><td>Allowable Contact Pressure</td><td>p<sub>zul</sub></td><td>@engine.AllowableContactPressure.ToString("F0")</td><td>MPa</td></tr>
+                    <tr><td>Allowable Contact Pressure (0,8·R<sub>e</sub> of the @engine.BearingMaterialLabel)</td><td>p<sub>zul</sub></td><td>@engine.AllowableContactPressure.ToString("F0")</td><td>MPa</td></tr>
                 </tbody>
             </table>
+            <p style="margin: 12px 0 0 0; font-size: 13px; color: #6c757d;">
+                From equilibrium across the joint plane: all n bolts cross it, so
+                n·F<sub>v</sub> = p·d·l<sub>F</sub> on the <strong>projected</strong> area, giving
+                p = n·F<sub>v</sub>/(d·l<sub>F</sub>) and an integrated normal force
+                F<sub>n</sub> = π·n·F<sub>v</sub>·(β/360°).
+                l<sub>F</sub> = 0,85·L allows for the pressure falling off at the ends of the bore, and
+                β = 360° − 2·asin(b/d) is the wrap angle left by the slot.
+                p<sub>max</sub> = (π/2)·p assumes a linear distribution, which is what a slotted clamp
+                with clearance approaches.
+            </p>
         </div>
 
         <!-- Load Capacities -->
@@ -351,6 +395,29 @@ else
                     <tr><td>Hub Yield Strength</td><td>R<sub>e,hub</sub></td><td>@engine.HubMaterial.YieldStrength.ToString("F0")</td><td>MPa</td></tr>
                 </tbody>
             </table>
+            <p style="margin: 12px 0 0 0; font-size: 13px; color: #6c757d;">
+                Closed-ring Lamé under internal pressure, driven by
+                <strong>p<sub>max</sub></strong> rather than the mean. A single-slit clamp is an
+                <em>open</em> ring and carries much of its load in bending about the hinge opposite the
+                slot, where the real peak stress usually sits; that bending is not modelled, which is why
+                this module is not marked as verified.
+            </p>
+            @if (engine.BrittleHubMaterial || engine.BrittleShaftMaterial)
+            {
+                <div class="alert alert-warning" style="margin-top: 16px;">
+                    <ModuleIcon Type="warning" Size="small" Style="default" />
+                    <div>
+                        <strong>Grey cast iron has no yield point.</strong>
+                        The @(engine.BrittleHubMaterial && engine.BrittleShaftMaterial ? "hub and shaft are" : engine.BrittleHubMaterial ? "hub is" : "shaft is")
+                        a lamellar iron, so the "yield strength" used above is a stand-in value and von Mises
+                        is the wrong criterion for it — a brittle material fails on maximum normal stress
+                        against R<sub>m</sub>, not on a distortion-energy measure against R<sub>e</sub>.
+                        Read the safety factor as indicative only and check the design against the tensile
+                        strength separately. Nodular iron (EN-GJS / GGG) does have a proof stress and is
+                        not affected.
+                    </div>
+                </div>
+            }
         </div>
 
         <!-- Safety Factors -->
@@ -379,22 +446,47 @@ else
                 </tbody>
             </table>
 
+            @{
+                // The advice has to follow the GOVERNING check. Telling a user whose
+                // bolt is the limiting part to tighten harder makes the only failing
+                // check worse, and the page's own text already said as much.
+                string remedy = engine.GoverningCheck switch
+                {
+                    "bolt" => "The bolt is the limiting part, so tightening it harder makes this worse. Use a larger bolt, a higher strength class, or more bolts.",
+                    "sliding" => "Sliding is the limiting check: raise the preload (more tightening torque, if the bolt has reserve, or more bolts), raise the friction coefficient, or lengthen the clamp.",
+                    "hub stress" => "The hub is the limiting part: increase the outside diameter Da, or spread the same clamping force over a longer clamp.",
+                    "bearing pressure" => "Bearing pressure is the limiting check: lengthen the clamp, or use a harder material for the weaker of the two parts.",
+                    _ => "Reduce the loading or review the geometry."
+                };
+            }
+
             @if (engine.SafetyFactorMin < 1.0)
             {
-                <div class="alert alert-danger" style="margin-top: 16px;">⚠️ <strong>Warning:</strong> Design is unsafe! Increase clamping force (higher torque or more bolts) or reduce loading.</div>
+                <div class="alert alert-danger" style="margin-top: 16px;">
+                    ⚠️ <strong>Warning:</strong> Design is unsafe — the governing check is
+                    <strong>@engine.GoverningCheck</strong> at @engine.SafetyFactorMin.ToString("F2").
+                    @remedy
+                </div>
             }
             else if (engine.SafetyFactorMin < 1.5)
             {
-                <div class="alert alert-warning" style="margin-top: 16px;">⚡ <strong>Note:</strong> Safety factor is marginal. Consider increasing tightening torque or using additional bolts.</div>
+                <div class="alert alert-warning" style="margin-top: 16px;">
+                    ⚡ <strong>Note:</strong> Safety factor is marginal — the governing check is
+                    <strong>@engine.GoverningCheck</strong> at @engine.SafetyFactorMin.ToString("F2").
+                    @remedy
+                </div>
             }
             else
             {
-                <div class="alert alert-success" style="margin-top: 16px;">✓ <strong>OK:</strong> Design meets safety requirements.</div>
+                <div class="alert alert-success" style="margin-top: 16px;">
+                    ✓ <strong>OK:</strong> Design meets safety requirements. The governing check is
+                    <strong>@engine.GoverningCheck</strong> at @engine.SafetyFactorMin.ToString("F2").
+                </div>
             }
 
-            @if (engine.BoltUtilization > 90)
+            @if (engine.BoltUtilization > 90 && !engine.PreloadExceedsAllowable)
             {
-                <div class="alert alert-warning" style="margin-top: 8px;">⚠️ <strong>Note:</strong> Bolt utilization is high (@engine.BoltUtilization.ToString("F0")%). Consider using higher strength class bolts.</div>
+                <div class="alert alert-warning" style="margin-top: 8px;">⚠️ <strong>Note:</strong> Bolt utilization is high (@engine.BoltUtilization.ToString("F0") % of yield on the assembly equivalent stress). There is little reserve for tightening scatter — use a higher strength class or a larger bolt rather than relying on it.</div>
             }
         </div>
     </div>
@@ -638,6 +730,29 @@ else
             if (engine.ClampOuterDiameter <= 0) validationMessages.Add("Hub outer diameter (Da) must be greater than 0.");
             if (engine.ClampLength <= 0) validationMessages.Add("Hub length (L) must be greater than 0.");
             if (engine.BoltTighteningTorque <= 0) validationMessages.Add("Bolt tightening torque (MA) must be greater than 0.");
+            if (engine.ClampOuterDiameter > 0 && engine.ShaftDiameter > 0 && engine.ClampOuterDiameter <= engine.ShaftDiameter)
+                validationMessages.Add($"Hub outer diameter (Da) must be larger than the shaft diameter ({engine.ShaftDiameter:F1} mm) — the clamp needs a wall.");
+            if (engine.SlitWidth < 0)
+                validationMessages.Add("Slit width (b) cannot be negative.");
+            else if (engine.ShaftDiameter > 0 && engine.SlitWidth >= engine.ShaftDiameter)
+                validationMessages.Add($"Slit width (b) must be well below the shaft diameter ({engine.ShaftDiameter:F1} mm). At b = d the clamp wraps only half the shaft; in practice b is a few millimetres.");
+            if (engine.BoltDiameter <= 0) validationMessages.Add("Bolt diameter must be greater than 0.");
+            if (engine.BoltYieldStrength <= 0) validationMessages.Add("Bolt yield strength must be greater than 0.");
+            if (engine.FrictionCoefficientInterface <= 0) validationMessages.Add("The interface friction coefficient must be greater than 0.");
+            if (engine.FrictionCoefficientThread <= 0) validationMessages.Add("The thread friction coefficient must be greater than 0.");
+            if (engine.NumberOfBolts <= 0) validationMessages.Add("At least one bolt is needed.");
+
+            // Room for the bolt itself. These are practical minima, not a standard:
+            // the module models neither the bolt hole nor the wall around it, so a
+            // geometry it cannot physically accommodate has to be refused here.
+            if (engine.BoltDiameter > 0 && engine.ClampOuterDiameter > engine.ShaftDiameter && engine.ShaftDiameter > 0)
+            {
+                double wall = (engine.ClampOuterDiameter - engine.ShaftDiameter) / 2.0;
+                if (wall < engine.BoltDiameter)
+                    validationMessages.Add($"The clamp wall is only {wall:F1} mm thick, which cannot house an M{engine.BoltDiameter:F0} bolt. Increase Da to at least {engine.ShaftDiameter + 2 * engine.BoltDiameter:F0} mm.");
+            }
+            if (engine.BoltDiameter > 0 && engine.ClampLength > 0 && engine.ClampLength < 2 * engine.BoltDiameter)
+                validationMessages.Add($"A clamp {engine.ClampLength:F1} mm long has no room for an M{engine.BoltDiameter:F0} bolt hole and its edge distance. Use at least {2 * engine.BoltDiameter:F0} mm.");
 
             if (validationMessages.Count > 0)
             {

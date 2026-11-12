@@ -28,15 +28,33 @@
         <div class="mc-body">
             <p>Preload from torque, then pressure from preload, then torque capacity from
             friction:</p>
-<pre>F&#7515; = M&#7488; / [ 0,16 P + 0,58 &micro;&#7503; d&#8322; + &micro;&#7503; D&#7503;/2 ]     bolt preload
+<pre>F_V = M_A / [ P/(2 pi) + mu_G d_2/(2 cos 30) + mu_K d_m/2 ]   bolt preload
 
-F&#8345; = 2 n F&#7515; / &pi;                            normal force at the bore
-p  = F&#8345; / (d &middot; L&#8337;&#8319;&#8331;)                          mean contact pressure
+sigma_red = F_V/A_s . sqrt(1 + 3 k^2)                         assembly stress
+  k = 1,5 (d_2/d_S) (P/(pi d_2) + 1,155 mu_G)                 torsion coupling
+F_M,zul = 0,9 R_p0,2 A_s / sqrt(1 + 3 k^2)                    usable preload
 
-T&#8344;&#8336;&#8339; = &micro; &middot; F&#8345; &middot; d / 2                       torque capacity</pre>
+beta = 360 - 2 asin(b/d)                                      wrap angle, deg
+l_F  = 0,85 L                                                 effective length
+
+p     = n F_V / (d . l_F)                                     mean pressure
+p_max = (pi/2) . p                                            peak pressure
+F_N   = pi . n . F_V . (beta/360)                             normal force
+
+T_cap = mu . F_N . d/2                                        torque capacity
+F_a,cap = mu . F_N                                            axial capacity
+F_N,req = sqrt(F_t^2 + F_a^2) / mu                            combined demand</pre>
+            <p><strong>Where the pressure relation comes from.</strong> Cut the clamp along the
+            diametral joint plane. Every one of the n bolts crosses that plane, so the total preload
+            has to balance the resultant of the bore pressure over one half shell:
+            n&middot;F<sub>V</sub> = &int;p&middot;sin&theta;&middot;(d/2)&middot;l<sub>F</sub>&nbsp;d&theta;
+            = p&middot;d&middot;l<sub>F</sub>. The mean pressure therefore follows from the
+            <em>projected</em> area d&middot;l<sub>F</sub>, while the normal force integrated over the
+            wrapped surface is &pi; times larger. The two are not the same area and using one where
+            the other belongs is a factor of &pi; either way.</p>
             <p>The split removes part of the circumference, so the contact does not run the full
-            360&deg;. The calculator reduces the arc by the slit and works with the effective
-            contact length that is left.</p>
+            360&deg;. l<sub>F</sub> = 0,85&middot;L allows for the pressure falling off at the ends of
+            the bore; it is a practice value, not a figure from a standard.</p>
             <table class="mc-sym">
                 <thead><tr><th>Symbol</th><th>Meaning</th><th>Unit</th></tr></thead>
                 <tbody>
@@ -46,7 +64,13 @@ T&#8344;&#8336;&#8339; = &micro; &middot; F&#8345; &middot; d / 2               
                     <tr><td>b</td><td>Slit width</td><td>mm</td></tr>
                     <tr><td>M<sub>A</sub></td><td>Tightening torque per bolt</td><td>Nm</td></tr>
                     <tr><td>F<sub>V</sub></td><td>Preload achieved in one bolt</td><td>N</td></tr>
-                    <tr><td>F<sub>N</sub></td><td>Normal force at the bore</td><td>N</td></tr>
+                    <tr><td>F<sub>N</sub></td><td>Normal force integrated over the wrapped surface</td><td>N</td></tr>
+                    <tr><td>l<sub>F</sub></td><td>Effective contact length, 0,85&middot;L</td><td>mm</td></tr>
+                    <tr><td>&beta;</td><td>Wrap angle left by the slit</td><td>&deg;</td></tr>
+                    <tr><td>A<sub>s</sub></td><td>Bolt stress cross-section</td><td>mm&#178;</td></tr>
+                    <tr><td>&micro;<sub>G</sub> / &micro;<sub>K</sub></td><td>Thread / bolt head friction coefficient</td><td>&ndash;</td></tr>
+                    <tr><td>&sigma;<sub>red</sub></td><td>Assembly equivalent stress in the bolt, VDI 2230</td><td>MPa</td></tr>
+                    <tr><td>F<sub>M,zul</sub></td><td>Preload the bolt may be taken to</td><td>N</td></tr>
                     <tr><td>&micro;</td><td>Friction coefficient, shaft against hub</td><td>&ndash;</td></tr>
                 </tbody>
             </table>
@@ -84,7 +108,12 @@ T&#8344;&#8336;&#8339; = &micro; &middot; F&#8345; &middot; d / 2               
 Effective contact length           42,5 mm
 Contact area                       5170 mm&#178;
 
-Preload per bolt                  18 262 N   (78 % of bolt yield)
+Preload per bolt                  18 262 N
+Tensile stress                       499 MPa
+Torsion factor (VDI 2230)          1,132
+Assembly equivalent stress           565 MPa   (88 % of bolt yield)
+Allowable preload F_M,zul         18 623 N     at M_A,zul = 25,5 Nm
+
 Normal force at the bore         111 086 N
 Mean contact pressure              21,5 MPa
 Maximum contact pressure           33,7 MPa
@@ -92,14 +121,18 @@ Maximum contact pressure           33,7 MPa
 Torque capacity                   333,3 Nm
 Applied torque                    200,0 Nm
 Safety against sliding              1,67
-Hub von Mises stress               56,2 MPa   &rarr; SF 7,65
-Bolt yield safety                   1,28</pre>
+Hub von Mises stress (at p_max)    88,3 MPa   -&gt; SF 4,87
+Bolt yield safety                   1,13   governing</pre>
             <p>The joint holds, but read the two low numbers together. Sliding safety is 1,67
-            &mdash; acceptable &mdash; and it is bought by running the bolts at 78 % of yield,
-            which leaves a bolt safety of only 1,28. <strong>There is no spare capacity in either
-            direction</strong>: you cannot tighten harder to gain grip, because the bolts are
-            already the limiting part.</p>
-            <p>The hub is loafing at a safety of 7,65. That is the signature of a clamp joint
+            &mdash; acceptable &mdash; and it is bought by running the bolts at <strong>88 % of
+            yield</strong>, which leaves a bolt safety of only 1,13. Note where that 88 % comes
+            from: the tensile stress alone is 499 MPa, 78 % of yield, and it is the <em>torsion</em>
+            from the thread friction that takes the equivalent stress to 565 MPa. A reader who
+            looked only at the tension would think there was 22 % in hand when there is 12 %.</p>
+            <p>25 Nm is also within 2 % of this bolt's allowable tightening torque, so there is no
+            room to tighten for more grip even in principle. <strong>There is no spare capacity in
+            either direction</strong>: the bolts are already the limiting part.</p>
+            <p>The hub is loafing at a safety of 4,87. That is the signature of a clamp joint
             that is bolt-limited rather than hub-limited, and it points straight at the fix
             &mdash; go to M10, or to four bolts, before making the clamp any heavier.</p>
         </div>
@@ -113,9 +146,23 @@ Bolt yield safety                   1,28</pre>
             warning and often destroys the shaft surface on its way round.</p>
             <p><strong>Bolt yield safety</strong> is the other half of the same trade. Torque
             capacity and bolt stress rise together, so improving one worsens the other; the only
-            way out is more bolts or bigger ones.</p>
+            way out is more bolts or bigger ones. It is read on the <em>assembly equivalent
+            stress</em>, which includes the torsion the thread friction leaves in the bolt &mdash;
+            about 13 % above the tensile stress for an M8 at &micro;<sub>G</sub> = 0,12. The results
+            also give F<sub>M,zul</sub> and the torque that produces it; enter more than that and
+            the capacities are computed at F<sub>M,zul</sub> rather than at a preload the bolt
+            cannot deliver, and the page says so.</p>
             <p><strong>Contact pressure</strong> matters for soft shafts and for hollow ones. The
-            maximum figure, not the mean, is what to compare against the permissible pressure.</p>
+            maximum figure, not the mean, is what to compare against the permissible pressure
+            &mdash; and it is also what drives the hub stress check.</p>
+            <p><strong>Grey cast iron is a special case.</strong> It has no yield point, so the
+            "yield strength" used for it is a stand-in and von Mises is the wrong criterion: a
+            brittle material fails on maximum normal stress against R<sub>m</sub>. The results say
+            so when either part is a lamellar iron. Nodular iron (EN-GJS / GGG) does have a proof
+            stress and is unaffected.</p>
+            <p><strong>Follow the governing check when you change something.</strong> The results
+            name it. Tightening harder helps a sliding-limited joint and makes a bolt-limited one
+            worse, which is the most common way to get this backwards.</p>
             <p><strong>This module is not verified against a reference calculation.</strong> It
             models the clamp as a split hub with a reduced contact arc. A single-slit clamp also
             works as a lever about the hinge opposite the slit, which concentrates pressure near

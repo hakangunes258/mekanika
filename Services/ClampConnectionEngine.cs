@@ -52,16 +52,44 @@ public class ClampConnectionEngine
     public double EffectiveContactLength { get; set; } // Leff (mm)
 
     // Calculated Values - Bolt
-    public double BoltPreloadForce { get; set; }      // Fv (N) - preload force from tightening
+    public double BoltPreloadForce { get; set; }      // Fv (N) - preload the entered torque would give
     public double BoltStressArea { get; set; }        // As (mm²)
-    public double BoltStress { get; set; }            // σb (MPa)
-    public double BoltUtilization { get; set; }       // % of yield
+    public double BoltStress { get; set; }            // σb (MPa) - tensile only
+    public double BoltUtilization { get; set; }       // % of yield, on the equivalent stress
+
+    /// <summary>
+    /// Torsional/tensile coupling factor of VDI 2230: the ratio by which the
+    /// thread's friction torque raises the assembly equivalent stress above the
+    /// pure tensile stress. 1,13 for an M8 at µ_G = 0,12.
+    /// </summary>
+    public double BoltTorsionFactor { get; set; }
+    /// <summary>VDI 2230 assembly equivalent stress, tension and torsion together (MPa).</summary>
+    public double BoltEquivalentStress { get; set; }
+    /// <summary>F_M,zul: the preload the bolt may be taken to, at 90 % of yield on σ_red (N).</summary>
+    public double AllowablePreloadForce { get; set; }
+    /// <summary>Tightening torque that produces F_M,zul (Nm).</summary>
+    public double AllowableTighteningTorque { get; set; }
+    /// <summary>
+    /// Preload actually used for every capacity below. Capped at F_M,zul, because
+    /// a bolt that has yielded or snapped cannot deliver more.
+    /// </summary>
+    public double EffectivePreloadForce { get; set; }
+    /// <summary>True when the entered torque asks for more preload than the bolt can carry.</summary>
+    public bool PreloadExceedsAllowable { get; set; }
 
     // Calculated Values - Contact Pressure
     public double NormalForce { get; set; }           // Fn (N) - normal force on interface
     public double ContactPressure { get; set; }       // p (MPa)
     public double MaxContactPressure { get; set; }    // pmax (MPa)
     public double AllowableContactPressure { get; set; } // pzul (MPa)
+    /// <summary>Which part supplied the allowable bearing pressure.</summary>
+    public string BearingMaterialLabel { get; set; } = "";
+    /// <summary>True when the hub material has no real yield point (grey cast iron).</summary>
+    public bool BrittleHubMaterial { get; set; }
+    /// <summary>True when the shaft material has no real yield point (grey cast iron).</summary>
+    public bool BrittleShaftMaterial { get; set; }
+    /// <summary>Which check produced the minimum safety factor, for the design advice.</summary>
+    public string GoverningCheck { get; set; } = "";
 
     // Calculated Values - Capacities
     public double TorqueCapacity { get; set; }        // Tmax (Nm)
@@ -176,14 +204,15 @@ public class ClampConnectionEngine
         {
             // Approximate stress area for non-standard bolts
             double d2Approx = BoltDiameter - 0.6495 * ThreadPitch; // Pitch diameter
-            double d3 = BoltDiameter - 1.2268 * ThreadPitch; // Minor diameter
-            BoltStressArea = Math.PI / 4 * Math.Pow((d2Approx + d3) / 2, 2);
+            double d3Approx = BoltDiameter - 1.2268 * ThreadPitch; // Minor diameter
+            BoltStressArea = Math.PI / 4 * Math.Pow((d2Approx + d3Approx) / 2, 2);
         }
 
         // Calculate preload force from tightening torque
         // MA = Fv × (0.16 × P + 0.58 × d2 × μG + dm/2 × μK)
         // Simplified: MA ≈ Fv × d × (0.16 + 0.58 × μG + 0.5 × μK) for M×1 thread
         double d2 = BoltDiameter - 0.6495 * ThreadPitch; // Pitch diameter
+        double d3 = BoltDiameter - 1.2268 * ThreadPitch; // Minor diameter
         double dm = BoltDiameter * 1.4; // Approximate bearing diameter under head
 
         double threadTerm = ThreadPitch / (2 * Math.PI) + FrictionCoefficientThread * d2 / (2 * Math.Cos(Math.PI / 6));
@@ -195,9 +224,51 @@ public class ClampConnectionEngine
             BoltPreloadForce = (BoltTighteningTorque * 1000) / totalFactor; // Convert Nm to Nmm
         }
 
-        // Bolt stress
-        BoltStress = BoltPreloadForce / BoltStressArea;
-        BoltUtilization = (BoltStress / BoltYieldStrength) * 100;
+        // Tensile stress from the preload alone
+        BoltStress = BoltStressArea > 0 ? BoltPreloadForce / BoltStressArea : 0;
+
+        // ---- VDI 2230 assembly equivalent stress ----
+        //
+        // While it is being tightened the bolt also carries the TORSION of the
+        // thread's friction torque, and that torsion is still there once the
+        // wrench comes off. Checking the tensile stress alone overstates the
+        // reserve: an M8 at µ_G = 0,12 reads 78 % of yield on tension and 88 %
+        // on the equivalent stress, so a user who thinks there is 22 % left
+        // actually has about 12 %.
+        //
+        //   sigma_red = sigma_M * sqrt(1 + 3 [ 1,5 (d_2/d_S)(P/(pi d_2) + 1,155 µ_G) ]^2)
+        //
+        // with d_S the diameter of the stress cross-section.
+        double dS = (d2 + d3) / 2.0;
+        if (d2 > 0 && dS > 0)
+        {
+            double k = 1.5 * (d2 / dS)
+                       * (ThreadPitch / (Math.PI * d2) + 1.155 * FrictionCoefficientThread);
+            BoltTorsionFactor = Math.Sqrt(1.0 + 3.0 * k * k);
+        }
+        else
+        {
+            BoltTorsionFactor = 1.0;
+        }
+
+        BoltEquivalentStress = BoltStress * BoltTorsionFactor;
+        BoltUtilization = BoltYieldStrength > 0
+            ? BoltEquivalentStress / BoltYieldStrength * 100 : 0;
+
+        // F_M,zul: 90 % of yield on the equivalent stress - VDI's own usable
+        // preload. For an M8 8.8 at µ_G = 0,12 this gives 18,6 kN, which is the
+        // figure its tables carry.
+        AllowablePreloadForce = BoltYieldStrength > 0 && BoltTorsionFactor > 0
+            ? 0.9 * BoltYieldStrength * BoltStressArea / BoltTorsionFactor : 0;
+        AllowableTighteningTorque = AllowablePreloadForce * totalFactor / 1000.0;
+
+        // A bolt that has yielded cannot deliver more preload, so the capacities
+        // below must not be computed from one that is impossible. The entered
+        // value is still reported, next to the limit.
+        PreloadExceedsAllowable = AllowablePreloadForce > 0
+                                  && BoltPreloadForce > AllowablePreloadForce;
+        EffectivePreloadForce = PreloadExceedsAllowable
+            ? AllowablePreloadForce : BoltPreloadForce;
     }
 
     private void CalculateContactPressure()
@@ -229,7 +300,7 @@ public class ClampConnectionEngine
         // single-slit collars - see the module verification status.
 
         double projectedArea = ShaftDiameter * EffectiveContactLength; // mm²
-        double totalPreload = BoltPreloadForce * NumberOfBolts;        // N
+        double totalPreload = EffectivePreloadForce * NumberOfBolts;   // N
 
         // Total normal force integrated over the contact surface
         NormalForce = Math.PI * totalPreload * (ContactAngle / 360.0);
@@ -246,8 +317,35 @@ public class ClampConnectionEngine
         // Allowable contact pressure (based on weaker material)
         double hubYield = HubMaterial.YieldStrength;
         double shaftYield = ShaftMaterial.YieldStrength;
-        double weakerYield = Math.Min(hubYield, shaftYield);
+        bool hubGoverns = hubYield <= shaftYield;
+        double weakerYield = hubGoverns ? hubYield : shaftYield;
+        var weaker = hubGoverns ? HubMaterial : ShaftMaterial;
         AllowableContactPressure = weakerYield * 0.8; // 80% of yield for bearing
+        BearingMaterialLabel = string.IsNullOrWhiteSpace(weaker.Name)
+            ? (hubGoverns ? "hub" : "shaft")
+            : $"{(hubGoverns ? "hub" : "shaft")} ({weaker.Name})";
+
+        // Grey cast iron has no yield point: a "yield strength" quoted for it is
+        // a stand-in, and von Mises is the wrong criterion for a brittle material
+        // anyway. Say so rather than presenting a safety factor as if it meant
+        // the same thing as it does for steel.
+        BrittleHubMaterial = IsGreyCastIron(HubMaterial);
+        BrittleShaftMaterial = IsGreyCastIron(ShaftMaterial);
+    }
+
+    /// <summary>
+    /// Lamellar (grey) cast iron, EN-GJL / GG. Nodular iron (EN-GJS / GGG) does
+    /// have a proof stress and is not included.
+    ///
+    /// ToLowerInvariant, never ToLower: under a Turkish culture "GJL" lowercases
+    /// its I to a dotless i and the match fails.
+    /// </summary>
+    private static bool IsGreyCastIron(Material material)
+    {
+        string name = (material.Name ?? string.Empty).ToLowerInvariant();
+        string standard = (material.Standard ?? string.Empty).ToLowerInvariant();
+        return name.Contains("gjl") || standard.Contains("gjl")
+               || (name.StartsWith("gg") && !name.StartsWith("ggg"));
     }
 
     private void CalculateCapacities()
@@ -279,14 +377,24 @@ public class ClampConnectionEngine
         double Da = ClampOuterDiameter;
         double Qa = d / Da;
 
-        // Hub stresses (similar to thick-walled cylinder under external pressure)
-        // The clamp experiences internal pressure from the bolt clamping
+        // Hub stresses, closed-ring Lamé under internal pressure.
+        //
+        // Driven by the PEAK pressure, not the mean. The pressure is not uniform
+        // around a clamped bore - the module's own Kp factor says so, and the
+        // results text tells the reader to compare the maximum - so feeding the
+        // mean into the stress check contradicted both. On the default example
+        // that is 88 MPa rather than 56, and a hub safety factor of 4,9 rather
+        // than 7,7.
+        //
+        // The closed-ring solution is itself an approximation here: a single-slit
+        // clamp is an open ring and carries its load largely in bending about the
+        // hinge opposite the slot. That is why this module is not marked verified.
 
         // Tangential stress at inner surface (max tensile at slit region)
-        HubTangentialStress = ContactPressure * (1 + Qa * Qa) / (1 - Qa * Qa);
+        HubTangentialStress = MaxContactPressure * (1 + Qa * Qa) / (1 - Qa * Qa);
 
         // Radial stress at inner surface
-        HubRadialStress = -ContactPressure;
+        HubRadialStress = -MaxContactPressure;
 
         // Von Mises equivalent stress
         HubVonMisesStress = Math.Sqrt(
@@ -313,9 +421,9 @@ public class ClampConnectionEngine
             ? HubMaterial.YieldStrength / HubVonMisesStress
             : 999;
 
-        // Safety factor for bolt
-        SafetyFactorBolt = BoltStress > 0
-            ? BoltYieldStrength / BoltStress
+        // Safety factor for the bolt, on the VDI 2230 assembly equivalent stress
+        SafetyFactorBolt = BoltEquivalentStress > 0
+            ? BoltYieldStrength / BoltEquivalentStress
             : 999;
 
         // Safety factor for contact pressure
@@ -323,11 +431,28 @@ public class ClampConnectionEngine
             ? AllowableContactPressure / MaxContactPressure
             : 999;
 
-        // Minimum overall safety factor
-        SafetyFactorMin = Math.Min(
-            Math.Min(SafetyFactorSliding, SafetyFactorHubStress),
-            Math.Min(SafetyFactorBolt, SafetyFactorPressure)
-        );
+        // Minimum overall safety factor, and which check it came from. Design
+        // advice has to follow the governing check: the page used to tell a user
+        // whose BOLT was the limiting part to tighten it harder, which makes the
+        // only failing check worse.
+        var checks = new (double Value, string Name)[]
+        {
+            (SafetyFactorSliding, "sliding"),
+            (SafetyFactorHubStress, "hub stress"),
+            (SafetyFactorBolt, "bolt"),
+            (SafetyFactorPressure, "bearing pressure")
+        };
+
+        SafetyFactorMin = 999;
+        GoverningCheck = "";
+        foreach (var check in checks)
+        {
+            if (check.Value < SafetyFactorMin)
+            {
+                SafetyFactorMin = check.Value;
+                GoverningCheck = check.Name;
+            }
+        }
     }
 }
 
