@@ -286,6 +286,33 @@ else
                     <tr><td>Minimum Contact Pressure (Operating)</td><td>p<sub>min</sub></td><td>@engine.MinContactPressure.ToString("F2")</td><td>MPa</td></tr>
                 </tbody>
             </table>
+
+            @if (engine.InterferenceLossReasons.Count > 0)
+            {
+                <div class="alert alert-danger" style="margin-top: 16px;">
+                    <ModuleIcon Type="warning" Size="small" Style="default" />
+                    <div>
+                        <strong>No interference is left at the loose limit, so the joint transmits nothing.</strong>
+                        <ul style="margin: 8px 0 0 0; padding-left: 20px;">
+                            @foreach (var reason in engine.InterferenceLossReasons)
+                            {
+                                <li>@reason</li>
+                            }
+                        </ul>
+                    </div>
+                </div>
+            }
+            else if (engine.IsTransitionFit)
+            {
+                <div class="alert alert-warning" style="margin-top: 16px;">
+                    <ModuleIcon Type="warning" Size="small" Style="default" />
+                    <div>
+                        <strong>This is a transition fit.</strong>
+                        At its loose limit the tolerance pair gives @Math.Abs(engine.MinInterference).ToString("F1") μm of
+                        clearance, not interference. The minimum capacities below are therefore zero by construction.
+                    </div>
+                </div>
+            }
         </div>
 
         <!-- Stresses -->
@@ -294,16 +321,45 @@ else
             <table class="results-table">
                 <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
                 <tbody>
-                    <tr><td colspan="4" class="table-section-header">Shaft Stresses</td></tr>
+                    <tr><td colspan="4" class="table-section-header">Shaft Stresses — @engine.ShaftGoverningState, at the @engine.ShaftStressPoint</td></tr>
                     <tr><td>Tangential Stress</td><td>σ<sub>t,shaft</sub></td><td>@engine.ShaftTangentialStress.ToString("F1")</td><td>MPa</td></tr>
                     <tr><td>Radial Stress</td><td>σ<sub>r,shaft</sub></td><td>@engine.ShaftRadialStress.ToString("F1")</td><td>MPa</td></tr>
                     <tr class="@(engine.ShaftVonMisesStress > engine.ShaftMaterial.YieldStrength * 0.8 ? "warning" : "")"><td>Von Mises Stress</td><td>σ<sub>v,shaft</sub></td><td>@engine.ShaftVonMisesStress.ToString("F1")</td><td>MPa</td></tr>
-                    <tr><td colspan="4" class="table-section-header">Hub Stresses</td></tr>
+                    <tr><td colspan="4" class="table-section-header">Hub Stresses — @engine.HubGoverningState, at the @engine.HubStressPoint</td></tr>
                     <tr><td>Tangential Stress</td><td>σ<sub>t,hub</sub></td><td>@engine.HubTangentialStress.ToString("F1")</td><td>MPa</td></tr>
                     <tr><td>Radial Stress</td><td>σ<sub>r,hub</sub></td><td>@engine.HubRadialStress.ToString("F1")</td><td>MPa</td></tr>
                     <tr class="@(engine.HubVonMisesStress > engine.HubMaterial.YieldStrength * 0.8 ? "warning" : "")"><td>Von Mises Stress</td><td>σ<sub>v,hub</sub></td><td>@engine.HubVonMisesStress.ToString("F1")</td><td>MPa</td></tr>
                 </tbody>
             </table>
+
+            @if (engine.StressCases.Count > 1)
+            {
+                <h3 style="margin: 20px 0 8px 0; font-size: 15px; color: #2c3e50;">Operating states compared</h3>
+                <table class="results-table">
+                    <thead><tr><th>State</th><th>p</th><th>σ<sub>v,shaft</sub></th><th>σ<sub>v,hub</sub></th></tr></thead>
+                    <tbody>
+                        @foreach (var c in engine.StressCases)
+                        {
+                            <tr class="@(c.State == engine.ShaftGoverningState || c.State == engine.HubGoverningState ? "highlight" : "")">
+                                <td>@c.State</td>
+                                <td>@c.Pressure.ToString("F2")</td>
+                                <td>@c.ShaftVonMises.ToString("F1") <span style="color:#6c757d">(@c.ShaftPoint)</span></td>
+                                <td>@c.HubVonMises.ToString("F1") <span style="color:#6c757d">(@c.HubPoint)</span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            <p style="margin: 12px 0 0 0; font-size: 13px; color: #6c757d;">
+                Each member is evaluated at every candidate point and the largest value is reported.
+                In a <strong>hollow shaft the peak stress is at the bore</strong>, where σ<sub>r</sub> has
+                relaxed to zero and σ<sub>t</sub> = −2p/(1−Q<sub>i</sub>²) — reading the fit surface alone
+                understates it. Yield is checked against the <strong>worst</strong> operating state, because
+                rotation and a hotter hub both relieve the interference: the parts can be at their tightest
+                the moment the machine stops or cools.
+                Von Mises is taken under plane stress, σ<sub>v</sub> = √(σ<sub>t</sub>² − σ<sub>t</sub>σ<sub>r</sub> + σ<sub>r</sub>²).
+            </p>
         </div>
 
         <!-- Load Capacities -->
@@ -319,8 +375,21 @@ else
                     <tr><td>Maximum Torque Capacity</td><td>T<sub>max</sub></td><td>@engine.MaxTorqueCapacity.ToString("F1")</td><td>Nm</td></tr>
                     <tr class="highlight"><td>Minimum Axial Force Capacity</td><td>F<sub>a,min</sub></td><td>@((engine.MinAxialForceCapacity/1000).ToString("F2"))</td><td>kN</td></tr>
                     <tr><td>Maximum Axial Force Capacity</td><td>F<sub>a,max</sub></td><td>@((engine.MaxAxialForceCapacity/1000).ToString("F2"))</td><td>kN</td></tr>
+                    <tr><td colspan="4" class="table-section-header">Combined Loading (one friction interface)</td></tr>
+                    <tr><td>Tangential Force from Torque</td><td>F<sub>t</sub></td><td>@((engine.TangentialForce/1000).ToString("F2"))</td><td>kN</td></tr>
+                    <tr class="highlight"><td>Resultant of Torque and Axial Force</td><td>F<sub>res</sub></td><td>@((engine.ResultantForce/1000).ToString("F2"))</td><td>kN</td></tr>
+                    <tr><td>Minimum Resultant Capacity (μ = @engine.FrictionCoefficientCombined.ToString("F2"))</td><td>F<sub>res,cap</sub></td><td>@((engine.MinResultantCapacity/1000).ToString("F2"))</td><td>kN</td></tr>
                 </tbody>
             </table>
+            <p style="margin: 12px 0 0 0; font-size: 13px; color: #6c757d;">
+                Torque and axial force are carried by the <strong>same</strong> friction interface, so their
+                components share one capacity: F<sub>res</sub> = √(F<sub>t</sub>² + F<sub>a</sub>²) against
+                μ·p<sub>min</sub>·π·d·L, with F<sub>t</sub> = 2000·T·φ/d. Checking the two separately passes
+                joints that slip — the resultant safety is never higher than either of them, and is strictly
+                lower when both loads act.
+                The lower of the two friction coefficients entered is used, since the resultant slides in
+                whichever direction is weaker.
+            </p>
         </div>
 
         <!-- Assembly -->
@@ -330,6 +399,7 @@ else
                 <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
                 <tbody>
                     <tr class="highlight"><td>Max Press-Fit Assembly Force</td><td>F<sub>asm</sub></td><td>@((engine.AssemblyForce / 1000).ToString("F2"))</td><td>kN</td></tr>
+                    <tr><td>Assembly Clearance Assumed</td><td>Δ<sub>asm</sub></td><td>@((engine.AssemblyClearance * 1000).ToString("F0"))</td><td>μm</td></tr>
                     <tr><td>Hub Heating Temp (for Shrink Fit)</td><td>T<sub>heat</sub></td><td>@engine.HeatingTemperature.ToString("F0")</td><td>°C</td></tr>
                     <tr><td>Shaft Cooling Temp (for Shrink Fit)</td><td>T<sub>cool</sub></td><td>@engine.CoolingTemperature.ToString("F0")</td><td>°C</td></tr>
                 </tbody>
@@ -345,9 +415,10 @@ else
                     <tr><td colspan="4" class="table-section-header">Against Sliding (based on min capacity)</td></tr>
                     <tr class="@GetSafetyRowClass(engine.SafetyFactorSliding)"><td>Torque (vs Applied)</td><td>SF<sub>T</sub></td><td>@FormatSafetyFactor(engine.SafetyFactorSliding)</td><td>@GetSafetyStatus(engine.SafetyFactorSliding)</td></tr>
                     <tr class="@GetSafetyRowClass(engine.SafetyFactorAxial)"><td>Axial Force (vs Applied)</td><td>SF<sub>F</sub></td><td>@FormatSafetyFactor(engine.SafetyFactorAxial)</td><td>@GetSafetyStatus(engine.SafetyFactorAxial)</td></tr>
-                    <tr><td colspan="4" class="table-section-header">Against Yielding (at max interference)</td></tr>
-                    <tr class="@GetSafetyRowClass(engine.SafetyFactorShaftStress)"><td>Shaft</td><td>SF<sub>shaft</sub></td><td>@FormatSafetyFactor(engine.SafetyFactorShaftStress)</td><td>@GetSafetyStatus(engine.SafetyFactorShaftStress)</td></tr>
-                    <tr class="@GetSafetyRowClass(engine.SafetyFactorHubStress)"><td>Hub</td><td>SF<sub>hub</sub></td><td>@FormatSafetyFactor(engine.SafetyFactorHubStress)</td><td>@GetSafetyStatus(engine.SafetyFactorHubStress)</td></tr>
+                    <tr class="@GetSafetyRowClass(engine.SafetyFactorCombined)"><td><strong>Resultant of Both (governing)</strong></td><td>SF<sub>res</sub></td><td>@FormatSafetyFactor(engine.SafetyFactorCombined)</td><td>@GetSafetyStatus(engine.SafetyFactorCombined)</td></tr>
+                    <tr><td colspan="4" class="table-section-header">Against Yielding (worst operating state)</td></tr>
+                    <tr class="@GetSafetyRowClass(engine.SafetyFactorShaftStress)"><td>Shaft — @engine.ShaftGoverningState, at the @engine.ShaftStressPoint</td><td>SF<sub>shaft</sub></td><td>@FormatSafetyFactor(engine.SafetyFactorShaftStress)</td><td>@GetSafetyStatus(engine.SafetyFactorShaftStress)</td></tr>
+                    <tr class="@GetSafetyRowClass(engine.SafetyFactorHubStress)"><td>Hub — @engine.HubGoverningState, at the @engine.HubStressPoint</td><td>SF<sub>hub</sub></td><td>@FormatSafetyFactor(engine.SafetyFactorHubStress)</td><td>@GetSafetyStatus(engine.SafetyFactorHubStress)</td></tr>
                 </tbody>
             </table>
         </div>
@@ -536,10 +607,14 @@ else
             }
         }
 
+        // Say whose limit this is. ISO 286-2 itself defines these fields up to
+        // 3150 mm; the table built into this calculator stops at 500 mm, and
+        // claiming the standard does not define them was simply wrong.
         toleranceWarning = unsupported.Count == 0
             ? null
-            : $"{string.Join(" and ", unsupported)} is not defined by ISO 286 for a {engine.NominalDiameter:F1} mm nominal size. " +
-              "Choose another fit or switch to Custom and enter the deviations manually.";
+            : $"{string.Join(" and ", unsupported)} at a {engine.NominalDiameter:F1} mm nominal size is outside " +
+              "the ISO 286 table built into this calculator, which covers 1 mm to 500 mm. " +
+              "ISO 286-2 does define these fields above 500 mm — switch to Custom and enter the deviations from it.";
     }
 
     private async Task Calculate()
@@ -555,6 +630,16 @@ else
             if (engine.FitLength <= 0) validationMessages.Add("Fit length (L) must be greater than 0.");
             if (engine.HubOuterDiameter <= engine.NominalDiameter)
                 validationMessages.Add($"Hub outer diameter (Da) must be larger than the nominal diameter ({engine.NominalDiameter:F1} mm).");
+            if (engine.ShaftInnerDiameter < 0)
+                validationMessages.Add("Shaft inner diameter (di) cannot be negative. Enter 0 for a solid shaft.");
+            else if (engine.NominalDiameter > 0 && engine.ShaftInnerDiameter >= engine.NominalDiameter)
+                validationMessages.Add($"Shaft inner diameter (di) must be smaller than the nominal diameter ({engine.NominalDiameter:F1} mm) — the shaft needs a wall to be pressed on.");
+            if (engine.ShaftRoughness < 0 || engine.HubRoughness < 0)
+                validationMessages.Add("Surface roughness (Rz) cannot be negative.");
+            if (engine.RotationalSpeed < 0)
+                validationMessages.Add("Rotational speed cannot be negative.");
+            if (toleranceWarning != null)
+                validationMessages.Add("The selected fit has no ISO 286 deviations at this diameter, so the deviations are all zero. Pick another fit or switch to Custom.");
 
             if (validationMessages.Count > 0)
             {

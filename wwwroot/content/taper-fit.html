@@ -20,8 +20,10 @@
     pressure. This is why a taper joint can be taken apart and put back together without
     losing its grip, and why the same joint can be tuned on the bench.</p>
 
-    <p>The taper ratio does the conversion. On a 1:10 cone, pushing the hub 0,30 mm along the
-    axis increases the radius by 0,015 mm, so the axial travel is amplified by ten to one. From
+    <p>The taper ratio does the conversion, and it <em>divides</em>: on a 1:10 cone, pushing the
+    hub 0,30 mm along the axis increases the radius by only 0,015 mm &mdash; a tenth of the travel
+    on the diameter, a twentieth on the radius. That reduction is the point. It is what makes the
+    interference settable on the bench to a few microns with ordinary shop measurement. From
     there the calculation is the same thick-cylinder problem as a cylindrical press fit:
     interference minus roughness loss gives contact pressure, and pressure times friction times
     area gives the torque the joint can carry.</p>
@@ -31,27 +33,46 @@
         <div class="mc-body">
             <p>The taper converts axial travel into radial interference, and Lam&eacute;'s
             thick-cylinder solution converts interference into pressure:</p>
-<pre>U&#7523; = &Delta;s / (2X)                      taper 1:X, radial interference
-U&#8329; = 2 U&#7523; &minus; 0,8 (Rz&#8321; + Rz&#8322;)          effective diametral interference
+<pre>U_r = ds / (2X)                        taper 1:X, radial interference
+U_e = 2 U_r - 0,8 (Rz_1 + Rz_2)        effective diametral interference
 
-p  = U&#8329; / [ d&#8344; &middot; (C&#8321;/E&#8321; + C&#8322;/E&#8322;) ]
+p   = U_e / [ d_m . (C_1/E_1 + C_2/E_2) ]
 
-T&#8344;&#8336;&#8339; = &micro;&#7496; &middot; p &middot; &pi; &middot; d&#8344;&#178; &middot; L / 2
-F&#8336;&#8347;&#8344; = p &middot; &pi; &middot; d&#8344; &middot; L &middot; (&micro;&#8347; + tan&#945;)   assembly force</pre>
-            <p>Note which friction coefficient goes where. The <em>static</em> coefficient
-            resists the wedge trying to push the hub back off and sets the assembly force; the
-            <em>dynamic</em> one is what carries torque in service.</p>
+T_cap = mu_d . p . pi . d_m^2 . L / 2                    torque capacity
+F_asm = p . pi . d_m . L . (mu_s/cos phi + tan phi)      force to press ON
+F_ext = p . pi . d_m . L . (mu_s/cos phi - tan phi)      force to pull OFF
+F_a   = p . pi . d_m . L . (mu_d/cos phi - tan phi)      axial capacity in service
+
+self-locking  when  mu_s/cos phi &gt; tan phi   (i.e. mu_s &gt; sin phi)</pre>
+            <p>Note which friction coefficient goes where. The <em>static</em> coefficient governs
+            assembly, extraction and self-locking &mdash; every one of those is a break-loose
+            condition. The <em>dynamic</em> one governs sliding in service, so it is what carries
+            torque and an axial load.</p>
+            <p><strong>Self-locking is a property of the friction coefficient, not of the taper
+            ratio.</strong> F<sub>ext</sub> above goes negative as soon as the wedge term beats the
+            friction term, and the cone then pushes its own hub off: it has <em>no</em> axial
+            holding capacity and needs a nut holding at least
+            p&middot;&pi;&middot;d<sub>m</sub>&middot;L&middot;(tan&nbsp;&phi; &minus; &micro;<sub>s</sub>/cos&nbsp;&phi;).
+            A fixed angle cut-off cannot see this: at &micro;<sub>s</sub> = 0,10 a 1:5 cone
+            (&phi; = 5,71&deg;) is already at its limit, while at &micro;<sub>s</sub> = 0,15 it
+            still holds.</p>
+            <p><strong>Torque and an axial force draw on the same friction interface.</strong>
+            Their two capacities are not equal here, because the wedge opposes an axial load and
+            does nothing to a torque, so they are combined as
+            (F<sub>t</sub>/F<sub>t,cap</sub>)&sup2; + (F<sub>a</sub>/F<sub>a,cap</sub>)&sup2; &le; 1
+            rather than as one resultant. With only one load acting this returns that load's own
+            safety factor.</p>
             <table class="mc-sym">
                 <thead><tr><th>Symbol</th><th>Meaning</th><th>Unit</th></tr></thead>
                 <tbody>
-                    <tr><td>d&#8344;</td><td>Mean diameter, at mid-length of the fit</td><td>mm</td></tr>
+                    <tr><td>d<sub>m</sub></td><td>Mean diameter, at mid-length of the fit</td><td>mm</td></tr>
                     <tr><td>L</td><td>Fit length along the axis</td><td>mm</td></tr>
                     <tr><td>X</td><td>Taper ratio denominator, as in 1:X</td><td>&ndash;</td></tr>
                     <tr><td>&Delta;s</td><td>Axial displacement during assembly</td><td>mm</td></tr>
                     <tr><td>&#945;</td><td>Half angle of the cone</td><td>&deg;</td></tr>
-                    <tr><td>U&#8329;</td><td>Effective diametral interference after roughness loss</td><td>&micro;m</td></tr>
+                    <tr><td>U<sub>e</sub></td><td>Effective diametral interference after roughness loss</td><td>&micro;m</td></tr>
                     <tr><td>p</td><td>Contact pressure at the interface</td><td>MPa</td></tr>
-                    <tr><td>&micro;&#8347; / &micro;&#7496;</td><td>Static / dynamic friction coefficient</td><td>&ndash;</td></tr>
+                    <tr><td>&micro;<sub>s</sub> / &micro;<sub>d</sub></td><td>Static / dynamic friction coefficient</td><td>&ndash;</td></tr>
                 </tbody>
             </table>
         </div>
@@ -83,8 +104,8 @@ F&#8336;&#8347;&#8344; = p &middot; &pi; &middot; d&#8344; &middot; L &middot; (
         <summary>Worked example</summary>
         <div class="mc-body">
             <p>A C45 hub on a C45 shaft end: mean diameter 50 mm, 60 mm of contact, 1:10 taper,
-            hub outside diameter 90 mm, both surfaces Rz 6,3 &micro;m, &micro;&#8347; = 0,15,
-            &micro;&#7496; = 0,12, pressed on 0,30 mm, carrying 250 Nm.</p>
+            hub outside diameter 90 mm, both surfaces Rz 6,3 &micro;m, &micro;<sub>s</sub> = 0,15,
+            &micro;<sub>d</sub> = 0,12, pressed on 0,30 mm, carrying 250 Nm.</p>
 <pre>Cone geometry        d&#8321; 47,00  d&#8322; 53,00 mm   2&#945; = 5,72&deg;
 
 Radial interference               15,00 &micro;m
@@ -92,17 +113,33 @@ Diametral interference            30,00 &micro;m
 Roughness loss 0,8(6,3 + 6,3)     10,08 &micro;m
 Effective interference            19,92 &micro;m
 
-Contact pressure                  28,37 MPa
-Hub von Mises stress              72,19 MPa   (C45 yield 430 &rarr; 5,96)
-Shaft von Mises stress            28,37 MPa
+Contact pressure   small end 31,75   mean 28,37   large end 25,29 MPa
+Hub von Mises stress              76,54 MPa   at the small end
+                                              (C45 yield 430 -> 5,62)
+Shaft von Mises stress            31,75 MPa   at the small end
 
 Torque capacity                  802,14 Nm
 Applied torque                   250,00 Nm
 Safety against sliding             3,21
-Required assembly force           53,53 kN</pre>
+Required assembly force           53,53 kN
+Force to pull the hub off          26,79 kN   self-locking
+Axial capacity in service          18,76 kN</pre>
             <p>The joint carries three times the design torque, and the hub is nowhere near
             yield. The number that actually constrains this design is the 53,5 kN assembly force
             &mdash; that is a hydraulic nut or a press, not a hammer.</p>
+            <p>Note the pressure along the cone. The diametral interference &Delta;s/X is the
+            <em>same</em> at every section, but the local diameter is not, so with a constant hub
+            outside diameter the pressure <strong>rises towards the small end</strong>. The hub
+            stress there is 6 % above the mean-diameter value, which is why the results are
+            reported from the governing section rather than from d<sub>m</sub>.</p>
+            <p><strong>Steepen the cone to 1:2</strong> (&phi; = 14,04&deg;, tan&nbsp;&phi; = 0,250
+            against &micro;<sub>s</sub>/cos&nbsp;&phi; = 0,155) and the joint stops holding itself.
+            The axial capacity is zero, not a large positive number, and a nut has to supply about
+            179 kN just to keep the hub seated &mdash; which the calculator does not model, so the
+            torque capacity shown assumes that preload is present. The same cone also shows what
+            reading the mean diameter alone costs: its small end is &#216;35 against &#216;65 at
+            the large end, so the local pressure runs 350 MPa rather than the 199 MPa at
+            d<sub>m</sub>, and the hub safety factor is 0,60 rather than 0,85.</p>
             <p>Halve the displacement to 0,15 mm and the picture inverts. Interference after
             roughness falls to 4,92 &micro;m, pressure to 7,01 MPa, and the torque capacity to
             198,1 Nm &mdash; a safety factor of 0,79 against the same 250 Nm. Halving the travel
@@ -115,19 +152,25 @@ Required assembly force           53,53 kN</pre>
     <details>
         <summary>Reading the result</summary>
         <div class="mc-body">
-            <p><strong>Safety against sliding</strong> is the primary check. Aim for 1,5 or more
-            on torque. Unlike a cylindrical fit there is no minimum-material case to worry
-            about, because you set the interference at assembly &mdash; but that also means an
-            under-pressed joint is entirely a shop-floor error, not a tolerance one.</p>
-            <p><strong>Hub yield</strong> at the large end of the cone, where the wall is
-            thinnest relative to the diameter. Keep von Mises below yield with a factor of about
-            1,5.</p>
+            <p><strong>Safety against sliding</strong> is the primary check. Aim for 1,5 or more.
+            Read the <em>resultant</em> row when both a torque and an axial force act. Unlike a
+            cylindrical fit there is no minimum-material case to worry about, because you set the
+            interference at assembly &mdash; but that also means an under-pressed joint is
+            entirely a shop-floor error, not a tolerance one.</p>
+            <p><strong>Self-locking</strong>, before anything else. If the cone does not hold
+            itself at the friction coefficient you entered, the axial capacity is zero and the
+            whole result depends on a retaining nut that this calculator does not size for you.
+            The results say so explicitly and give the force the nut has to carry.</p>
+            <p><strong>Hub yield at the small end</strong>, where the diameter is least and the
+            local pressure therefore highest &mdash; with a constant hub outside diameter it is
+            <em>not</em> the large end that governs. Keep von Mises below yield with a factor of
+            about 1,5. A hollow shaft is stressed hardest at its own bore rather than at the cone
+            surface; the results name the point each figure was read at.</p>
             <p><strong>Assembly force</strong> decides what equipment you need. It rises roughly
             in step with pressure, so doubling the grip doubles the press. Above about 100 kN,
             oil-injection assembly is usually cheaper than a bigger press.</p>
-            <p>A taper that is too shallow will not release; one that is too steep needs a
-            retaining nut to stop it backing off under vibration. 1:10 with a nut is the common
-            compromise.</p>
+            <p>A taper that is too shallow will not release; one that is too steep does not hold
+            itself at all. 1:10 with a nut is the common compromise.</p>
         </div>
     </details>
 
@@ -140,12 +183,25 @@ Required assembly force           53,53 kN</pre>
             for serviceability, not for maximum grip.</p>
 
             <p class="mc-q">Do I need a retaining nut?</p>
-            <p>On anything steeper than about 1:15, yes. The calculator does not model the nut;
-            it assumes the displacement is maintained.</p>
+            <p>That depends on the friction coefficient as much as on the taper. The condition is
+            &micro;<sub>s</sub>/cos&nbsp;&phi; &gt; tan&nbsp;&phi;: at &micro;<sub>s</sub> = 0,15
+            everything down to about 1:3,5 holds itself, at &micro;<sub>s</sub> = 0,10 only about
+            1:5 and shallower. The calculator states whether <em>your</em> cone is self-locking and
+            gives the force a nut would have to supply if it is not. In practice a nut is fitted on
+            most taper joints regardless, to keep the seating from working loose under vibration,
+            and the calculator does not model it &mdash; it assumes the displacement is maintained.</p>
 
             <p class="mc-q">Can I use a hollow shaft?</p>
             <p>Yes &mdash; enter the bore. A hollow shaft is more compliant, so the same
-            displacement produces less pressure.</p>
+            displacement produces less pressure, but it is stressed hardest at its <em>bore</em>
+            rather than at the cone surface, where the radial stress has relaxed to zero.</p>
+
+            <p class="mc-q">What is not covered?</p>
+            <p>The retaining nut and its preload. Elastic&ndash;plastic design. The pressure peak at
+            the ends of the hub. Any change in interference from temperature or speed &mdash; unlike
+            the cylindrical fit calculator, this module has no inputs for either. And the taper
+            tolerances themselves (angle deviation, contact pattern), which in practice decide how
+            much of the cone is actually bearing.</p>
 
             <p class="mc-q">Which standard is this?</p>
             <p>The same thick-cylinder basis as DIN 7190, applied to a conical interface, with

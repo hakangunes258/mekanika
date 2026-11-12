@@ -37,12 +37,32 @@
             DIN 7190 applies to a cylindrical joint:</p>
 <pre>p = &delta;_eff / [ d &middot; (C&#8321;/E&#8321; + C&#8322;/E&#8322;) ]
 
-C&#8321; = (1 + Q&#7522;&#178;)/(1 &minus; Q&#7522;&#178;) &minus; &nu;&#8321;     Q&#7522; = d&#7522; / d    (shaft bore ratio)
-C&#8322; = (1 + Q&#8336;&#178;)/(1 &minus; Q&#8336;&#178;) + &nu;&#8322;     Q&#8336; = d / d&#8336;    (hub diameter ratio)
+C_1 = (1 + Qi^2)/(1 - Qi^2) - nu_1     Qi = d_i / d    (shaft bore ratio)
+C_2 = (1 + Qa^2)/(1 - Qa^2) + nu_2     Qa = d / d_a    (hub diameter ratio)
 
-T = &micro; &middot; p &middot; &pi; &middot; d&#178; &middot; L / 2</pre>
+T     = mu . p . pi . d^2 . L / 2
+F_a   = mu . p . pi . d . L
+F_t   = 2000 . T . phi / d
+F_res = sqrt(F_t^2 + F_a,applied^2)   against   mu . p_min . pi . d . L</pre>
             <p>The roughness allowance is 0,8 (Rz<sub>shaft</sub> + Rz<sub>hub</sub>), taken off
             the geometric interference before any pressure is worked out.</p>
+            <p><strong>Torque and axial force share one capacity.</strong> There is a single
+            friction interface, so the two load components are not independent: the resultant
+            F<sub>res</sub> is what has to stay inside &micro;&middot;p<sub>min</sub>&middot;&pi;&middot;d&middot;L.
+            Two separate safety factors of 1,28 and 1,59 on the same joint can mean a resultant
+            safety of 0,90.</p>
+            <p><strong>Stresses are read where they peak, which is not always the fit surface.</strong>
+            In a <em>hollow</em> shaft the largest stress sits at the bore, where the radial stress
+            has relaxed to zero:</p>
+<pre>shaft, fit surface:  sigma_r = -p            sigma_t = -p (1 + Qi^2)/(1 - Qi^2)
+shaft, bore:         sigma_r = 0             sigma_t = -2 p / (1 - Qi^2)
+hub, bore:           sigma_r = -p            sigma_t = +p (1 + Qa^2)/(1 - Qa^2)
+hub, outer surface:  sigma_r = 0             sigma_t = +2 p Qa^2 / (1 - Qa^2)
+
+sigma_v = sqrt(sigma_t^2 - sigma_t sigma_r + sigma_r^2)      (plane stress)</pre>
+            <p>At Q<sub>i</sub> = 0,8 the bore value is a third higher than the one at the fit
+            surface. A rotating part also carries a centrifugal hoop stress on top of this, and
+            that term is added at every point.</p>
             <table class="mc-sym">
                 <thead><tr><th>Symbol</th><th>Meaning</th><th>Unit</th></tr></thead>
                 <tbody>
@@ -86,20 +106,32 @@ T = &micro; &middot; p &middot; &pi; &middot; d&#178; &middot; L / 2</pre>
 Roughness loss  0,8 (6,3 + 6,3)    10,08 &micro;m
 Effective interference             48,92 /   7,92 &micro;m
 
-Contact pressure                   71,02 /  11,50 MPa
-Transmissible torque             2008,2  /  325,1  Nm
-Hub von Mises stress              180,74 MPa   (C45 yield 430 &rarr; 2,38)
+Contact pressure                   69,67 /  11,28 MPa
+Transmissible torque             1969,9  /  318,9  Nm
+Hub von Mises stress (bore)       177,3  MPa   (C45 yield 430 -> 2,43)
+Shaft von Mises stress            69,7   MPa   (solid shaft -> 6,17)
 
-Safety against slipping             1,30        (325,1 / 250)
-Assembly force, press fit         100,4 kN
-Shaft heating for shrink fit      148,6 &deg;C</pre>
-            <p>Notice the spread. At maximum material the joint would carry 2008 Nm &mdash; eight
-            times the design load. At minimum material it carries 325 Nm. <strong>The minimum is
+Safety against slipping             1,28        (318,9 / 250)
+Assembly force, press fit          98,5  kN
+Hub heating for shrink fit         149    deg C</pre>
+            <p>Notice the spread. At maximum material the joint would carry 1970 Nm &mdash; eight
+            times the design load. At minimum material it carries 319 Nm. <strong>The minimum is
             the only number that decides whether the joint slips</strong>, and it is the one a
             quick hand calculation usually skips.</p>
             <p>Push the same joint to 1200 Nm and the minimum-material safety factor falls to
             0,27. The fit would hold on most of the parts produced and let go on the rest, which
             is the worst kind of failure to diagnose.</p>
+            <p><strong>Add a 10 kN axial force to the 250 Nm</strong> and nothing about the
+            pressure changes, but the governing check does. The torque alone gives 1,28 and the
+            axial force alone 1,59; their resultant is 14,1 kN against a capacity of 12,8 kN, so
+            the joint slips at a resultant safety of <strong>0,90</strong>. Neither separate
+            figure shows that.</p>
+            <p><strong>Bore the shaft out to &#216;40</strong> (Q<sub>i</sub> = 0,8) and the
+            pressure falls to 31,3 MPa, but the shaft now governs its own yield check: the stress
+            at its <em>bore</em> is 173,7 MPa against 129,6 MPa at the fit surface, so the safety
+            factor is 2,48 rather than the 3,32 the fit surface alone would suggest.</p>
+            <p>It is the <strong>hub</strong> that is heated for a shrink fit, not the shaft. The
+            shaft cooling temperature on the same card is the alternative, not an addition.</p>
         </div>
     </details>
 
@@ -107,11 +139,18 @@ Shaft heating for shrink fit      148,6 &deg;C</pre>
         <summary>Reading the result</summary>
         <div class="mc-body">
             <p>Four checks have to pass, and they pull in opposite directions.</p>
-            <p><strong>Slipping, at minimum interference.</strong> Aim for 1,3&ndash;1,5 on torque.
-            This is the governing check almost every time.</p>
-            <p><strong>Hub stress, at maximum interference.</strong> The hub is the part that
-            yields, not the shaft. Keep von Mises below the yield strength with a factor of about
-            1,5.</p>
+            <p><strong>Slipping, at minimum interference.</strong> Aim for 1,3&ndash;1,5. Read the
+            <em>resultant</em> row when both a torque and an axial force act &mdash; it is the
+            governing one, and it is lower than either load taken alone. This is the check that
+            decides the design almost every time.</p>
+            <p><strong>Yield, at maximum interference and in the worst operating state.</strong>
+            On a solid shaft in a reasonably thick hub it is the hub that yields. Give it a factor
+            of about 1,5 on von Mises. Two things are easy to get wrong here: a
+            <em>hollow</em> shaft is stressed hardest at its bore, not at the fit surface, and
+            rotation or a hotter hub both <em>relieve</em> the interference &mdash; so the state
+            that loads the parts hardest is usually standstill at room temperature, which is where
+            they sit after assembly and at every shutdown. The results name the state and the point
+            each figure was read at.</p>
             <p><strong>Assembly force</strong>, if pressing &mdash; 100 kN needs a real press
             &mdash; and <strong>assembly temperature</strong>, if shrinking. Above roughly
             200&ndash;250 &deg;C a hardened or tempered steel starts losing its heat treatment.</p>
@@ -127,7 +166,16 @@ Shaft heating for shrink fit      148,6 &deg;C</pre>
             <p>Yes. Enter the service temperatures and the interference is corrected for
             differential expansion &mdash; this matters as soon as the two parts are different
             materials. Rotation is included as a centrifugal loss: both parts grow outwards, the
-            hub bore more than the shaft, and the difference comes off the interference.</p>
+            hub bore more than the shaft, and the difference comes off the interference. Note the
+            direction: both of those effects <em>reduce</em> the pressure, so the yield check is
+            run at standstill and at room temperature as well, and the worst of the states is the
+            one reported. Rotation also adds a centrifugal hoop stress, which is included.</p>
+
+            <p class="mc-q">Why does the safety factor read 0,00 with no explanation?</p>
+            <p>It should not any more. When the effective interference reaches zero the results say
+            which input consumed it &mdash; a transition fit that has clearance at its loose limit,
+            a surface finish rough enough to eat the whole allowance, service temperatures that open
+            the joint, or centrifugal expansion at speed.</p>
 
             <p class="mc-q">Why does my joint fail at minimum interference but pass at maximum?</p>
             <p>Because both are real parts. Tolerances mean some of your production sits at each
@@ -135,7 +183,16 @@ Shaft heating for shrink fit      148,6 &deg;C</pre>
 
             <p class="mc-q">Can I use a hollow shaft?</p>
             <p>Yes &mdash; enter the bore. A hollow shaft is more compliant, so the same
-            interference produces less pressure.</p>
+            interference produces less pressure, but it is stressed hardest at its <em>bore</em>
+            rather than at the fit surface. The calculator evaluates both points and reports the
+            larger, naming which one it used.</p>
+
+            <p class="mc-q">What is not covered?</p>
+            <p>Elastic&ndash;plastic design, which DIN 7190 permits, is not implemented &mdash;
+            every result here assumes both parts stay elastic. Neither is the pressure peak at the
+            ends of the hub (edge effect), nor a hub shorter or longer than the fit length. The
+            assembly clearance assumed for the shrink-fit temperature is shown on the results card
+            so you can judge it; it is a practice value, not a figure from the standard.</p>
 
             <p class="mc-q">Which standard is this?</p>
             <p>DIN 7190, using the Lam&eacute; thick-cylinder solution. Tolerance deviations come

@@ -283,7 +283,8 @@ else
                     <tr class="highlight"><td>Large Diameter</td><td>d<sub>2</sub></td><td>@engine.LargeDiameter.ToString("F2")</td><td>mm</td></tr>
                     <tr><td>Full Taper Angle</td><td>2α</td><td>@engine.TaperAngle.ToString("F2")</td><td>°</td></tr>
                     <tr><td>Half Angle</td><td>α</td><td>@engine.HalfAngle.ToString("F2")</td><td>°</td></tr>
-                    <tr><td>Taper Slope</td><td>-</td><td>@engine.TaperSlopePercent.ToString("F2")</td><td>%</td></tr>
+                    <tr><td>Taper (C = 1/X, diameter change per unit length)</td><td>C</td><td>@engine.TaperSlopePercent.ToString("F2")</td><td>%</td></tr>
+                    <tr><td>Surface Slope (C/2, per flank)</td><td>-</td><td>@((engine.TaperSlopePercent / 2).ToString("F2"))</td><td>%</td></tr>
                     <tr><td>Shaft Inner Diameter</td><td>d<sub>i</sub></td><td>@engine.ShaftInnerDiameter.ToString("F2")</td><td>mm</td></tr>
                     <tr><td>Hub Outer Diameter</td><td>D<sub>a</sub></td><td>@engine.HubOuterDiameter.ToString("F2")</td><td>mm</td></tr>
                 </tbody>
@@ -301,9 +302,24 @@ else
                     <tr><td>Diametral Interference</td><td>U<sub>d</sub></td><td>@engine.DiametralInterference.ToString("F2")</td><td>μm</td></tr>
                     <tr><td>Roughness Loss</td><td>R<sub>z</sub></td><td>@engine.RoughnessLoss.ToString("F2")</td><td>μm</td></tr>
                     <tr class="highlight"><td>Effective Interference</td><td>U<sub>eff</sub></td><td>@engine.EffectiveInterference.ToString("F2")</td><td>μm</td></tr>
-                    <tr class="highlight"><td>Contact Pressure</td><td>p</td><td>@engine.ContactPressure.ToString("F2")</td><td>MPa</td></tr>
+                    <tr class="highlight"><td>Contact Pressure (at d<sub>m</sub>)</td><td>p</td><td>@engine.ContactPressure.ToString("F2")</td><td>MPa</td></tr>
                 </tbody>
             </table>
+
+            @if (engine.EffectiveInterference <= 0 && engine.DiametralInterference > 0)
+            {
+                <div class="alert alert-danger" style="margin-top: 16px;">
+                    <ModuleIcon Type="warning" Size="small" Style="default" />
+                    <div>
+                        <strong>Surface roughness has taken the whole interference.</strong>
+                        The axial travel entered produces @engine.DiametralInterference.ToString("F2") μm of diametral
+                        interference and the roughness allowance 0,8·(Rz₁ + Rz₂) removes
+                        @engine.RoughnessLoss.ToString("F2") μm of it. There is nothing left to generate contact
+                        pressure, so every capacity below is zero. Increase the axial travel or specify a finer
+                        finish on either part.
+                    </div>
+                </div>
+            }
         </div>
 
         <!-- Stresses -->
@@ -312,18 +328,45 @@ else
             <table class="results-table">
                 <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
                 <tbody>
-                    <tr><td colspan="4" style="background: #f8f9fa; font-weight: 600; padding: 8px 16px;">Shaft Stresses</td></tr>
+                    <tr><td colspan="4" style="background: #f8f9fa; font-weight: 600; padding: 8px 16px;">Shaft Stresses — at the @engine.ShaftStressPoint</td></tr>
                     <tr><td>Tangential Stress</td><td>σ<sub>t</sub></td><td>@engine.ShaftTangentialStress.ToString("F2")</td><td>MPa</td></tr>
                     <tr><td>Radial Stress</td><td>σ<sub>r</sub></td><td>@engine.ShaftRadialStress.ToString("F2")</td><td>MPa</td></tr>
                     <tr class="@(engine.ShaftVonMisesStress > engine.ShaftMaterial.YieldStrength * 0.8 ? "warning" : "")"><td>Von Mises Stress</td><td>σ<sub>v</sub></td><td>@engine.ShaftVonMisesStress.ToString("F2")</td><td>MPa</td></tr>
                     <tr><td>Yield Strength</td><td>R<sub>e</sub></td><td>@engine.ShaftMaterial.YieldStrength</td><td>MPa</td></tr>
-                    <tr><td colspan="4" style="background: #f8f9fa; font-weight: 600; padding: 8px 16px;">Hub Stresses</td></tr>
+                    <tr><td colspan="4" style="background: #f8f9fa; font-weight: 600; padding: 8px 16px;">Hub Stresses — at the @engine.HubStressPoint</td></tr>
                     <tr><td>Tangential Stress</td><td>σ<sub>t</sub></td><td>@engine.HubTangentialStress.ToString("F2")</td><td>MPa</td></tr>
                     <tr><td>Radial Stress</td><td>σ<sub>r</sub></td><td>@engine.HubRadialStress.ToString("F2")</td><td>MPa</td></tr>
                     <tr class="@(engine.HubVonMisesStress > engine.HubMaterial.YieldStrength * 0.8 ? "warning" : "")"><td>Von Mises Stress</td><td>σ<sub>v</sub></td><td>@engine.HubVonMisesStress.ToString("F2")</td><td>MPa</td></tr>
                     <tr><td>Yield Strength</td><td>R<sub>e</sub></td><td>@engine.HubMaterial.YieldStrength</td><td>MPa</td></tr>
                 </tbody>
             </table>
+
+            @if (engine.Sections.Count > 0)
+            {
+                <h3 style="margin: 20px 0 8px 0; font-size: 15px; color: #2c3e50;">Along the cone</h3>
+                <table class="results-table">
+                    <thead><tr><th>Section</th><th>d</th><th>p</th><th>σ<sub>v,hub</sub></th></tr></thead>
+                    <tbody>
+                        @foreach (var s in engine.Sections)
+                        {
+                            <tr class="@(s.Name == engine.GoverningSection ? "highlight" : "")">
+                                <td>@s.Name</td>
+                                <td>@s.Diameter.ToString("F2") mm</td>
+                                <td>@s.Pressure.ToString("F2") MPa</td>
+                                <td>@s.HubVonMises.ToString("F1") MPa</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                <p style="margin: 12px 0 0 0; font-size: 13px; color: #6c757d;">
+                    The diametral interference Δs/X is the same at every section, but the local pressure is
+                    not: with a constant hub outside diameter it <strong>rises towards the small end</strong>,
+                    where the diameter is least. The values above are reported from the governing section, not
+                    from the mean diameter. A hollow shaft is also stressed hardest at its
+                    <strong>bore</strong>, where σ<sub>r</sub> has relaxed to zero and
+                    σ<sub>t</sub> = −2p/(1−Q<sub>i</sub>²).
+                </p>
+            }
         </div>
 
         <!-- Load Capacities & Assembly -->
@@ -337,10 +380,55 @@ else
                     <tr><td>Design Torque (T × φ)</td><td>T<sub>d</sub></td><td>@((engine.AppliedTorque * engine.LoadFactor).ToString("F2"))</td><td>Nm</td></tr>
                     <tr class="highlight"><td>Torque Capacity</td><td>T<sub>max</sub></td><td>@engine.MaxTorqueCapacity.ToString("F2")</td><td>Nm</td></tr>
                     <tr><td>Applied Axial Force</td><td>F<sub>a</sub></td><td>@((engine.AppliedAxialForce/1000).ToString("F2"))</td><td>kN</td></tr>
-                    <tr class="highlight"><td>Axial Force Capacity</td><td>F<sub>a,max</sub></td><td>@((engine.MaxAxialForceCapacity/1000).ToString("F2"))</td><td>kN</td></tr>
-                    <tr class="highlight"><td>Required Assembly Force</td><td>F<sub>asm</sub></td><td>@((engine.RequiredAssemblyForce/1000).ToString("F2"))</td><td>kN</td></tr>
+                    <tr class="highlight"><td>Axial Force Capacity (μ<sub>d</sub> = @engine.FrictionCoefficientDynamic.ToString("F2"))</td><td>F<sub>a,max</sub></td><td>@(engine.IsSelfLocking ? (engine.MaxAxialForceCapacity/1000).ToString("F2") : "none")</td><td>@(engine.IsSelfLocking ? "kN" : "—")</td></tr>
+                    <tr class="highlight"><td>Required Assembly Force (μ<sub>s</sub> = @engine.FrictionCoefficientStatic.ToString("F2"))</td><td>F<sub>asm</sub></td><td>@((engine.RequiredAssemblyForce/1000).ToString("F2"))</td><td>kN</td></tr>
+                    <tr><td colspan="4" style="background: #f8f9fa; font-weight: 600; padding: 8px 16px;">Self-Locking (μ<sub>s</sub> against tan φ)</td></tr>
+                    <tr class="@(engine.IsSelfLocking ? "success" : "danger")">
+                        <td>Self-Locking?</td><td>μ<sub>s</sub>/cos φ &gt; tan φ</td>
+                        <td>@(engine.IsSelfLocking ? "yes" : "no")</td>
+                        <td>@(engine.IsSelfLocking ? "✓ holds itself" : "❌ ejects the hub")</td>
+                    </tr>
+                    @if (engine.IsSelfLocking)
+                    {
+                        <tr><td>Extraction Force (to pull the hub off)</td><td>F<sub>ext</sub></td><td>@((engine.ExtractionForce/1000).ToString("F2"))</td><td>kN</td></tr>
+                    }
+                    else
+                    {
+                        <tr class="danger"><td>Retaining Force a Nut Must Supply</td><td>F<sub>nut</sub></td><td>@((engine.RequiredNutForce/1000).ToString("F2"))</td><td>kN</td></tr>
+                    }
+                    <tr><td colspan="4" style="background: #f8f9fa; font-weight: 600; padding: 8px 16px;">Combined Loading (one friction interface)</td></tr>
+                    <tr><td>Tangential Force from Torque</td><td>F<sub>t</sub></td><td>@((engine.TangentialForce/1000).ToString("F2"))</td><td>kN</td></tr>
+                    <tr><td>Tangential Force Capacity</td><td>F<sub>t,cap</sub></td><td>@((engine.TangentialForceCapacity/1000).ToString("F2"))</td><td>kN</td></tr>
+                    <tr class="highlight"><td>Resultant of Torque and Axial Force</td><td>F<sub>res</sub></td><td>@((engine.ResultantForce/1000).ToString("F2"))</td><td>kN</td></tr>
                 </tbody>
             </table>
+
+            @if (!engine.IsSelfLocking)
+            {
+                <div class="alert alert-danger" style="margin-top: 16px;">
+                    <ModuleIcon Type="warning" Size="small" Style="default" />
+                    <div>
+                        <strong>This taper is not self-locking, so it has no axial holding capacity at all.</strong>
+                        At a half angle of @engine.HalfAngle.ToString("F2")° the wedge pushes the hub back off
+                        harder than friction holds it (tan φ = @Math.Tan(engine.HalfAngle * Math.PI / 180).ToString("F3")
+                        against μ<sub>s</sub>/cos φ = @((engine.FrictionCoefficientStatic / Math.Cos(engine.HalfAngle * Math.PI / 180)).ToString("F3"))).
+                        The joint will not stay together without a nut holding at least
+                        @((engine.RequiredNutForce/1000).ToString("F1")) kN, and that preload is not modelled here —
+                        the torque capacity above assumes the stated contact pressure is maintained.
+                    </div>
+                </div>
+            }
+            <p style="margin: 12px 0 0 0; font-size: 13px; color: #6c757d;">
+                The <strong>static</strong> coefficient governs assembly, extraction and self-locking — all
+                break-loose conditions. The <strong>dynamic</strong> coefficient governs sliding in service,
+                so it is the one in the torque and axial capacities.
+                Torque and axial force share one friction interface, so they are not independent. Unlike a
+                cylindrical joint their two capacities differ — the wedge opposes an axial load and does
+                nothing to a torque — so they are combined through
+                (F<sub>t</sub>/F<sub>t,cap</sub>)² + (F<sub>a</sub>/F<sub>a,cap</sub>)² ≤ 1 rather than as a
+                single resultant capacity. That reduces to each separate safety when the other load is zero
+                and is always below the lower of the two when both act.
+            </p>
         </div>
 
         <!-- Safety Factors -->
@@ -362,7 +450,13 @@ else
                         <td>@(engine.SafetyFactorAxial < 900 ? engine.SafetyFactorAxial.ToString("F2") : "N/A")</td>
                         <td>@(engine.SafetyFactorAxial < 900 ? GetSafetyStatus(engine.SafetyFactorAxial) : "-")</td>
                     </tr>
-                    <tr><td colspan="4" style="background: #f8f9fa; font-weight: 600; padding: 8px 16px;">Against Yielding</td></tr>
+                    <tr class="@GetSafetyRowClass(engine.SafetyFactorCombined)">
+                        <td><strong>Resultant of Both (governing)</strong></td>
+                        <td>SF<sub>res</sub></td>
+                        <td>@(engine.SafetyFactorCombined < 900 ? engine.SafetyFactorCombined.ToString("F2") : "N/A")</td>
+                        <td>@(engine.SafetyFactorCombined < 900 ? GetSafetyStatus(engine.SafetyFactorCombined) : "-")</td>
+                    </tr>
+                    <tr><td colspan="4" style="background: #f8f9fa; font-weight: 600; padding: 8px 16px;">Against Yielding (governing section: @engine.GoverningSection)</td></tr>
                     <tr class="@GetSafetyRowClass(engine.SafetyFactorShaftStress)">
                         <td>Shaft Yield Safety Factor</td>
                         <td>SF<sub>shaft</sub></td>
@@ -388,10 +482,20 @@ else
                     ⚠️ <strong>Warning:</strong> One or more safety factors are below the recommended minimum of 1.5.
                 </div>
             }
-            @if (engine.HalfAngle > 7.5)
+            @if (!engine.IsSelfLocking)
             {
                 <div class="alert alert-danger" style="margin-top: 16px;">
-                    ⚠️ <strong>Warning:</strong> Taper angle is steep (half angle > 7.5°). Self-locking may not occur. Use additional locking mechanism.
+                    ⚠️ <strong>Warning:</strong> This taper is not self-locking at μ<sub>s</sub> =
+                    @engine.FrictionCoefficientStatic.ToString("F2"), so it needs a retaining nut.
+                    See the Load Capacities card for the force it has to supply.
+                </div>
+            }
+            else if (engine.ExtractionForce < 0.15 * engine.RequiredAssemblyForce)
+            {
+                <div class="alert alert-warning" style="margin-top: 16px;">
+                    ⚡ <strong>Note:</strong> Self-locking only just holds — the extraction force is a small
+                    fraction of the assembly force, so a modest drop in the friction coefficient releases the
+                    joint. Self-locking depends on μ<sub>s</sub>, not on the taper ratio alone.
                 </div>
             }
         </div>
@@ -626,6 +730,34 @@ else
             if (engine.TaperRatio <= 0) validationMessages.Add("Taper ratio must be greater than 0.");
             if (engine.HubOuterDiameter <= engine.MeanDiameter)
                 validationMessages.Add($"Hub outer diameter (Da) must be larger than the mean diameter ({engine.MeanDiameter:F1} mm).");
+
+            // The cone has to exist along its whole length, not just at the mean
+            // diameter. Checking only Da > dm accepted a shaft with no wall at
+            // the small end, a hub with no wall at the large end and a cone that
+            // runs to a point — all of which produced confident safety factors.
+            if (engine.MeanDiameter > 0 && engine.FitLength > 0 && engine.TaperRatio > 0)
+            {
+                double deltaD = engine.FitLength / engine.TaperRatio;
+                double dSmall = engine.MeanDiameter - deltaD / 2.0;
+                double dLarge = engine.MeanDiameter + deltaD / 2.0;
+
+                if (dSmall <= 0)
+                    validationMessages.Add($"This length and taper ratio run the cone to a point: the small-end diameter would be {dSmall:F2} mm. Shorten the fit length or use a shallower taper.");
+                else if (engine.ShaftInnerDiameter >= dSmall)
+                    validationMessages.Add($"Shaft inner diameter (di) must be smaller than the small-end diameter ({dSmall:F2} mm), or the shaft has no wall there. Enter 0 for a solid shaft.");
+
+                if (engine.HubOuterDiameter > 0 && engine.HubOuterDiameter <= dLarge)
+                    validationMessages.Add($"Hub outer diameter (Da) must be larger than the large-end diameter ({dLarge:F2} mm), not just than the mean diameter.");
+            }
+
+            if (engine.ShaftInnerDiameter < 0)
+                validationMessages.Add("Shaft inner diameter (di) cannot be negative. Enter 0 for a solid shaft.");
+            if (engine.AxialDisplacement <= 0)
+                validationMessages.Add("Axial displacement (Δs) must be greater than 0 — it is what generates the interference.");
+            if (engine.ShaftRoughnessRz < 0 || engine.HubRoughnessRz < 0)
+                validationMessages.Add("Surface roughness (Rz) cannot be negative.");
+            if (engine.FrictionCoefficientStatic <= 0 || engine.FrictionCoefficientDynamic <= 0)
+                validationMessages.Add("Both friction coefficients must be greater than 0.");
 
             if (validationMessages.Count > 0)
             {
