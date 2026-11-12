@@ -14,7 +14,23 @@ public class TorsionSpringEngine
     public double Leg1Length { get; set; }            // L1 (mm) - first leg length
     public double Leg2Length { get; set; }            // L2 (mm) - second leg length
     public string LegType { get; set; } = "Tangent";  // Tangent, Radial, Axial
+    /// <summary>
+    /// Winding hand. Drawing and manufacturing information only: it does NOT by
+    /// itself decide whether the spring closes or opens under load. The page used
+    /// to claim "left-hand = load opens spring", which is wrong - either hand can
+    /// be loaded either way - and the results were identical for both anyway.
+    /// </summary>
     public string WindingDirection { get; set; } = "Right"; // Right or Left
+
+    /// <summary>
+    /// Which way the load turns the spring relative to its winding: "Closing"
+    /// tightens the coil onto the mandrel, "Opening" unwinds it. This is the
+    /// input that actually matters, and it did not exist.
+    /// </summary>
+    public string LoadDirection { get; set; } = "Closing";
+
+    /// <summary>Mandrel (arbor) diameter, mm. 0 means no mandrel check is possible.</summary>
+    public double MandrelDiameter { get; set; }
 
     // Input Parameters - Material
     public double ElasticModulus { get; set; } = 206000;  // E (MPa)
@@ -50,7 +66,22 @@ public class TorsionSpringEngine
 
     public double SpringRate { get; set; }            // R (Nmm/degree)
     public double SpringRatePerRadian { get; set; }   // R (Nmm/rad)
-    public double StressCorrectionFactor { get; set; } // q - stress correction factor
+    public double StressCorrectionFactor { get; set; } // q - EN 13906-3 stress correction factor
+    /// <summary>
+    /// The Wahl bending form of q, for comparison. About 1 % below the
+    /// EN 13906-3 value, which is why it was on the unsafe side.
+    /// </summary>
+    public double WahlBendingFactor { get; set; }
+    /// <summary>Smallest bore over every position asked for (mm).</summary>
+    public double SmallestInnerDiameter { get; set; }
+    /// <summary>Clearance between the smallest bore and the mandrel (mm). 0 when unchecked.</summary>
+    public double MandrelClearance { get; set; }
+    /// <summary>False when no mandrel diameter was entered, so there is nothing to check.</summary>
+    public bool MandrelChecked { get; set; }
+    /// <summary>0,85 of the smallest bore, the usual manufacturing recommendation (mm).</summary>
+    public double RecommendedMandrelDiameter { get; set; }
+    /// <summary>True when the permissible stress was lowered for an opening load.</summary>
+    public bool AllowableStressReducedForOpening { get; set; }
 
     // Position 1 values
     public double Angle1 { get; set; }                // α1 (degrees)
@@ -173,16 +204,21 @@ public class TorsionSpringEngine
         double wireVolume = Math.PI * Math.Pow(WireDiameter / 2, 2) * WireLength;
         SpringMass = wireVolume * 7.85e-6 * 1000; // grams
 
-        // Stress correction factor for curved beam bending
-        // q = (4w² - w - 1) / (4w(w - 1)) for inside surface (tension)
+        // Stress correction factor for curved beam bending, EN 13906-3:
+        //   q = (w + 0,07) / (w - 0,75)
+        // The Wahl bending form (4w^2 - w - 1)/(4w(w - 1)) was used instead. It
+        // is about 1 % LOWER - 1,103 against 1,113 at w = 8 - so it was on the
+        // unsafe side, and the page is titled "according to EN 13906-3".
         double w = SpringIndex;
-        if (w > 1.1)
+        if (w > 1.0)
         {
-            StressCorrectionFactor = (4 * w * w - w - 1) / (4 * w * (w - 1));
+            StressCorrectionFactor = (w + 0.07) / (w - 0.75);
+            WahlBendingFactor = w > 1.1 ? (4 * w * w - w - 1) / (4 * w * (w - 1)) : 1.5;
         }
         else
         {
             StressCorrectionFactor = 1.5; // Minimum value for very tight coils
+            WahlBendingFactor = 1.5;
         }
     }
 
@@ -208,11 +244,21 @@ public class TorsionSpringEngine
         SpringRatePerRadian = (ElasticModulus * Math.Pow(WireDiameter, 4)) /
                               (64 * MeanCoilDiameter * EquivalentCoils);
 
-        // Allowable bending stress (0.70 × Rm for static, lower for fatigue)
+        // Allowable bending stress, 0,70 Rm for a statically loaded spring
+        // closing onto its coil.
+        //
+        // Coiling leaves residual stresses that OPPOSE a closing load, which is
+        // why a torsion spring is normally used that way and why the permissible
+        // stress is as high as it is. Load it in the opening direction and those
+        // residuals add to the applied stress instead, so EN 13906-3 does not
+        // allow the same figure. 0,55 Rm is a conservative practice value for
+        // that case - the standard's own reduction needs its text, so it is
+        // stated on the page as our own assumption rather than as the standard's.
         if (AllowableBendingStress <= 0)
         {
-            AllowableBendingStress = 0.70 * TensileStrength;
+            AllowableBendingStress = (LoadDirection == "Opening" ? 0.55 : 0.70) * TensileStrength;
         }
+        AllowableStressReducedForOpening = LoadDirection == "Opening";
 
         // Maximum values based on allowable stress
         // σ = (32 × M × q) / (π × d³)
@@ -252,26 +298,46 @@ public class TorsionSpringEngine
         // For opening spring (wound against direction of load):
         // Di(α) = Di × n / (n - α/360)
 
-        // Assuming closing spring (most common application)
-        if (Angle1 > 0)
+        // EN 13906-3 scales the MEAN diameter and then subtracts the wire:
+        //   Di(alpha) = Dm . n/(n +/- alpha/360) - d
+        // The engine scaled the INNER diameter instead, which leaves the wire
+        // thickness being scaled along with the coil. That reads high - 0,08 mm
+        // on the default spring, 0,50 mm at n = 2 - and the page tells the reader
+        // to size the mandrel against the smallest diameter, so it was optimistic
+        // in exactly the place it matters.
+        //
+        // The sign follows the LOAD direction, not the winding hand: a spring
+        // loaded in the closing direction tightens onto the mandrel, one loaded
+        // in the opening direction grows away from it.
+        int sign = LoadDirection == "Opening" ? -1 : +1;
+
+        double DiAt(double angle)
         {
-            InnerDiameterAtAngle1 = InnerDiameter * ActiveCoils / (ActiveCoils + Angle1 / 360);
-        }
-        else
-        {
-            InnerDiameterAtAngle1 = InnerDiameter;
+            if (ActiveCoils <= 0) return InnerDiameter;
+            double coils = ActiveCoils + sign * angle / 360.0;
+            if (coils <= 0) return 0;
+            return MeanCoilDiameter * ActiveCoils / coils - WireDiameter;
         }
 
-        if (Angle2 > 0)
-        {
-            InnerDiameterAtAngle2 = InnerDiameter * ActiveCoils / (ActiveCoils + Angle2 / 360);
-        }
-        else
-        {
-            InnerDiameterAtAngle2 = InnerDiameter;
-        }
+        InnerDiameterAtAngle1 = Angle1 > 0 ? DiAt(Angle1) : InnerDiameter;
+        InnerDiameterAtAngle2 = Angle2 > 0 ? DiAt(Angle2) : InnerDiameter;
+        InnerDiameterAtMax = DiAt(MaxDeflection);
 
-        InnerDiameterAtMax = InnerDiameter * ActiveCoils / (ActiveCoils + MaxDeflection / 360);
+        // The smallest bore the mandrel has to fit through, over every position
+        // asked for. At an angle past the permissible one the "at max" row is no
+        // longer the smallest, which made that row misleading on its own.
+        SmallestInnerDiameter = Math.Min(
+            Math.Min(InnerDiameterAtAngle1, InnerDiameterAtAngle2),
+            InnerDiameterAtMax);
+        if (LoadDirection == "Opening") SmallestInnerDiameter = InnerDiameter;
+
+        // Real mandrel clearance, when a mandrel diameter has been entered.
+        // The row used to read "adequate clearance" with no mandrel diameter to
+        // compare against - it was showing the bore and calling it a check.
+        MandrelClearance = MandrelDiameter > 0 ? SmallestInnerDiameter - MandrelDiameter : 0;
+        MandrelChecked = MandrelDiameter > 0;
+        // Manufacturers size the mandrel at 0,8-0,9 of the smallest bore.
+        RecommendedMandrelDiameter = 0.85 * SmallestInnerDiameter;
     }
 
     private void CalculateStresses()

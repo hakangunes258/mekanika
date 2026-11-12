@@ -400,7 +400,12 @@ else
             <tbody>
                 <tr class="highlight"><td>Spring Rate</td><td>R</td><td>@(engine.SpringRateCalculated.ToString("F3"))</td><td>N/mm</td></tr>
                 <tr><td>Wahl Factor</td><td>k</td><td>@(engine.WahlFactor.ToString("F3"))</td><td>-</td></tr>
-                <tr><td>Max Force</td><td>F<sub>n</sub></td><td>@(engine.MaxForce.ToString("F1"))</td><td>N</td></tr>
+                <tr class="highlight"><td>Max Force &mdash; limited by the @engine.MaxForceLimitedBy</td><td>F<sub>n</sub></td><td>@(engine.MaxForce.ToString("F1"))</td><td>N</td></tr>
+                <tr><td>&nbsp;&nbsp;body alone would allow</td><td>-</td><td>@(engine.MaxForceBody.ToString("F1"))</td><td>N</td></tr>
+                @if (!double.IsPositiveInfinity(engine.MaxForceHook))
+                {
+                    <tr><td>&nbsp;&nbsp;hook alone would allow</td><td>-</td><td>@(engine.MaxForceHook.ToString("F1"))</td><td>N</td></tr>
+                }
                 <tr><td>Max Deflection</td><td>s<sub>n</sub></td><td>@(engine.MaxDeflection.ToString("F1"))</td><td>mm</td></tr>
                 <tr><td>Max Length</td><td>L<sub>n</sub></td><td>@(engine.MaxLength.ToString("F1"))</td><td>mm</td></tr>
                 <tr><td>Natural Frequency</td><td>f<sub>n</sub></td><td>@(engine.NaturalFrequency.ToString("F0"))</td><td>Hz</td></tr>
@@ -488,7 +493,9 @@ else
                 </thead>
                 <tbody>
                     <tr><td>Hook Bend Radius</td><td>R<sub>1</sub></td><td>@(engine.HookRadius.ToString("F1"))</td><td>mm</td></tr>
-                    <tr><td>Hook Stress Factor</td><td>K<sub>h</sub></td><td>@(engine.HookStressFactor.ToString("F2"))</td><td>-</td></tr>
+                    <tr><td>Bending Moment Arm (loop radius)</td><td>a</td><td>@(engine.HookBendingMomentArm.ToString("F1"))</td><td>mm</td></tr>
+                    <tr><td>Bending Concentration (from the loop radius)</td><td>K<sub>1</sub></td><td>@(engine.HookBendingFactor.ToString("F3"))</td><td>-</td></tr>
+                    <tr><td>Torsional Concentration (from the bend radius)</td><td>K<sub>2</sub></td><td>@(engine.HookShearFactor.ToString("F3"))</td><td>-</td></tr>
                     <tr class="@(engine.HookBendingStress > 0.7 * engine.TensileStrength ? "danger" : "highlight")"><td>Hook Bending Stress</td><td>σ<sub>B</sub></td><td>@(engine.HookBendingStress.ToString("F0"))</td><td>MPa</td></tr>
                     @* τH used to be printed here and compared against nothing. EN 13906-2
                        checks the hook in bending AND in torsion/shear; both now feed the
@@ -554,17 +561,34 @@ else
                     <tr><td>Stress Amplitude</td><td>τ<sub>a</sub></td><td>@engine.FatigueStressAmplitude.ToString("F0")</td><td>MPa</td></tr>
                     <tr><td>Stress Ratio</td><td>R</td><td>@engine.FatigueStressRatio.ToString("F2")</td><td>-</td></tr>
                     <tr><td>Endurance Limit</td><td>τ<sub>e</sub></td><td>@engine.FatigueEnduranceLimit.ToString("F0")</td><td>MPa</td></tr>
-                    <tr class="highlight @(engine.FatigueSafetyFactor < 1.5 ? "warning" : "")"><td>Fatigue Safety Factor</td><td>SF<sub>fatigue</sub></td><td>@engine.FatigueSafetyFactor.ToString("F2")</td><td>-</td></tr>
-                    <tr><td>Expected Cycles</td><td>N</td><td>@GetFatigueLifeText()</td><td>cycles</td></tr>
+                    <tr><td>Fatigue Safety &mdash; body (corrected stress)</td><td>SF<sub>body</sub></td><td>@engine.FatigueSafetyFactor.ToString("F2")</td><td>-</td></tr>
+                    @if (engine.FatigueHookSafetyFactor < 900)
+                    {
+                        <tr><td>Fatigue Safety &mdash; hook</td><td>SF<sub>hook</sub></td><td>@engine.FatigueHookSafetyFactor.ToString("F2")</td><td>-</td></tr>
+                    }
+                    <tr class="highlight @(engine.FatigueGoverningSafetyFactor < 1.5 ? "warning" : "")"><td><strong>Governing &mdash; the @engine.FatigueGoverningSite</strong></td><td>SF<sub>fatigue</sub></td><td>@engine.FatigueGoverningSafetyFactor.ToString("F2")</td><td>-</td></tr>
+                    <tr><td>Expected Cycles (body)</td><td>N</td><td>@GetFatigueLifeText()</td><td>cycles</td></tr>
                 </tbody>
             </table>
 
-            @if (engine.FatigueSafetyFactor < 1.5)
+            <p style="margin: 12px 0 0 0; font-size: 13px; color: #6c757d;">
+                Both sites are checked. The body runs on the <strong>corrected</strong> stress, as
+                EN 13906-2 requires for a dynamically loaded spring &mdash; using the uncorrected stress
+                was 18 % optimistic and inconsistent with the static check beside it. The hook is included
+                because <strong>that is where extension springs break</strong>, and it is judged on its
+                bending stress against a bending endurance limit. The cycle estimate is a simplified S&ndash;N
+                curve for the body only; do not read an "infinite" life there as covering the hook.
+            </p>
+
+            @if (engine.FatigueGoverningSafetyFactor < 1.5)
             {
                 <div class="alert alert-warning" style="margin-top: 16px;">
                     <ModuleIcon Type="warning" Size="small" Style="default" />
                     <div>
-                        <strong>Low Fatigue Safety:</strong> Consider shot peening, reducing stroke, or using higher grade material (DH or VDSiCr).
+                        <strong>Low Fatigue Safety at the @engine.FatigueGoverningSite:</strong>
+                        @(engine.FatigueGoverningSite == "hook"
+                            ? "a larger bend radius, a raised hook, or a threaded insert moves the load line closer to the body axis. Shot peening helps here too."
+                            : "consider shot peening, reducing the stroke, or a higher grade of wire (DH or VDSiCr).")
                     </div>
                 </div>
             }

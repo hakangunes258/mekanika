@@ -44,7 +44,13 @@ public class ExtensionSpringEngine
     public double SpringRate { get; set; }            // R (N/mm)
     public double SpringRateCalculated { get; set; }  // R from formula
     public double MaxDeflection { get; set; }         // smax (mm)
-    public double MaxForce { get; set; }              // Fn (N)
+    public double MaxForce { get; set; }              // Fn (N), the governing limit
+    /// <summary>Force the BODY alone allows (N).</summary>
+    public double MaxForceBody { get; set; }
+    /// <summary>Force the HOOK allows (N). Infinite for a threaded insert.</summary>
+    public double MaxForceHook { get; set; }
+    /// <summary>"body" or "hook", whichever set the maximum force.</summary>
+    public string MaxForceLimitedBy { get; set; } = "";
     public double StrokeLength { get; set; }          // sh = s2 - s1 (mm)
     public double Deflection1 { get; set; }           // s1 at position 1 (mm)
     public double Deflection2 { get; set; }           // s2 at position 2 (mm)
@@ -67,6 +73,7 @@ public class ExtensionSpringEngine
     public double ShearStress1 { get; set; }          // τ1 at F1 (MPa) - uncorrected
     public double ShearStress2 { get; set; }          // τ2 at F2 (MPa) - uncorrected
     public double ShearStressMax { get; set; }        // τn at Fn (MPa) - uncorrected
+    public double ShearStress1Corrected { get; set; } // τk1 at F1 (MPa) - with Wahl factor
     public double ShearStress2Corrected { get; set; } // τk2 at F2 (MPa) - with Wahl factor for safety calc
     public double StressRange { get; set; }           // τkh = τ2 - τ1 (MPa)
 
@@ -75,6 +82,12 @@ public class ExtensionSpringEngine
     public double HookShearStress { get; set; }       // τH (MPa)
     public double HookStressFactor { get; set; }      // Hook stress concentration
     public double HookRadius { get; set; }            // R1 - hook bend radius (mm)
+    /// <summary>Bending moment arm at the body-to-hook section (mm): the loop radius, not R1.</summary>
+    public double HookBendingMomentArm { get; set; }
+    /// <summary>K1, bending concentration from the loop radius. Never below 1.</summary>
+    public double HookBendingFactor { get; set; }
+    /// <summary>K2, torsional concentration from the bend radius. Never below 1.</summary>
+    public double HookShearFactor { get; set; }
 
     // Calculated Values - Safety (based on Position 2 or Max if no position defined)
     public double SafetyFactorBody { get; set; }      // νs body
@@ -92,6 +105,15 @@ public class ExtensionSpringEngine
     public double FatigueEnduranceLimit { get; set; }
     public double FatigueSafetyFactor { get; set; }
     public double FatigueEstimatedCycles { get; set; }
+    /// <summary>
+    /// Fatigue safety at the HOOK, which is where extension springs break. The
+    /// check used to cover the body only, while the page's own text said so.
+    /// </summary>
+    public double FatigueHookSafetyFactor { get; set; }
+    /// <summary>The lower of the body and hook fatigue safeties.</summary>
+    public double FatigueGoverningSafetyFactor { get; set; }
+    /// <summary>"body" or "hook", whichever produced the governing safety.</summary>
+    public string FatigueGoverningSite { get; set; } = "";
 
     // Calculated Values - Natural Frequency
     public double NaturalFrequency { get; set; }      // fe (Hz)
@@ -111,15 +133,22 @@ public class ExtensionSpringEngine
     {
         public double R1Factor { get; }
         public double HookLengthFactor { get; }
-        public double StressReductionFactor { get; }
+        /// <summary>
+        /// How much of the full loop radius D/2 the bending moment arm actually
+        /// is. This used to be a reduction applied to the stress CONCENTRATION,
+        /// which let the factor fall below 1 - a bend that relieved stress. The
+        /// geometry is where a raised hook earns its lower stress: it brings the
+        /// load line closer to the body axis.
+        /// </summary>
+        public double MomentArmFactor { get; }
         public string DisplayName { get; }
         public string Description { get; }
 
-        public HookTypeInfo(double r1, double hookLen, double stressRed, string name, string desc)
+        public HookTypeInfo(double r1, double hookLen, double momentArm, string name, string desc)
         {
             R1Factor = r1;
             HookLengthFactor = hookLen;
-            StressReductionFactor = stressRed;
+            MomentArmFactor = momentArm;
             DisplayName = name;
             Description = desc;
         }
@@ -159,6 +188,9 @@ public class ExtensionSpringEngine
         CalculateWorkingConditions();
         CalculateBodyStresses();
         CalculateHookStresses();
+        // After the hook stresses, because the maximum force is whichever of the
+        // body and the hook reaches its limit first.
+        ApplyHookForceLimit();
         CalculateSafety();
         CalculateNaturalFrequency();
         
@@ -171,12 +203,17 @@ public class ExtensionSpringEngine
 
     private void CalculateFatigue()
     {
-        FatigueMeanStress = (ShearStress1 + ShearStress2) / 2;
-        FatigueStressAmplitude = Math.Abs(ShearStress2 - ShearStress1) / 2;
-        
-        if (ShearStress2 > 0)
+        // On the CORRECTED body stress. EN 13906-2 applies the stress correction
+        // factor k to a dynamically loaded spring; running fatigue on the
+        // uncorrected stress took the safety factor from 2,98 to 3,53 on the
+        // default spring - 18 % optimistic, and inconsistent with the static
+        // check beside it, which did correct.
+        FatigueMeanStress = (ShearStress1Corrected + ShearStress2Corrected) / 2;
+        FatigueStressAmplitude = Math.Abs(ShearStress2Corrected - ShearStress1Corrected) / 2;
+
+        if (ShearStress2Corrected > 0)
         {
-            FatigueStressRatio = ShearStress1 / ShearStress2;
+            FatigueStressRatio = ShearStress1Corrected / ShearStress2Corrected;
         }
 
         // Endurance limit estimation
@@ -195,6 +232,37 @@ public class ExtensionSpringEngine
         {
             FatigueSafetyFactor = 999;
         }
+
+        // ---- The hook, which is where extension springs actually break ----
+        //
+        // The body was the only thing checked, while the page's own text says the
+        // hook is the failure site. The hook stresses scale with the force, so
+        // the two working positions give the amplitude and mean directly.
+        FatigueHookSafetyFactor = 999;
+        if (Force2 > 0 && HookType != "Threaded")
+        {
+            double hookAtF2 = Math.Max(HookBendingStress, HookShearStress);
+            if (hookAtF2 > 0 && Force2 > Force1)
+            {
+                double hookAtF1 = hookAtF2 * Force1 / Force2;
+                double hookMean = (hookAtF1 + hookAtF2) / 2;
+                double hookAmplitude = (hookAtF2 - hookAtF1) / 2;
+
+                // Bending governs at the hook, so it is judged against a bending
+                // endurance limit rather than a shear one.
+                double hookEndurance = 0.40 * TensileStrength;
+                double hookUltimate = TensileStrength;
+
+                if (hookAmplitude > 0)
+                {
+                    double g = hookAmplitude / hookEndurance + hookMean / hookUltimate;
+                    FatigueHookSafetyFactor = g > 0 ? 1.0 / g : 999;
+                }
+            }
+        }
+
+        FatigueGoverningSafetyFactor = Math.Min(FatigueSafetyFactor, FatigueHookSafetyFactor);
+        FatigueGoverningSite = FatigueHookSafetyFactor < FatigueSafetyFactor ? "hook" : "body";
         
         // Estimate cycles to failure (simplified S-N curve)
         if (FatigueStressAmplitude < FatigueEnduranceLimit * 0.3)
@@ -337,9 +405,46 @@ public class ExtensionSpringEngine
         // Maximum force and deflection (theoretical limits)
         // τmax = (8 × F × Dm) / (π × d³) → F = τmax × π × d³ / (8 × Dm)
         double stressConstant = (8 * MeanCoilDiameter) / (Math.PI * Math.Pow(WireDiameter, 3));
-        MaxForce = AllowableShearStress / stressConstant;
+        MaxForceBody = AllowableShearStress / stressConstant;
+        MaxForce = MaxForceBody;
+        MaxForceLimitedBy = "body";
         MaxDeflection = (MaxForce - InitialTension) / SpringRate;
         MaxLength = FreeLength + MaxDeflection;
+    }
+
+    /// <summary>
+    /// The maximum force was taken from the BODY alone, and on this spring the
+    /// hook reaches its limit first: at the 150,2 N the body allows, the hook
+    /// shear stress is 974 MPa against an allowable 765, a safety of 0,79. The
+    /// stated maximum extension was therefore not a safe one.
+    ///
+    /// Both hook stresses are linear in the force, so each limit is found by
+    /// scaling from the design force the hook stresses were computed at. Runs
+    /// after CalculateHookStresses, which needs MaxForce to exist first.
+    /// </summary>
+    private void ApplyHookForceLimit()
+    {
+        MaxForceHook = double.PositiveInfinity;
+        if (HookType == "Threaded") return;
+
+        double designForce = (Deflection2 > 0 && Force2 > InitialTension) ? Force2 : MaxForceBody;
+        if (designForce <= 0) return;
+
+        double allowableBending = 0.70 * TensileStrength;
+
+        if (HookBendingStress > 0)
+            MaxForceHook = Math.Min(MaxForceHook, designForce * allowableBending / HookBendingStress);
+        if (HookShearStress > 0)
+            MaxForceHook = Math.Min(MaxForceHook, designForce * AllowableShearStress / HookShearStress);
+
+        if (MaxForceHook < MaxForce)
+        {
+            MaxForce = MaxForceHook;
+            MaxForceLimitedBy = "hook";
+            MaxDeflection = SpringRate > 0 ? (MaxForce - InitialTension) / SpringRate : 0;
+            if (MaxDeflection < 0) MaxDeflection = 0;
+            MaxLength = FreeLength + MaxDeflection;
+        }
     }
 
     private void CalculateWorkingConditions()
@@ -401,7 +506,10 @@ public class ExtensionSpringEngine
             ShearStress2 = ShearStress1;
         }
 
-        // Corrected stress at Position 2 (with Wahl factor - for safety calculation)
+        // Corrected stresses (with the Wahl factor), used by the safety and the
+        // fatigue checks. Position 1 was never corrected, so the fatigue check
+        // ran on a mixed pair.
+        ShearStress1Corrected = WahlFactor * ShearStress1;
         ShearStress2Corrected = WahlFactor * ShearStress2;
 
         // Maximum stress (uncorrected)
@@ -424,37 +532,68 @@ public class ExtensionSpringEngine
             return;
         }
 
-        // Hook bend radius
+        // Hook bend radius, at the transition from the body into the hook.
         HookRadius = hookInfo.R1Factor * InnerDiameter / 2;
         if (HookRadius < WireDiameter)
         {
             HookRadius = WireDiameter;
         }
-        
-        // Hook stress concentration factor
-        double C = 2 * HookRadius / WireDiameter;
-        if (C > 1.1)
-        {
-            HookStressFactor = (4 * C * C - C - 1) / (4 * C * (C - 1));
-        }
-        else
-        {
-            HookStressFactor = 1.5;
-        }
 
-        // Apply hook type stress reduction
-        HookStressFactor *= hookInfo.StressReductionFactor;
+        // ---- Two separate stress concentration factors ----
+        //
+        // These were one factor, computed from the BEND radius and applied to
+        // both the bending and the shear stress, with a per-hook-type reduction
+        // multiplier on top. Three things were wrong with that:
+        //
+        //  * The bending moment arm is the radius of the hook LOOP, not the bend
+        //    radius. The load comes in through the middle of the loop, so the
+        //    section where the hook meets the body carries M = F·D/2. Using R1
+        //    (3,5 mm against 8 mm on the default spring) halved the bending
+        //    stress: 298 MPa reported against 575 actual, a hook bending safety
+        //    of 3,99 where the real figure is 2,07.
+        //  * It also made the model run backwards. A LARGER bend radius came out
+        //    as more stress, where in reality a generous bend relieves the stress
+        //    concentration.
+        //  * The per-type reduction multiplier could take the factor BELOW 1 - a
+        //    raised hook gave 0,91 - so the hook came out less stressed than the
+        //    plain body, which no bend can do. A bend always concentrates.
+        //
+        // Bending, at the body-to-hook section, on the loop radius:
+        //   K1 = (4 C1² − C1 − 1) / (4 C1 (C1 − 1)),   C1 = D/d
+        // Torsion, at the bend itself, on the bend radius:
+        //   K2 = (4 C2 − 1) / (4 C2 − 4),              C2 = 2 R1/d
+        double c1 = WireDiameter > 0 ? MeanCoilDiameter / WireDiameter : 0;
+        HookBendingFactor = c1 > 1.1
+            ? (4 * c1 * c1 - c1 - 1) / (4 * c1 * (c1 - 1))
+            : 1.5;
+
+        double c2 = WireDiameter > 0 ? 2 * HookRadius / WireDiameter : 0;
+        HookShearFactor = c2 > 1.1
+            ? (4 * c2 - 1) / (4 * c2 - 4)
+            : 1.5;
+
+        // A bend cannot relieve stress, so neither factor may drop below 1.
+        // The hook TYPE changes the geometry - a raised hook shortens the bending
+        // moment arm, which the arm itself has to express - not the concentration.
+        if (HookBendingFactor < 1.0) HookBendingFactor = 1.0;
+        if (HookShearFactor < 1.0) HookShearFactor = 1.0;
+
+        // Reported as the governing one of the two, for the single-value row.
+        HookStressFactor = Math.Max(HookBendingFactor, HookShearFactor);
 
         // Design force: use Position 2 force if defined, otherwise use max force
         double designForce = (Deflection2 > 0 && Force2 > InitialTension) ? Force2 : MaxForce;
 
-        // Hook bending stress
-        double bendingMoment = (32 * designForce * HookRadius) / (Math.PI * Math.Pow(WireDiameter, 3));
+        // Hook bending stress, moment arm D/2 reduced by the hook type: a raised
+        // hook brings the load line closer to the body axis, which is the real
+        // mechanism behind its lower stress.
+        HookBendingMomentArm = MeanCoilDiameter / 2.0 * hookInfo.MomentArmFactor;
+        double bendingMoment = (32 * designForce * HookBendingMomentArm) / (Math.PI * Math.Pow(WireDiameter, 3));
         double directStress = (4 * designForce) / (Math.PI * Math.Pow(WireDiameter, 2));
-        HookBendingStress = HookStressFactor * bendingMoment + directStress;
+        HookBendingStress = HookBendingFactor * bendingMoment + directStress;
 
         // Hook shear stress
-        HookShearStress = HookStressFactor * (8 * designForce * MeanCoilDiameter) / 
+        HookShearStress = HookShearFactor * (8 * designForce * MeanCoilDiameter) /
                           (Math.PI * Math.Pow(WireDiameter, 3));
     }
 

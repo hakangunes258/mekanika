@@ -61,7 +61,36 @@
                     <option value="Right">Right-hand (clockwise)</option>
                     <option value="Left">Left-hand (counter-clockwise)</option>
                 </select>
-                <small style="color: #6c757d; font-size: 12px;">Wind in direction of applied torque for closing spring</small>
+                <small style="color: #6c757d; font-size: 12px;">
+                    Drawing and manufacturing information. Either hand can be loaded either way, so this
+                    on its own does not decide whether the coil tightens or opens &mdash; that is the next field.
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label>Load Direction</label>
+                @* The input that actually changes the result, and it did not exist.
+                   The page used to claim right-hand = closing and left-hand = opening,
+                   and then produced identical numbers for both. *@
+                <select @bind="engine.LoadDirection">
+                    <option value="Closing">Closing &mdash; the load winds the coil tighter (usual)</option>
+                    <option value="Opening">Opening &mdash; the load unwinds the coil</option>
+                </select>
+                <small style="color: #6c757d; font-size: 12px;">
+                    A closing load shrinks the bore onto the mandrel; an opening load grows it and works
+                    against the residual stresses left by coiling, which lowers the permissible stress.
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label>Mandrel Diameter</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="engine.MandrelDiameter" placeholder="optional" />
+                    <span class="unit">mm</span>
+                </div>
+                <small style="color: #6c757d; font-size: 12px;">
+                    Leave blank to skip the binding check. Without it the clearance cannot be computed.
+                </small>
             </div>
         </div>
 
@@ -309,7 +338,9 @@ else
                         {
                             <tr class="@(engine.InnerDiameterAtAngle2 < engine.WireDiameter * 3 ? "warning" : "")"><td>Inner Diameter at α₂</td><td>D<sub>i,2</sub></td><td>@engine.InnerDiameterAtAngle2.ToString("F2")</td><td>mm</td></tr>
                         }
-                        <tr><td>Inner Diameter at Max</td><td>D<sub>i,max</sub></td><td>@engine.InnerDiameterAtMax.ToString("F2")</td><td>mm</td></tr>
+                        <tr><td>Inner Diameter at the Permissible Angle</td><td>D<sub>i,max</sub></td><td>@engine.InnerDiameterAtMax.ToString("F2")</td><td>mm</td></tr>
+                        <tr class="highlight"><td>Smallest Bore over Every Position</td><td>D<sub>i,min</sub></td><td>@engine.SmallestInnerDiameter.ToString("F2")</td><td>mm</td></tr>
+                        <tr><td>Recommended Mandrel Diameter (0,85·D<sub>i,min</sub>)</td><td>-</td><td>@engine.RecommendedMandrelDiameter.ToString("F2")</td><td>mm</td></tr>
                     </tbody>
                 </table>
                 <div class="info-box" style="margin-top: 16px; padding: 12px; background: #fff8e1; border-radius: 8px; font-size: 13px;">
@@ -493,17 +524,35 @@ else
                     </tr>
                     @if (engine.Angle2Input > 0)
                     {
-                        <tr class="@(engine.Angle2 > engine.MaxDeflection * 0.9 ? "warning" : "success")">
+                        double utilisation = engine.MaxDeflection > 0 ? engine.Angle2 / engine.MaxDeflection * 100 : 0;
+                        @* Past 100 % the permissible angle has been EXCEEDED, not
+                           approached. "High - close to maximum" at 157 % and 492 %
+                           understated that badly. *@
+                        <tr class="@(utilisation > 100 ? "danger" : utilisation > 90 ? "warning" : "success")">
                             <td>Deflection Utilization</td>
-                            <td>@((engine.Angle2 / engine.MaxDeflection * 100).ToString("F0"))%</td>
-                            <td>@(engine.Angle2 > engine.MaxDeflection * 0.9 ? "⚠️ High" : "✓ OK")</td>
-                            <td>@(engine.Angle2 > engine.MaxDeflection * 0.9 ? "Close to maximum - consider margin" : "Adequate margin")</td>
+                            <td>@utilisation.ToString("F0")%</td>
+                            <td>@(utilisation > 100 ? "❌ FAIL" : utilisation > 90 ? "⚠️ High" : "✓ OK")</td>
+                            <td>
+                                @(utilisation > 100
+                                    ? $"the permissible angle of {engine.MaxDeflection:F1}° is exceeded - the spring takes a permanent set"
+                                    : utilisation > 90 ? "close to maximum - consider margin" : "adequate margin")
+                            </td>
                         </tr>
-                        <tr class="@(engine.InnerDiameterAtAngle2 < engine.WireDiameter * 3 ? "warning" : "success")">
-                            <td>Mandrel Clearance at α₂</td>
-                            <td>@(engine.InnerDiameterAtAngle2.ToString("F1")) mm</td>
-                            <td>@(engine.InnerDiameterAtAngle2 < engine.WireDiameter * 3 ? "⚠️ Tight" : "✓ OK")</td>
-                            <td>@(engine.InnerDiameterAtAngle2 < engine.WireDiameter * 3 ? "Risk of binding - increase Di or reduce α" : "Adequate clearance")</td>
+                        @* This row used to show the bore and call it a clearance check,
+                           with no mandrel diameter anywhere on the page to compare it
+                           against - so it read "adequate clearance" even at Di = 14,0 mm.
+                           It now says "not checked" unless a mandrel diameter is given. *@
+                        <tr class="@(!engine.MandrelChecked ? "warning" : engine.MandrelClearance <= 0 ? "danger" : engine.MandrelClearance < engine.WireDiameter * 0.2 ? "warning" : "success")">
+                            <td>Mandrel Clearance (smallest bore &minus; mandrel)</td>
+                            <td>@(engine.MandrelChecked ? engine.MandrelClearance.ToString("F2") + " mm" : "—")</td>
+                            <td>@(!engine.MandrelChecked ? "not checked" : engine.MandrelClearance <= 0 ? "❌ binds" : engine.MandrelClearance < engine.WireDiameter * 0.2 ? "⚠️ Tight" : "✓ OK")</td>
+                            <td>
+                                @(!engine.MandrelChecked
+                                    ? $"enter a mandrel diameter to check this; {engine.RecommendedMandrelDiameter:F1} mm is the usual recommendation here"
+                                    : engine.MandrelClearance <= 0
+                                        ? $"the spring closes onto the mandrel: the smallest bore is {engine.SmallestInnerDiameter:F2} mm"
+                                        : "clear at every position asked for")
+                            </td>
                         </tr>
                     }
                     <tr>
@@ -516,7 +565,17 @@ else
                         <td>Winding Direction</td>
                         <td>@engine.WindingDirection</td>
                         <td>-</td>
-                        <td>@(engine.WindingDirection == "Right" ? "Right-hand: load closes spring" : "Left-hand: load opens spring")</td>
+                        <td>Drawing information; it does not decide the load direction on its own</td>
+                    </tr>
+                    <tr class="@(engine.LoadDirection == "Opening" ? "warning" : "")">
+                        <td>Load Direction</td>
+                        <td>@engine.LoadDirection</td>
+                        <td>@(engine.LoadDirection == "Opening" ? "⚠️" : "✓")</td>
+                        <td>
+                            @(engine.LoadDirection == "Opening"
+                                ? "the coil unwinds: the bore grows away from the mandrel, and the permissible stress is reduced because the residual stresses from coiling now work against the load"
+                                : "the coil tightens onto the mandrel")
+                        </td>
                     </tr>
                 </tbody>
             </table>
@@ -578,6 +637,8 @@ else
     private TorsionSpringEngine engine = new();
     /// <summary>Why Calculate refused, shown by <see cref="ValidationAlert"/>.</summary>
     private List<string> validationMessages = new();
+    /// <summary>True when a blank leg length was replaced by Dm, so the page can say so.</summary>
+    private bool legLengthsDefaulted = false;
     private ModuleInfo moduleInfo = new();
     private bool showResults = false;
     private bool isCalculating = false;
@@ -593,6 +654,8 @@ else
         engine.TensileStrength = 1700;
         engine.LegType = "Tangent";
         engine.WindingDirection = "Right";
+        engine.LoadDirection = "Closing";
+        engine.MandrelDiameter = 0;
 
         // Load module metadata
         moduleInfo = Metadata.GetModule("torsion-spring");
@@ -680,6 +743,9 @@ else
             if (engine.WireDiameter <= 0) validationMessages.Add("Select a wire diameter (d).");
             if (engine.MeanCoilDiameter <= 0) validationMessages.Add("Mean coil diameter (Dm) must be greater than 0.");
             if (engine.ActiveCoils <= 0) validationMessages.Add("Active coils (n) must be greater than 0.");
+            if (engine.MandrelDiameter < 0) validationMessages.Add("Mandrel diameter cannot be negative. Leave it blank to skip the binding check.");
+            if (engine.Angle1Input > 0 && engine.Angle2Input > 0 && engine.Angle1Input > engine.Angle2Input)
+                validationMessages.Add($"α₁ ({engine.Angle1Input:0.#}°) must be below α₂ ({engine.Angle2Input:0.#}°) — position 1 is the lighter of the two, and the fatigue check needs them that way round.");
 
             if (validationMessages.Count > 0)
             {
@@ -687,6 +753,13 @@ else
                 return;
             }
 
+            // A leg length of 0 was silently replaced by Dm, which then went into
+            // the equivalent coil count and so into the rate: entering 0/0 gave
+            // n_e = 8,21 where the formula says 8,00, with no sign of where the
+            // difference came from. The substitution stays - a torsion spring has
+            // to have legs - but it is written back into the field so the user can
+            // see and change it.
+            legLengthsDefaulted = engine.Leg1Length <= 0 || engine.Leg2Length <= 0;
             if (engine.Leg1Length <= 0) engine.Leg1Length = engine.MeanCoilDiameter;
             if (engine.Leg2Length <= 0) engine.Leg2Length = engine.MeanCoilDiameter;
 
@@ -780,6 +853,8 @@ else
         .Set("Dm", engine.MeanCoilDiameter)
         .Set("n", engine.ActiveCoils)
         .Set("wind", engine.WindingDirection)
+        .Set("ldir", engine.LoadDirection)
+        .Set("mand", engine.MandrelDiameter)
         .Set("leg", engine.LegType)
         .Set("L1", engine.Leg1Length)
         .Set("L2", engine.Leg2Length)
@@ -803,6 +878,10 @@ else
         engine.MeanCoilDiameter = state.GetDouble("Dm", engine.MeanCoilDiameter);
         engine.ActiveCoils = state.GetDouble("n", engine.ActiveCoils);
         engine.WindingDirection = state.GetString("wind", engine.WindingDirection);
+        // Validated against the option set, or the select renders blank.
+        var loadDir = state.GetString("ldir", engine.LoadDirection);
+        if (loadDir is "Closing" or "Opening") engine.LoadDirection = loadDir;
+        engine.MandrelDiameter = state.GetDouble("mand", engine.MandrelDiameter);
         engine.LegType = state.GetString("leg", engine.LegType);
         engine.Leg1Length = state.GetDouble("L1", engine.Leg1Length);
         engine.Leg2Length = state.GetDouble("L2", engine.Leg2Length);

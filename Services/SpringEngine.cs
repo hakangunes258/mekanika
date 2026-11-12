@@ -14,15 +14,18 @@ public class SpringEngine
     public string EndType { get; set; } = "ClosedGround"; // Open, Closed, ClosedGround
 
     // Input Parameters - End Conditions (for buckling). These strings are what the
-    // page's <select> binds, so they must match CalculateBuckling's switch exactly.
-    // "BothFlat"        = both ends seated on flat surfaces  → ν = 1.0 (most common)
-    // "OneFixedOneFlat" = one end fixed, one end flat        → ν = 0.7
-    // "BothFixed"       = both ends in guide sleeves         → ν = 0.5
-    // "OneFixedOneFree" = one end clamped, other free        → ν = 2.0
+    // page's <select> binds and what share links carry, so SeatingFactor must
+    // keep resolving every key it has ever accepted.
     public string EndCondition { get; set; } = "BothFlat";
 
     // Input Parameters - Material
     public double ShearModulus { get; set; } = 81500; // G (MPa) - default for spring steel
+    /// <summary>
+    /// E (MPa). Needed by the EN 13906-1 buckling expression, which depends on
+    /// G/E and not on G alone. 206 000 is the value the standard uses for
+    /// patented drawn and oil-hardened spring steel.
+    /// </summary>
+    public double ElasticModulus { get; set; } = 206000;
     public double TensileStrength { get; set; } = 1700; // Rm (MPa)
     public double AllowableShearStress { get; set; }  // τzul (MPa)
     public string MaterialGrade { get; set; } = "SH"; // Material grade
@@ -56,7 +59,13 @@ public class SpringEngine
     public double StrokeLength { get; set; }          // sh = s2 - s1 (mm)
 
     // Calculated Values - Stress
-    public double WahlFactor { get; set; }            // k (stress correction)
+    public double WahlFactor { get; set; }            // k (stress correction, Wahl)
+    /// <summary>
+    /// k by Bergstraesser, (w + 0,5)/(w - 0,75), which is the form EN 13906-1
+    /// uses. About 1 % below Wahl; reported so a reader comparing against the
+    /// standard can tell which factor a figure came from.
+    /// </summary>
+    public double BergstrasserFactor { get; set; }
     public double ShearStress1 { get; set; }          // τ1 at F1 (MPa)
     public double ShearStress2 { get; set; }          // τ2 at F2 (MPa)
     public double ShearStressMax { get; set; }        // τc at Fc (MPa)
@@ -67,9 +76,28 @@ public class SpringEngine
     public double SafetyFactorSolid { get; set; }     // νs if compressed to solid length
     public double SlendernessRatio { get; set; }      // λ = L0/Dm
     public double EndConditionFactor { get; set; }    // ν (seating / buckling length factor)
-    public double EffectiveSlenderness { get; set; }  // λ/ν (effective slenderness for buckling check)
-    public double BucklingLimit { get; set; }         // Critical deflection ratio
+    public double EffectiveSlenderness { get; set; }  // ν·λ (effective slenderness for buckling)
+    public double BucklingLimit { get; set; }         // s_K / L0, the critical deflection ratio
+    /// <summary>s_K (mm): the deflection at which the spring buckles, EN 13906-1.</summary>
+    public double BucklingDeflection { get; set; }
+    /// <summary>False when the coil is too short and fat for buckling to exist at any deflection.</summary>
+    public bool BucklingPossible { get; set; }
     public bool BucklingRisk { get; set; }
+
+    /// <summary>
+    /// Largest deflection the user actually asked for (from L1/L2). The buckling
+    /// check is judged against this rather than against the solid-length
+    /// deflection, which the spring never reaches in service.
+    /// </summary>
+    public double MaxWorkingDeflection { get; set; }
+
+    /// <summary>
+    /// S_a: the minimum sum of coil clearances EN 13906-1 requires at the
+    /// largest working force, (0,0015·Dm²/d + 0,1·d)·n for a cold-coiled spring.
+    /// </summary>
+    public double MinimumCoilClearance { get; set; }
+    /// <summary>Clearance actually left at the largest working deflection (mm).</summary>
+    public double ProvidedCoilClearance { get; set; }
 
     // Calculated Values - Fatigue
     public double FatigueEnduranceFactor { get; set; } // 0.30 unpeened / 0.38 peened
@@ -149,17 +177,25 @@ public class SpringEngine
             _ => ActiveCoils + 2
         };
 
-        // Solid length
+        // Solid length. EN 13906-1 allows an extra half wire diameter for ends
+        // that are NOT ground, because the end coil cannot lie perfectly flat:
+        //   ground    L_c <= nt * d
+        //   unground  L_c <= (nt + 1,5) * d
+        // An unground closed end was being given (nt + 1) d, which is 0,5 d
+        // optimistic on the available stroke.
         SolidLength = EndType switch
         {
-            "Open" => (TotalCoils + 1) * WireDiameter,
-            "Closed" => (TotalCoils + 1) * WireDiameter,
+            "Open" => (TotalCoils + 1.5) * WireDiameter,
+            "Closed" => (TotalCoils + 1.5) * WireDiameter,
             "ClosedGround" => TotalCoils * WireDiameter,
             _ => TotalCoils * WireDiameter
         };
 
-        // Coil pitch (free state)
-        CoilPitch = (FreeLength - 2 * WireDiameter) / ActiveCoils;
+        // Coil pitch in the free state. Only a CLOSED end has two dead coils
+        // taking up a wire diameter each; an open-coiled spring has none, so
+        // subtracting 2d there understated the pitch.
+        double deadLength = EndType == "Open" ? 0 : 2 * WireDiameter;
+        CoilPitch = ActiveCoils > 0 ? (FreeLength - deadLength) / ActiveCoils : 0;
 
         // Wire length
         WireLength = Math.PI * MeanCoilDiameter * TotalCoils;
@@ -198,13 +234,39 @@ public class SpringEngine
             double s2 = FreeLength - Length2;
             StrokeLength = Math.Abs(s2 - s1);
         }
+
+        // The largest deflection the user actually asked for. The buckling and
+        // clearance checks belong at this point, not at the solid length - a
+        // spring in service never reaches the solid length.
+        MaxWorkingDeflection = 0;
+        if (Length1 > 0) MaxWorkingDeflection = Math.Max(MaxWorkingDeflection, FreeLength - Length1);
+        if (Length2 > 0) MaxWorkingDeflection = Math.Max(MaxWorkingDeflection, FreeLength - Length2);
+
+        // S_a, EN 13906-1: the sum of the coil clearances that must remain at
+        // the largest working force, so the spring never runs solid under load.
+        // Checking only "clearance to solid > 0" accepted 1 mm as adequate where
+        // the standard asks for 4,7 mm on the default spring.
+        MinimumCoilClearance = WireDiameter > 0
+            ? (0.0015 * MeanCoilDiameter * MeanCoilDiameter / WireDiameter + 0.1 * WireDiameter) * ActiveCoils
+            : 0;
+        ProvidedCoilClearance = MaxWorkingDeflection > 0
+            ? MaxDeflection - MaxWorkingDeflection
+            : MaxDeflection;
     }
 
     private void CalculateStresses()
     {
-        // Wahl correction factor (accounts for curvature and direct shear)
+        // Stress correction factor, for curvature and direct shear.
+        //
+        // Two forms are in use and they differ by about 1 %:
+        //   Wahl          k = (4w-1)/(4w-4) + 0,615/w        (1,184 at w = 8)
+        //   Bergstraesser k = (w + 0,5)/(w - 0,75)           (1,172 at w = 8)
+        // EN 13906-1 uses Bergstraesser. Both are reported so a reader comparing
+        // against the standard can see which one a number came from; the stresses
+        // below stay on Wahl, which is the more conservative of the two.
         double c = SpringIndex;
         WahlFactor = (4 * c - 1) / (4 * c - 4) + 0.615 / c;
+        BergstrasserFactor = c > 0.75 ? (c + 0.5) / (c - 0.75) : WahlFactor;
 
         // Shear stress formula: τ = k * (8 * F * Dm) / (π * d³)
         double stressConstant = (8 * MeanCoilDiameter) / (Math.PI * Math.Pow(WireDiameter, 3));
@@ -245,49 +307,94 @@ public class SpringEngine
             : 999;
     }
 
+    /// <summary>
+    /// Seating factor ν for an end condition key. Legacy keys are kept
+    /// resolvable because share links carry the string.
+    ///
+    /// ν is a BUCKLING LENGTH factor, exactly as in Euler's column: the
+    /// buckling length is ν·L0, so a larger ν means a spring that buckles more
+    /// easily. The value for a given seating follows the same analogy as a
+    /// column, which is why ends held parallel against flat plates - no rotation
+    /// at either end - give ν = 0,5, not 1,0. ν = 1 is the both-ends-hinged
+    /// case.
+    /// </summary>
+    public static double SeatingFactor(string endCondition) => endCondition switch
+    {
+        // Both ends ground and resting on flat surfaces that stay parallel:
+        // neither end can rotate, so this is the fixed-fixed case.
+        "BothFlat" => 0.5,
+        "BothFixed" => 0.5,            // legacy key, same physical case
+        "OneFixedOneFlat" => 0.7,      // one end built in, the other hinged
+        "BothHinged" => 1.0,           // ball-seated at both ends
+        "OneFixedOneSliding" => 1.0,   // built in at one end, free to translate at the other
+        "OneFixedOneFree" => 2.0,      // one end built in, the other entirely free
+        _ => 0.5
+    };
+
     private void CalculateBuckling()
     {
         // Slenderness ratio: λ = L0 / Dm
-        SlendernessRatio = FreeLength / MeanCoilDiameter;
+        SlendernessRatio = MeanCoilDiameter > 0 ? FreeLength / MeanCoilDiameter : 0;
 
-        // End condition factor v (EN 13906-1 Table 1)
-        //   BothFlat        : both ends seated on flat surfaces (most common)  → v = 1.0
-        //   OneFixedOneFlat : one end fixed in pocket, other on flat surface   → v = 0.7
-        //   BothFixed       : both ends in guide pockets / guided rod          → v = 0.5
-        //   OneFixedOneFree : one end clamped, other completely free (cantilever) → v = 2.0
-        EndConditionFactor = EndCondition switch
+        EndConditionFactor = SeatingFactor(EndCondition);
+
+        // Effective slenderness is ν·λ, NOT λ/ν.
+        //
+        // This was inverted, and the consequence was as bad as it gets: the most
+        // dangerous seating (one end free, ν = 2) came out as the LEAST slender
+        // and was reported "No buckling - OK", while the most stable one
+        // (ν = 0,5) was flagged as a risk. The default spring at s1 = 25 mm
+        // buckles with one end free and does not with both ends guided; the page
+        // said the opposite of both.
+        EffectiveSlenderness = EndConditionFactor * SlendernessRatio;
+
+        // EN 13906-1 buckling deflection:
+        //
+        //   s_K = L0 · (0,5/(1 − G/E)) · [ 1 − sqrt( 1 − ((1 − G/E)/(0,5 + G/E)) · (π·D/(ν·L0))² ) ]
+        //
+        // The spring cannot buckle at any deflection when the term under the
+        // root is negative - the coil is too short and fat for the elastic
+        // instability to exist.
+        //
+        // Anchors (default spring d 3, D 24, L0 80, n 8, G 81 500, E 206 000):
+        //   ν = 1   → s_K = 24,3 mm
+        //   ν = 2   → s_K =  5,2 mm
+        //   ν = 0,7 → no buckling possible
+        // The simplified constant-2,62 form this replaced gave 30,6 mm at ν = 1,
+        // i.e. 26 % on the unsafe side even once the inversion was corrected.
+        BucklingDeflection = 0;
+        BucklingPossible = false;
+
+        double gOverE = ElasticModulus > 0 ? ShearModulus / ElasticModulus : 0;
+        double a = 1.0 - gOverE;
+        double b = 0.5 + gOverE;
+
+        if (a > 0 && b > 0 && FreeLength > 0 && MeanCoilDiameter > 0 && EndConditionFactor > 0)
         {
-            "OneFixedOneFlat" => 0.7,
-            "BothFixed"       => 0.5,
-            "OneFixedOneFree" => 2.0,
-            _                 => 1.0   // BothFlat (default)
-        };
+            double ratio = Math.PI * MeanCoilDiameter / (EndConditionFactor * FreeLength);
+            double term = (a / b) * ratio * ratio;
 
-        // Effective slenderness ratio: λeff = λ / v
-        EffectiveSlenderness = SlendernessRatio / EndConditionFactor;
+            if (term < 1.0)
+            {
+                BucklingPossible = true;
+                BucklingDeflection = FreeLength * (0.5 / a) * (1.0 - Math.Sqrt(1.0 - term));
+                BucklingLimit = FreeLength > 0 ? BucklingDeflection / FreeLength : 1.0;
 
-        // EN 13906-1 buckling criterion:
-        // A spring buckles when the relative deflection (s/L0) exceeds the critical value:
-        //   (s/L0)_crit = 1 - sqrt(1 - (D_crit / λeff)²)
-        // where D_crit ≈ 2.62 for steel springs (Euler–Haringx model)
-        // Practical rule: buckling risk if λeff > 2.62 AND actual deflection > critical value
-
-        const double D_crit = 2.62;
-
-        if (EffectiveSlenderness > D_crit)
-        {
-            // Critical relative deflection at which buckling occurs
-            double term = D_crit / EffectiveSlenderness;
-            double criticalDeflectionRatio = 1.0 - Math.Sqrt(1.0 - term * term);
-            BucklingLimit = criticalDeflectionRatio;
-
-            // Current maximum relative deflection
-            double actualDeflectionRatio = MaxDeflection / FreeLength;
-            BucklingRisk = actualDeflectionRatio >= criticalDeflectionRatio;
+                // The spring is at risk once the working deflection reaches s_K.
+                // Judged at the largest deflection actually asked for, falling
+                // back to the solid length when no working position is entered.
+                double workingDeflection = MaxWorkingDeflection > 0 ? MaxWorkingDeflection : MaxDeflection;
+                BucklingRisk = workingDeflection >= BucklingDeflection;
+            }
+            else
+            {
+                // No buckling at any deflection.
+                BucklingLimit = 1.0;
+                BucklingRisk = false;
+            }
         }
         else
         {
-            // λeff ≤ 2.62 → no buckling possible for any deflection
             BucklingLimit = 1.0;
             BucklingRisk = false;
         }
