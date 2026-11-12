@@ -141,15 +141,12 @@
         </div>
     </div>
 
-    @if (!string.IsNullOrEmpty(validationError))
-    {
-        <div class="alert alert-danger" style="margin: 16px 0;">
-            <ModuleIcon Type="warning" Size="small" Style="default" CustomStyle="margin-right: 8px;" /> @validationError
-        </div>
-    }
+    <ValidationAlert Messages="validationMessages" />
 
     <div class="button-group">
-        <button class="btn btn-success btn-lg @(isCalculating ? "btn-calculating" : "")" @onclick="Calculate" disabled="@(HasAnyError || isCalculating)">
+        @* Not disabled on a geometry error: a dead button tells the user nothing.
+           Calculate refuses and names every condition that failed instead. *@
+        <button class="btn btn-success btn-lg @(isCalculating ? "btn-calculating" : "")" @onclick="Calculate" disabled="@isCalculating">
             @if (isCalculating)
             {
                 <span class="spinner"></span>
@@ -258,6 +255,10 @@ else
                     <tr class="highlight"><td>Moment of Inertia (X-axis)</td><td>I<sub>x</sub></td><td>@FormatLargeNumber(engine.Ix)</td><td>mm⁴</td></tr>
                     <tr class="highlight"><td>Moment of Inertia (Y-axis)</td><td>I<sub>y</sub></td><td>@FormatLargeNumber(engine.Iy)</td><td>mm⁴</td></tr>
                     <tr><td>Polar Moment of Inertia</td><td>I<sub>p</sub></td><td>@FormatLargeNumber(engine.Ip)</td><td>mm⁴</td></tr>
+                    @if (engine.It > 0)
+                    {
+                        <tr><td>Torsion Constant <span style="color:#6c757d">(@engine.TorsionConstantBasis)</span></td><td>I<sub>t</sub></td><td>@FormatLargeNumber(engine.It)</td><td>mm⁴</td></tr>
+                    }
                     @if (!engine.AxesArePrincipal)
                     {
                         <tr><td>Product of Inertia</td><td>I<sub>xy</sub></td><td>@FormatLargeNumber(engine.Ixy)</td><td>mm⁴</td></tr>
@@ -278,6 +279,28 @@ else
                         For bending design use the principal values: the minor principal moment
                         I<sub>v</sub> = @FormatLargeNumber(engine.IvPrincipal) mm⁴ governs, and the
                         principal axes are rotated @engine.PrincipalAngle.ToString("F2")° from X/Y.
+                        For buckling use <strong>r<sub>v</sub> = @engine.rv.ToString("F2") mm</strong>, not
+                        the smaller of r<sub>x</sub> and r<sub>y</sub> (@Math.Min(engine.rx, engine.ry).ToString("F2") mm) —
+                        taking the wrong one understates the slenderness by a factor of
+                        @((Math.Min(engine.rx, engine.ry) / Math.Max(engine.rv, 1e-9)).ToString("F2"))
+                        and overstates the Euler load by
+                        @(Math.Pow(Math.Min(engine.rx, engine.ry) / Math.Max(engine.rv, 1e-9), 2).ToString("F1")).
+                    </div>
+                </div>
+            }
+
+            @if (engine.It > 0 && engine.SelectedShape != ShapeType.Circle && engine.SelectedShape != ShapeType.HollowCircle)
+            {
+                <div class="alert alert-info" style="margin-top: 16px;">
+                    <ModuleIcon Type="info" Size="small" Style="default" />
+                    <div>
+                        <strong>I<sub>p</sub> is not the torsion constant for this section.</strong>
+                        I<sub>p</sub> = I<sub>x</sub> + I<sub>y</sub> is the polar second moment of area and
+                        equals the torsion constant only for a circle or a tube. Twisting is governed by
+                        I<sub>t</sub> = @FormatLargeNumber(engine.It) mm⁴, which here is
+                        @((engine.Ip / Math.Max(engine.It, 1e-9)).ToString("F0")) times smaller —
+                        @engine.TorsionConstantBasis. Warping restraint is not included, and on an open
+                        section it usually carries most of the torque in practice.
                     </div>
                 </div>
             }
@@ -289,10 +312,29 @@ else
             <table class="results-table">
                 <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
                 <tbody>
-                    <tr class="highlight"><td>Section Modulus (X-axis)</td><td>W<sub>x</sub></td><td>@FormatLargeNumber(engine.Wx)</td><td>mm³</td></tr>
-                    <tr class="highlight"><td>Section Modulus (Y-axis)</td><td>W<sub>y</sub></td><td>@FormatLargeNumber(engine.Wy)</td><td>mm³</td></tr>
+                    <tr class="highlight"><td>Section Modulus (X-axis, governing fibre)</td><td>W<sub>x</sub></td><td>@FormatLargeNumber(engine.Wx)</td><td>mm³</td></tr>
+                    <tr class="highlight"><td>Section Modulus (Y-axis, governing fibre)</td><td>W<sub>y</sub></td><td>@FormatLargeNumber(engine.Wy)</td><td>mm³</td></tr>
+                    @if (engine.SectionIsAsymmetricAboutX)
+                    {
+                        <tr><td>&nbsp;&nbsp;at the top fibre</td><td>W<sub>x,top</sub></td><td>@FormatLargeNumber(engine.WxTop)</td><td>mm³</td></tr>
+                        <tr><td>&nbsp;&nbsp;at the bottom fibre</td><td>W<sub>x,bot</sub></td><td>@FormatLargeNumber(engine.WxBottom)</td><td>mm³</td></tr>
+                    }
+                    @if (engine.SectionIsAsymmetricAboutY)
+                    {
+                        <tr><td>&nbsp;&nbsp;at the left fibre</td><td>W<sub>y,left</sub></td><td>@FormatLargeNumber(engine.WyLeft)</td><td>mm³</td></tr>
+                        <tr><td>&nbsp;&nbsp;at the right fibre</td><td>W<sub>y,right</sub></td><td>@FormatLargeNumber(engine.WyRight)</td><td>mm³</td></tr>
+                    }
                 </tbody>
             </table>
+            @if (engine.SectionIsAsymmetricAboutX || engine.SectionIsAsymmetricAboutY)
+            {
+                <p style="margin: 12px 0 0 0; font-size: 13px; color: #6c757d;">
+                    This section is not symmetric about its centroidal axis, so the two extreme fibres have
+                    different moduli. W<sub>x</sub> and W<sub>y</sub> report the <strong>smaller</strong> of
+                    each pair, which is what a symmetric allowable stress needs. Use the individual values
+                    when the tension and compression limits differ — cast iron, for instance.
+                </p>
+            }
         </div>
 
         <!-- Radius of Gyration -->
@@ -303,8 +345,30 @@ else
                 <tbody>
                     <tr><td>Radius of Gyration (X-axis)</td><td>r<sub>x</sub></td><td>@engine.rx.ToString("F2")</td><td>mm</td></tr>
                     <tr><td>Radius of Gyration (Y-axis)</td><td>r<sub>y</sub></td><td>@engine.ry.ToString("F2")</td><td>mm</td></tr>
+                    @if (!engine.AxesArePrincipal)
+                    {
+                        <tr><td>Major Principal Axis</td><td>r<sub>u</sub></td><td>@engine.ru.ToString("F2")</td><td>mm</td></tr>
+                        <tr class="highlight"><td><strong>Minor Principal Axis — governs buckling</strong></td><td>r<sub>v</sub></td><td>@engine.rv.ToString("F2")</td><td>mm</td></tr>
+                    }
                 </tbody>
             </table>
+            <p style="margin: 12px 0 0 0; font-size: 13px; color: #6c757d;">
+                A column buckles about its weak <strong>principal</strong> axis.
+                @if (engine.AxesArePrincipal)
+                {
+                    <text>
+                        For this section X and Y <em>are</em> principal axes, so the smaller of
+                        r<sub>x</sub> and r<sub>y</sub> is the right value to use.
+                    </text>
+                }
+                else
+                {
+                    <text>
+                        For this section they are not X or Y: use r<sub>v</sub>, which is smaller than both
+                        r<sub>x</sub> and r<sub>y</sub>. That is why an angle buckles diagonally.
+                    </text>
+                }
+            </p>
         </div>
 
         <!-- Extreme Fiber Distances -->
@@ -461,7 +525,8 @@ else
     private bool isSavingPdf = false;
     private int selectedShapeIndex = 0;
     private int selectedMaterialIndex = 2;
-    private string validationError = "";
+    /// <summary>Why Calculate refused, shown by <see cref="ValidationAlert"/>.</summary>
+    private List<string> validationMessages = new();
     private bool openedFromSharedLink = false;
     private string svgBase64Image = "";
     private ModuleInfo moduleInfo = new();
@@ -494,7 +559,7 @@ else
             engine.SelectedShape = ShapeIndexMap[selectedShapeIndex];
         }
         SetDefaultValues();
-        validationError = "";
+        validationMessages.Clear();
     }
 
     private void OnMaterialChanged()
@@ -575,12 +640,12 @@ else
         await Task.Delay(350);
         if (!engine.ValidateInputs())
         {
-            validationError = engine.GetValidationError();
-            await Analytics.TrackCalculationError("moment-of-inertia", "validation_failed", validationError);
+            validationMessages = engine.Validate();
+            await Analytics.TrackCalculationError("moment-of-inertia", "validation_failed", string.Join("; ", validationMessages));
             isCalculating = false;
             return;
         }
-        validationError = "";
+        validationMessages.Clear();
         engine.Calculate();
 
         // Convert SVG to Base64 image for PDF compatibility
@@ -611,7 +676,7 @@ else
         selectedShapeIndex = 0;
         engine.SelectedShape = ShapeType.Rectangle;
         SetDefaultValues();
-        validationError = "";
+        validationMessages.Clear();
         svgBase64Image = "";
         showResults = false;
         openedFromSharedLink = false;

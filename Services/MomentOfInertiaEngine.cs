@@ -62,12 +62,38 @@ public class MomentOfInertiaEngine
     public bool AxesArePrincipal { get; set; }     // true when Ixy = 0 (X/Y are principal)
 
     // Section Modulus
-    public double Wx { get; set; }                 // mm³ (about X-axis)
-    public double Wy { get; set; }                 // mm³ (about Y-axis)
+    public double Wx { get; set; }                 // mm³ (about X-axis, governing fibre)
+    public double Wy { get; set; }                 // mm³ (about Y-axis, governing fibre)
+
+    // Per-fibre section moduli. On an asymmetric section these differ by a
+    // factor of two or more, and only the smaller is safe for a symmetric
+    // allowable stress.
+    public double WxTop { get; set; }              // mm³
+    public double WxBottom { get; set; }           // mm³
+    public double WyLeft { get; set; }             // mm³
+    public double WyRight { get; set; }            // mm³
+    public bool SectionIsAsymmetricAboutX { get; set; }
+    public bool SectionIsAsymmetricAboutY { get; set; }
 
     // Radius of Gyration
     public double rx { get; set; }                 // mm (about X-axis)
     public double ry { get; set; }                 // mm (about Y-axis)
+    /// <summary>Radius of gyration about the MAJOR principal axis (mm).</summary>
+    public double ru { get; set; }
+    /// <summary>
+    /// Radius of gyration about the MINOR principal axis (mm). This is the one a
+    /// column buckles about — not min(rx, ry), which is only the same thing when
+    /// X and Y are themselves principal axes.
+    /// </summary>
+    public double rv { get; set; }
+
+    /// <summary>
+    /// St Venant torsion constant (mm^4). NOT the same as Ip except for a solid
+    /// or hollow circle. Zero when no expression applies to the shape.
+    /// </summary>
+    public double It { get; set; }
+    /// <summary>How It was obtained, for the results to state.</summary>
+    public string TorsionConstantBasis { get; set; } = "";
 
     // Centroid distances (from origin - always 0 for symmetric sections)
     public double CentroidY { get; set; }          // mm (Y distance from origin to centroid)
@@ -130,12 +156,24 @@ public class MomentOfInertiaEngine
         // Calculate polar moment of inertia
         Ip = Ix + Iy;
 
+        CalculateSectionModuli();
+
         // Calculate radius of gyration
         if (Area > 0)
         {
             rx = Math.Sqrt(Ix / Area);
             ry = Math.Sqrt(Iy / Area);
+
+            // About the PRINCIPAL axes. r_v is the one that governs buckling, and
+            // on an angle it is nowhere near min(rx, ry): an L 100x100x12 has
+            // rx = ry = 30,51 mm and r_v = 19,57 mm. Taking the smaller of rx and
+            // ry there understates the slenderness by a factor of 1,56 and
+            // overstates the Euler load by 2,4.
+            ru = Math.Sqrt(IuPrincipal / Area);
+            rv = Math.Sqrt(IvPrincipal / Area);
         }
+
+        CalculateTorsionConstant();
 
         // Calculate mass
         CalculateMass();
@@ -409,6 +447,134 @@ public class MomentOfInertiaEngine
     }
 
     /// <summary>
+    /// Section modulus at EACH extreme fibre, plus the governing (smallest) value
+    /// in each direction.
+    ///
+    /// On an asymmetric section the two fibres are far apart: a T 120x150 has
+    /// W_x = 169 435 mm3 at its flange face and 68 149 mm3 at the stem tip. The
+    /// smaller one governs a symmetric allowable stress and is what Wx reports,
+    /// but a reader checking a compression-only or tension-only limit needs both,
+    /// and seeing only one invites the assumption that the section is symmetric.
+    ///
+    /// Computing them here rather than in each shape also removed a slip in the
+    /// hollow circle, which divided Ix by the left-fibre distance to get Wy.
+    /// </summary>
+    private void CalculateSectionModuli()
+    {
+        WxTop = DistanceToTopFiber > 0 ? Ix / DistanceToTopFiber : 0;
+        WxBottom = DistanceToBottomFiber > 0 ? Ix / DistanceToBottomFiber : 0;
+        WyLeft = DistanceToLeftFiber > 0 ? Iy / DistanceToLeftFiber : 0;
+        WyRight = DistanceToRightFiber > 0 ? Iy / DistanceToRightFiber : 0;
+
+        double MinPositive(double a, double b)
+        {
+            if (a > 0 && b > 0) return Math.Min(a, b);
+            return a > 0 ? a : b;
+        }
+
+        double wx = MinPositive(WxTop, WxBottom);
+        double wy = MinPositive(WyLeft, WyRight);
+        if (wx > 0) Wx = wx;
+        if (wy > 0) Wy = wy;
+
+        SectionIsAsymmetricAboutX = WxTop > 0 && WxBottom > 0
+            && Math.Abs(WxTop - WxBottom) / Math.Max(WxTop, WxBottom) > 1e-6;
+        SectionIsAsymmetricAboutY = WyLeft > 0 && WyRight > 0
+            && Math.Abs(WyLeft - WyRight) / Math.Max(WyLeft, WyRight) > 1e-6;
+    }
+
+    /// <summary>
+    /// St Venant torsion constant.
+    ///
+    /// I_p = I_x + I_y is the POLAR second moment of area and equals the torsion
+    /// constant only for a circular section. For every other shape it is far too
+    /// large — an I-beam or a channel twists on the thin-walled open-section
+    /// value, which can be two orders of magnitude smaller — so presenting I_p
+    /// next to a torsion result invites a dangerous substitution.
+    ///
+    ///   circle / tube:  I_t = I_p
+    ///   open section:   I_t = sum(b_i * t_i^3) / 3   (thin-walled, no fillets)
+    ///   closed box:     I_t = 4 A_m^2 / integral(ds/t)   (Bredt)
+    ///   solid rectangle: Roark's beta * b * h^3, beta from the aspect ratio
+    /// </summary>
+    private void CalculateTorsionConstant()
+    {
+        It = 0;
+        TorsionConstantBasis = "";
+
+        switch (SelectedShape)
+        {
+            case ShapeType.Circle:
+            case ShapeType.HollowCircle:
+                It = Ip;
+                TorsionConstantBasis = "circular section: I_t = I_p exactly";
+                break;
+
+            case ShapeType.Rectangle:
+            {
+                // Solid rectangle, St Venant. The series solution
+                //   I_t = a b^3 [1/3 - 0.21 (b/a)(1 - b^4/(12 a^4))]
+                // with a the long side and b the short one; accurate to well
+                // under 1 % for every aspect ratio.
+                double a = Math.Max(Width, Height);
+                double b = Math.Min(Width, Height);
+                if (a > 0 && b > 0)
+                {
+                    double ratio = b / a;
+                    It = a * b * b * b * (1.0 / 3.0 - 0.21 * ratio * (1.0 - Math.Pow(ratio, 4) / 12.0));
+                    TorsionConstantBasis = "solid rectangle, St Venant series";
+                }
+                break;
+            }
+
+            case ShapeType.HollowRectangle:
+            {
+                // Bredt, closed thin-walled box. Wall thicknesses from the
+                // difference of the outer and inner dimensions.
+                double tv = (Width - InnerWidth) / 2.0;    // vertical walls
+                double th = (Height - InnerHeight) / 2.0;  // horizontal walls
+                if (tv > 0 && th > 0)
+                {
+                    double bm = Width - tv;    // mid-line width
+                    double hm = Height - th;   // mid-line height
+                    double am = bm * hm;
+                    double perimeterOverT = 2.0 * bm / th + 2.0 * hm / tv;
+                    if (am > 0 && perimeterOverT > 0)
+                    {
+                        It = 4.0 * am * am / perimeterOverT;
+                        TorsionConstantBasis = "closed box, Bredt thin-walled";
+                    }
+                }
+                break;
+            }
+
+            case ShapeType.IBeam:
+                It = (2.0 * FlangeWidth * Math.Pow(FlangeThickness, 3)
+                      + (TotalHeight - 2.0 * FlangeThickness) * Math.Pow(WebThickness, 3)) / 3.0;
+                TorsionConstantBasis = "open section, sum(b t^3)/3, no fillets";
+                break;
+
+            case ShapeType.CChannel:
+                It = (2.0 * ChannelWidth * Math.Pow(ChannelFlangeThickness, 3)
+                      + (ChannelHeight - 2.0 * ChannelFlangeThickness) * Math.Pow(ChannelWebThickness, 3)) / 3.0;
+                TorsionConstantBasis = "open section, sum(b t^3)/3, no fillets";
+                break;
+
+            case ShapeType.TSection:
+                It = (TFlangeWidth * Math.Pow(TFlangeThickness, 3)
+                      + (THeight - TFlangeThickness) * Math.Pow(TStemThickness, 3)) / 3.0;
+                TorsionConstantBasis = "open section, sum(b t^3)/3, no fillets";
+                break;
+
+            case ShapeType.LSection:
+                It = ((LegWidth - LegThickness) * Math.Pow(LegThickness, 3)
+                      + LegHeight * Math.Pow(LegThickness, 3)) / 3.0;
+                TorsionConstantBasis = "open section, sum(b t^3)/3, no fillets";
+                break;
+        }
+    }
+
+    /// <summary>
     /// Principal second moments of area Iu (max) and Iv (min) and the angle to
     /// the principal axes, from Ix, Iy and Ixy.
     ///
@@ -441,48 +607,108 @@ public class MomentOfInertiaEngine
 
     // ============ VALIDATION METHODS ============
 
-    public bool ValidateInputs()
+    /// <summary>
+    /// Every condition the selected shape has to satisfy, each with the message
+    /// that names it. Empty means the geometry is usable.
+    ///
+    /// This is ONE list rather than a bool and a separate message because the two
+    /// had drifted: the bool rejected a web thicker than the flange and a missing
+    /// dimension, and neither had any text, so Calculate refused in silence and
+    /// the button looked dead. A condition without a message cannot exist here.
+    /// </summary>
+    public List<string> Validate()
     {
-        return SelectedShape switch
+        var messages = new List<string>();
+
+        void Positive(double value, string name)
         {
-            ShapeType.Rectangle => Width > 0 && Height > 0,
-            ShapeType.HollowRectangle => Width > 0 && Height > 0 && InnerWidth > 0 && InnerHeight > 0
-                                         && InnerWidth < Width && InnerHeight < Height,
-            ShapeType.Circle => Diameter > 0,
-            ShapeType.HollowCircle => Diameter > 0 && InnerDiameter > 0 && InnerDiameter < Diameter,
-            ShapeType.IBeam => FlangeWidth > 0 && TotalHeight > 0 && FlangeThickness > 0 && WebThickness > 0
-                              && 2 * FlangeThickness < TotalHeight && WebThickness <= FlangeWidth,
-            ShapeType.CChannel => ChannelWidth > 0 && ChannelHeight > 0 && ChannelFlangeThickness > 0 && ChannelWebThickness > 0
-                                  && 2 * ChannelFlangeThickness < ChannelHeight,
-            ShapeType.TSection => TFlangeWidth > 0 && THeight > 0 && TFlangeThickness > 0 && TStemThickness > 0
-                                  && TFlangeThickness < THeight && TStemThickness <= TFlangeWidth,
-            ShapeType.LSection => LegWidth > 0 && LegHeight > 0 && LegThickness > 0
-                                  && LegThickness < LegWidth && LegThickness < LegHeight,
-            _ => false
-        };
+            if (value <= 0) messages.Add($"{name} must be greater than 0.");
+        }
+
+        switch (SelectedShape)
+        {
+            case ShapeType.Rectangle:
+                Positive(Width, "Width (b)");
+                Positive(Height, "Height (h)");
+                break;
+
+            case ShapeType.HollowRectangle:
+                Positive(Width, "Outer width (b)");
+                Positive(Height, "Outer height (h)");
+                Positive(InnerWidth, "Inner width (bi)");
+                Positive(InnerHeight, "Inner height (hi)");
+                if (Width > 0 && InnerWidth >= Width)
+                    messages.Add($"Inner width (bi) must be smaller than the outer width ({Width:0.##} mm), or there is no wall.");
+                if (Height > 0 && InnerHeight >= Height)
+                    messages.Add($"Inner height (hi) must be smaller than the outer height ({Height:0.##} mm), or there is no wall.");
+                break;
+
+            case ShapeType.Circle:
+                Positive(Diameter, "Diameter (d)");
+                break;
+
+            case ShapeType.HollowCircle:
+                Positive(Diameter, "Outer diameter (d)");
+                Positive(InnerDiameter, "Inner diameter (di)");
+                if (Diameter > 0 && InnerDiameter >= Diameter)
+                    messages.Add($"Inner diameter (di) must be smaller than the outer diameter ({Diameter:0.##} mm), or there is no wall.");
+                break;
+
+            case ShapeType.IBeam:
+                Positive(FlangeWidth, "Flange width (bf)");
+                Positive(TotalHeight, "Total height (h)");
+                Positive(FlangeThickness, "Flange thickness (tf)");
+                Positive(WebThickness, "Web thickness (tw)");
+                if (TotalHeight > 0 && 2 * FlangeThickness >= TotalHeight)
+                    messages.Add($"The two flanges (2·tf = {2 * FlangeThickness:0.##} mm) must be thinner than the total height ({TotalHeight:0.##} mm), or there is no web left.");
+                if (FlangeWidth > 0 && WebThickness > FlangeWidth)
+                    messages.Add($"Web thickness (tw) cannot exceed the flange width ({FlangeWidth:0.##} mm) — the web would stand outside the flange.");
+                break;
+
+            case ShapeType.CChannel:
+                Positive(ChannelWidth, "Channel width (b)");
+                Positive(ChannelHeight, "Channel height (h)");
+                Positive(ChannelFlangeThickness, "Flange thickness (tf)");
+                Positive(ChannelWebThickness, "Web thickness (tw)");
+                if (ChannelHeight > 0 && 2 * ChannelFlangeThickness >= ChannelHeight)
+                    messages.Add($"The two flanges (2·tf = {2 * ChannelFlangeThickness:0.##} mm) must be thinner than the channel height ({ChannelHeight:0.##} mm), or there is no web left.");
+                if (ChannelWidth > 0 && ChannelWebThickness >= ChannelWidth)
+                    messages.Add($"Web thickness (tw) must be smaller than the channel width ({ChannelWidth:0.##} mm).");
+                break;
+
+            case ShapeType.TSection:
+                Positive(TFlangeWidth, "Flange width (bf)");
+                Positive(THeight, "Total height (h)");
+                Positive(TFlangeThickness, "Flange thickness (tf)");
+                Positive(TStemThickness, "Stem thickness (tw)");
+                if (THeight > 0 && TFlangeThickness >= THeight)
+                    messages.Add($"Flange thickness (tf) must be less than the total height ({THeight:0.##} mm), or there is no stem left.");
+                if (TFlangeWidth > 0 && TStemThickness > TFlangeWidth)
+                    messages.Add($"Stem thickness (tw) cannot exceed the flange width ({TFlangeWidth:0.##} mm).");
+                break;
+
+            case ShapeType.LSection:
+                Positive(LegWidth, "Leg width (b)");
+                Positive(LegHeight, "Leg height (h)");
+                Positive(LegThickness, "Leg thickness (t)");
+                if (LegWidth > 0 && LegThickness >= LegWidth)
+                    messages.Add($"Leg thickness (t) must be less than the leg width ({LegWidth:0.##} mm).");
+                if (LegHeight > 0 && LegThickness >= LegHeight)
+                    messages.Add($"Leg thickness (t) must be less than the leg height ({LegHeight:0.##} mm).");
+                break;
+
+            default:
+                messages.Add("Select a cross-section shape.");
+                break;
+        }
+
+        if (Density <= 0) messages.Add("Density must be greater than 0.");
+        if (Length <= 0) messages.Add("Length must be greater than 0.");
+
+        return messages;
     }
 
-    public string GetValidationError()
-    {
-        return SelectedShape switch
-        {
-            ShapeType.Rectangle when Width <= 0 || Height <= 0 => "Width and Height must be positive.",
-            ShapeType.HollowRectangle when InnerWidth >= Width || InnerHeight >= Height =>
-                "Inner dimensions must be smaller than outer dimensions.",
-            ShapeType.Circle when Diameter <= 0 => "Diameter must be positive.",
-            ShapeType.HollowCircle when InnerDiameter >= Diameter =>
-                "Inner diameter must be smaller than outer diameter.",
-            ShapeType.IBeam when 2 * FlangeThickness >= TotalHeight =>
-                "Total flange thickness (2×tf) must be less than total height.",
-            ShapeType.CChannel when 2 * ChannelFlangeThickness >= ChannelHeight =>
-                "Total flange thickness (2×tf) must be less than channel height.",
-            ShapeType.TSection when TFlangeThickness >= THeight =>
-                "Flange thickness must be less than total height.",
-            ShapeType.LSection when LegThickness >= LegWidth || LegThickness >= LegHeight =>
-                "Leg thickness must be less than leg dimensions.",
-            _ => string.Empty
-        };
-    }
+    public bool ValidateInputs() => Validate().Count == 0;
 }
 
 // ============ SHAPE TYPE ENUM ============

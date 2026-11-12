@@ -26,19 +26,37 @@
         <summary>The equations</summary>
         <div class="mc-body">
             <p>The definitions, and what each derived quantity is for:</p>
-<pre>I&#8339; = &#8747; y&#178; dA        I&#8342; = &#8747; x&#178; dA        I&#7515; = I&#8339; + I&#8342;
+<pre>I_x = integral y^2 dA     I_y = integral x^2 dA     I_p = I_x + I_y
 
-W&#8339; = I&#8339; / c&#8339;                         section modulus
-r&#8339; = &radic;(I&#8339; / A)                       radius of gyration
+I_xy = integral x y dA                 product of inertia
 
-&sigma; = M / W                            bending stress
-f &prop; F L&#179; / (E I)                       deflection
+W_x = I_x / c_x                        section modulus
+r_x = sqrt(I_x / A)                    radius of gyration
 
-I' = I + A e&#178;                          parallel axis (Steiner) shift</pre>
-            <p>The polar moment I<sub>p</sub> is the sum of the two only for a section loaded in
-            torsion about its centroid, and it is the correct torsional constant only for a
-            circular section. For an open section such as a channel or an angle, torsional
-            stiffness is a different and much smaller quantity.</p>
+sigma = M / W                          bending stress
+f  proportional to  F L^3 / (E I)      deflection
+
+I' = I + A e^2                         parallel axis (Steiner) shift
+
+principal axes, when I_xy is not zero:
+
+I_u, I_v  = (I_x + I_y)/2 +/- sqrt( ((I_x - I_y)/2)^2 + I_xy^2 )
+tan(2 alpha) = -2 I_xy / (I_x - I_y)
+r_v = sqrt(I_v / A)                    governs buckling
+
+torsion constant (NOT I_p, except for a circle):
+
+circle or tube:   I_t = I_p
+open section:     I_t = sum(b_i t_i^3) / 3
+closed box:       I_t = 4 A_m^2 / integral(ds/t)      (Bredt)</pre>
+            <p>The polar moment I<sub>p</sub> is the correct torsional constant only for a
+            circular section. For an open section such as a channel or an angle the torsion
+            constant I<sub>t</sub> is a different and much smaller quantity &mdash; one to two
+            orders of magnitude &mdash; and the calculator reports it separately.</p>
+            <p><strong>The product of inertia I<sub>xy</sub> is what makes an angle different.</strong>
+            When it is not zero, bending about x alone still deflects the section sideways, and the
+            axes the section is actually weak about are rotated. The calculator gives
+            I<sub>u</sub>, I<sub>v</sub>, the angle and r<sub>v</sub> whenever that happens.</p>
             <table class="mc-sym">
                 <thead><tr><th>Symbol</th><th>Meaning</th><th>Unit</th></tr></thead>
                 <tbody>
@@ -46,7 +64,11 @@ I' = I + A e&#178;                          parallel axis (Steiner) shift</pre>
                     <tr><td>I<sub>x</sub> / I<sub>y</sub></td><td>Second moment of area about x / y</td><td>mm&#8308;</td></tr>
                     <tr><td>I<sub>p</sub></td><td>Polar second moment of area</td><td>mm&#8308;</td></tr>
                     <tr><td>W<sub>x</sub> / W<sub>y</sub></td><td>Section modulus about x / y</td><td>mm&#179;</td></tr>
-                    <tr><td>r<sub>x</sub> / r<sub>y</sub></td><td>Radius of gyration</td><td>mm</td></tr>
+                    <tr><td>r<sub>x</sub> / r<sub>y</sub></td><td>Radius of gyration about x / y</td><td>mm</td></tr>
+                    <tr><td>I<sub>xy</sub></td><td>Product of inertia; zero when x or y is an axis of symmetry</td><td>mm&#8308;</td></tr>
+                    <tr><td>I<sub>u</sub> / I<sub>v</sub></td><td>Major / minor principal second moment of area</td><td>mm&#8308;</td></tr>
+                    <tr><td>r<sub>v</sub></td><td>Radius of gyration about the minor principal axis</td><td>mm</td></tr>
+                    <tr><td>I<sub>t</sub></td><td>St Venant torsion constant</td><td>mm&#8308;</td></tr>
                     <tr><td>c</td><td>Distance from centroid to extreme fibre</td><td>mm</td></tr>
                     <tr><td>&#961;</td><td>Material density</td><td>kg/m&#179;</td></tr>
                     <tr><td>m'</td><td>Mass per metre of profile</td><td>kg/m</td></tr>
@@ -118,14 +140,24 @@ c to left / right                      50,00 mm</pre>
             <p><strong>Check both axes.</strong> A section strong about x may be weak about y, and
             a beam loaded slightly off-plane, or one free to buckle sideways, will find that
             weakness.</p>
-            <p><strong>The radius of gyration is for buckling.</strong> A column's slenderness is
-            its effective length divided by the <em>smaller</em> of r<sub>x</sub> and
-            r<sub>y</sub> &mdash; 28,87 mm here, not 43,30. A column always buckles about its weak
-            axis.</p>
-            <p><strong>The polar moment is not a torsion constant for open sections.</strong> For
-            a round bar or tube, I<sub>p</sub> is what you want. For a channel, angle or any open
-            profile, the real torsional stiffness is far lower and this page does not compute
-            it.</p>
+            <p><strong>The radius of gyration is for buckling, and it is the
+            <em>principal</em> one.</strong> A column's slenderness is its effective length divided
+            by the smallest radius of gyration the section has. For a rectangle, an I-beam, a
+            channel or a T that is the smaller of r<sub>x</sub> and r<sub>y</sub> &mdash; 28,87 mm
+            on the 100&times;150 rectangle, not 43,30. <strong>For an angle it is neither.</strong>
+            An equal-leg L 100&times;100&times;12 has r<sub>x</sub> = r<sub>y</sub> = 30,51 mm and
+            r<sub>v</sub> = <strong>19,57 mm</strong>: its weak axis runs at 45&deg; through the
+            heel, which is why an angle strut buckles diagonally. Using 30,51 understates the
+            slenderness by a factor of 1,56 and overstates the Euler load by 2,4. The calculator
+            prints r<sub>u</sub> and r<sub>v</sub> whenever I<sub>xy</sub> &ne; 0 and says which to
+            use.</p>
+            <p><strong>The polar moment is not a torsion constant.</strong> I<sub>p</sub> =
+            I<sub>x</sub> + I<sub>y</sub> is what you want for a round bar or a tube, and for
+            nothing else. The calculator now gives I<sub>t</sub> separately &mdash; the St Venant
+            series for a solid rectangle, Bredt for a closed box, &Sigma;b&middot;t&sup3;/3 for an
+            open section &mdash; and the gap is not small: on the I 100&times;200 above
+            I<sub>p</sub> is 115 times I<sub>t</sub>. Warping restraint is not included, and
+            on an open section it usually carries most of the torque in practice.</p>
         </div>
     </details>
 
