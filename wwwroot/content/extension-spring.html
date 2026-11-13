@@ -32,11 +32,23 @@ F = F&#8320; + R s                          force, including initial tension
 
 &tau;&#8342; = k &middot; 8 F D&#8344; / (&pi; d&#179;)              body shear stress, Wahl corrected
 
-&sigma;&#7495; = K&#8341; &middot; 32 F R&#8321; / (&pi; d&#179;)          hook bending stress
-&tau;&#8341; = K&#8341; &middot; 8 F D&#8344; / (&pi; d&#179;)             hook shear stress</pre>
-            <p>K<sub>h</sub> depends on the hook bend radius relative to the wire. A tight bend
-            raises it sharply, which is why a hook formed around the wire diameter is much weaker
-            than one formed around two or three times it.</p>
+sigma_A = K_1 . 32 F a / (pi d^3) + 4F/(pi d^2)   hook bending, at the body
+tau_H   = K_2 . 8 F D_m / (pi d^3)               hook shear, at the bend
+
+K_1 = (4C_1^2 - C_1 - 1)/(4C_1(C_1 - 1))    C_1 = D_m/d   loop radius
+K_2 = (4C_2 - 1)/(4C_2 - 4)                 C_2 = 2R_1/d  bend radius</pre>
+            <p><strong>The bending moment arm is the radius of the LOOP, not the bend radius.</strong>
+            The load comes in through the middle of the loop, so the section where the hook meets
+            the body carries M = F&middot;D<sub>m</sub>/2 &mdash; 8 mm on this spring, against the
+            3,5 mm bend radius. Using the bend radius halves the bending stress and makes the
+            model run backwards as well: a <em>larger</em> bend would come out as more stress,
+            where in reality a generous bend relieves the concentration.</p>
+            <p>The two concentrations are separate and neither can fall below 1. Bending is
+            concentrated by the loop curvature, torsion by the bend itself, and a bend always
+            concentrates &mdash; a factor under 1 would make the hook less stressed than the plain
+            body, which no geometry can do. The hook <em>type</em> acts on the moment arm, which
+            is where a raised hook earns its lower stress: it brings the load line closer to the
+            body axis.</p>
             <table class="mc-sym">
                 <thead><tr><th>Symbol</th><th>Meaning</th><th>Unit</th></tr></thead>
                 <tbody>
@@ -62,7 +74,7 @@ F = F&#8320; + R s                          force, including initial tension
             cannot reliably wind. Cold-wound springs have it; hot-wound ones do not.</p>
             <p><strong>Hook type.</strong> The most consequential dropdown on the page. A German
             hook (full loop) is cheap and universal and is also the most highly stressed. A raised
-            hook lowers the stress by roughly a quarter. A threaded insert removes the hook
+            hook lowers the bending stress by shortening the moment arm. A threaded insert removes the hook
             problem entirely and costs more.</p>
             <p><strong>The two operating positions.</strong> Enter both, not just the working one.
             The difference between them is the stress range, and that is what the fatigue check
@@ -90,19 +102,29 @@ Initial tension  F&#8320;                     20,0 N     (band 16,7 &ndash; 66,8
 Position 1   s 10 mm   L 118,6      F&#8321;  29,9 N
 Position 2   s 30 mm   L 138,6      F&#8322;  49,8 N
 
-Body stress, corrected                   301 MPa   &rarr; SF 2,55  &#10003;
-Hook bending                             298 MPa   &rarr; SF 3,99  &#10003;
-Hook shear                               323 MPa   &rarr; SF 2,37  &#10003;
-Fatigue                                            &rarr; SF 3,53  infinite life</pre>
+Body stress, corrected                   301 MPa   -> SF 2,55
+Hook bending  (arm 8,0 mm, K_1 1,103)    576 MPa   -> SF 2,07
+Hook shear    (K_2 1,300)                330 MPa   -> SF 2,32
+
+Maximum force    body alone would allow  150,2 N
+                 hook alone allows       103,0 N   governing
+                 -> max extension         83,5 mm
+
+Fatigue   body (corrected stress)        SF 2,98
+          hook                           SF 2,27   governing</pre>
             <p>Read the force at position 1: 29,9 N, not 9,95 N. The initial tension of 20 N is
             carried before the spring moves at all, so <strong>an extension spring does not pass
             through the origin</strong> and a rate calculation alone understates the force by that
             whole amount. On a light spring like this one the initial tension is two-thirds of the
             working force.</p>
-            <p>The hook is the weak point even though every check passes &mdash; 2,37 in shear
-            against 2,55 for the body. The margin is thin and the page says so. Move to a raised
-            hook and the hook stresses drop by about a quarter, taking the governing factor from
-            the hook back to the body, which is where you want it.</p>
+            <p><strong>The hook governs everything here</strong> &mdash; 2,07 in bending against
+            2,55 for the body, and the same again on fatigue. That is the normal result for an
+            extension spring and it is why the maximum force is 103 N rather than the 150 N the
+            body alone would take: quoting the body's limit as the maximum extension gives a
+            number the hook cannot survive.</p>
+            <p>Move to a raised hook and the moment arm shortens, taking the governing factor
+            back towards the body &mdash; which is where you want it. A threaded insert removes
+            the hook stresses altogether, at the cost of a thread to check instead.</p>
         </div>
     </details>
 
@@ -115,14 +137,18 @@ Fatigue                                            &rarr; SF 3,53  infinite life
             <p><strong>Check the initial tension against the recommended band.</strong> Below it
             the coils may not close reliably; above it the spring is hard to wind and the tension
             will not be repeatable from batch to batch.</p>
-            <p><strong>Fatigue</strong> is driven by the stress range between your two positions.
-            Extension springs are poor fatigue performers compared with compression springs,
-            largely because of the hooks, so treat an infinite-life result with more caution
-            here.</p>
+            <p><strong>Fatigue</strong> is driven by the stress range between your two positions,
+            and it is checked at <em>both</em> the body and the hook. The body runs on the
+            corrected stress, as EN 13906-2 requires for a dynamically loaded spring; the hook is
+            included because that is where extension springs actually break, and on the worked
+            example it is the governing one. The cycle estimate beside it is a simplified
+            S&ndash;N curve for the body alone &mdash; do not read an "infinite life" there as
+            covering the hook.</p>
             <p><strong>There is no buckling check</strong>, because a spring in tension cannot
-            buckle. There is also no solid-length equivalent &mdash; the limit is the maximum
-            extension shown in the results, beyond which the coils are stressed past the
-            allowable.</p>
+            buckle. There is also no solid-length equivalent: the limit is the maximum extension
+            shown in the results, and that figure is now the lower of what the body and the
+            <em>hook</em> allow. Taking the body's limit alone overstated it by half on the
+            worked example &mdash; 150 N against the 103 N the hook can carry.</p>
         </div>
     </details>
 

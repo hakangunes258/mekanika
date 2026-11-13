@@ -31,10 +31,19 @@
 
 M = R&#7504; &middot; &#945;                             torque at deflection &#945;
 
-&sigma; = q &middot; 32 M / (&pi; d&#179;)                 bending stress
-q = (4w&#178; &minus; w &minus; 1) / (4w&#178; &minus; 4w)         correction factor, index w
+sigma = q . 32 M / (pi d^3)             bending stress
+q     = (w + 0,07) / (w - 0,75)         EN 13906-3 correction, index w
 
-D&#7522; = D&#7522;&#8320; &middot; n / (n + &#945;/360)             bore shrinks as it winds up</pre>
+D_i(alpha) = D_m . n/(n +/- alpha/360) - d     bore under load
+                   + closing load, - opening load</pre>
+            <p><strong>The bore formula scales the MEAN diameter and then subtracts the wire.</strong>
+            Scaling the inner diameter instead carries the wire thickness along with the coil,
+            which reads high &mdash; 0,08 mm on this spring, 0,50 mm at n = 2 &mdash; in exactly
+            the place it matters, because the mandrel is sized against the smallest bore.</p>
+            <p><strong>The sign follows the LOAD direction, not the winding hand.</strong> Either
+            hand can be loaded either way. A load that winds the coil tighter shrinks the bore
+            onto the mandrel; one that unwinds it grows the bore and works against the residual
+            stresses left by coiling, so the permissible stress has to come down.</p>
             <p>n<sub>e</sub> is the equivalent coil count, which includes the compliance of the
             legs. Long legs make the spring softer than the coil count alone suggests, and the
             calculator accounts for it &mdash; here 8 active coils behave like 8,42.</p>
@@ -57,9 +66,17 @@ D&#7522; = D&#7522;&#8320; &middot; n / (n + &#945;/360)             bore shrink
     <details>
         <summary>Where the inputs come from</summary>
         <div class="mc-body">
-            <p><strong>Winding direction.</strong> Get this right and load the spring in the
-            closing direction. A torsion spring loaded so that it unwinds opens its coils, loses
-            the benefit of the correction factor, and comes off its pin.</p>
+            <p><strong>Winding direction and load direction are two different things.</strong>
+            The hand of the winding is drawing and manufacturing information; either hand can be
+            loaded either way, so it does not on its own decide whether the coil tightens or
+            opens. The <em>load</em> direction is the one that changes the result, and it is a
+            separate input. Load the spring in the <strong>closing</strong> direction where you
+            can: a spring that unwinds under load grows its bore away from the pin, and the
+            residual stresses from coiling then work against it rather than for it, so the
+            permissible stress has to be reduced.</p>
+            <p><strong>Mandrel diameter.</strong> Optional, but without it the clearance check
+            cannot run at all &mdash; there is nothing to compare the bore against. Manufacturers
+            size the pin at about 0,85 of the smallest bore, and the results give that figure.</p>
             <p><strong>Leg length and type.</strong> The legs are part of the spring, not
             fittings on the end of it. They add compliance, which lowers the rate, and tangent
             legs also carry their own bending stress at the root where they leave the coil.</p>
@@ -88,23 +105,31 @@ Spring rate                           13,024 Nmm/&deg;
 Position 1   30&deg;    M&#8321;   390,7 Nmm  (0,391 Nm)
 Position 2   90&deg;    M&#8322;  1172,2 Nmm  (1,172 Nm)
 
-Bending stress at 30&deg;                   281 MPa   &rarr; SF 4,24  &#10003;
-Bending stress at 90&deg;                   843 MPa   &rarr; SF 1,41  &#9888;
-Allowable  0,70 &times; R&#7504;                  1190 MPa
+Correction factor q (EN 13906-3)        1,113
+
+Bending stress at 30 deg                 284 MPa   -> SF 4,19
+Bending stress at 90 deg                 851 MPa   -> SF 1,40
+Allowable  0,70 x R_m                   1190 MPa
+Permissible angle                      125,9 deg   -> 71 % used
 
 Inner diameter, free                   17,50 mm
-Inner diameter at 90&deg;                  16,97 mm
-Inner diameter at maximum              16,76 mm</pre>
-            <p>Follow the bore. It starts at 17,50 mm and closes to 16,97 mm at the working angle
-            &mdash; over half a millimetre. <strong>A 17 mm pin would fit the spring at rest and
-            be gripped by it at full deflection</strong>, adding friction, wear and an unpredictable
-            contribution to the torque. Size the pin against the smallest diameter in the table,
-            not the free one.</p>
-            <p>The safety factor is 1,41 at the working angle and 4,24 at rest &mdash; the same
-            spring, a factor of three apart, because stress rises linearly with angle. There is
-            not much room left here: another 20&deg; of over-travel and this spring is at its
-            allowable stress. That is worth knowing before someone specifies a 120&deg; mechanism
-            for it.</p>
+Inner diameter at 90 deg               16,89 mm
+Inner diameter at the permissible angle 16,66 mm
+Smallest bore over every position      16,66 mm
+Recommended mandrel  0,85 x D_i,min    14,16 mm
+Mandrel 15 mm -> clearance              1,66 mm   OK</pre>
+            <p>Follow the bore. It starts at 17,50 mm and closes to 16,89 mm at the working angle,
+            16,66 mm at the permissible one. <strong>A 17 mm pin would fit the spring at rest and
+            be gripped by it under load</strong>, adding friction, wear and an unpredictable
+            contribution to the torque. Size the pin against the <em>smallest</em> diameter, not
+            the free one &mdash; and enter it, or the clearance cannot be checked at all. The row
+            used to show the bore and call it "adequate clearance" with no pin to compare it
+            against.</p>
+            <p>The safety factor is 1,40 at the working angle and 4,19 at rest &mdash; the same
+            spring, a factor of three apart, because stress rises linearly with angle. The
+            permissible angle is 125,9&deg;, so 90&deg; uses 71 % of it: there is about 36&deg; of
+            over-travel in hand. That is worth knowing before someone specifies a 120&deg;
+            mechanism for it.</p>
         </div>
     </details>
 
@@ -116,13 +141,23 @@ Inner diameter at maximum              16,76 mm</pre>
             no allowance for over-travel, and over-travel is what mechanisms do.</p>
             <p><strong>Check the inner diameter against your pin or shaft</strong> at maximum
             deflection, with clearance. This is the check that is unique to torsion springs and
-            the one most often skipped.</p>
+            the one most often skipped. Enter the mandrel diameter and the results do it for you,
+            against the smallest bore over every position asked for &mdash; which is not always
+            the "at maximum" row, because past the permissible angle that row stops being the
+            smallest.</p>
             <p><strong>Watch the maximum allowable deflection.</strong> The results give the angle
             at which the spring reaches its allowable stress. Design the mechanism so it cannot
             physically exceed it &mdash; a hard stop is cheaper than a broken spring.</p>
-            <p><strong>The legs matter.</strong> Long legs soften the spring, and a leg that is
-            loaded as a lever also bends at its root. If leg deflection is part of your mechanism,
-            the rate you get will be lower than a coil-count calculation predicts.</p>
+            <p><strong>The legs matter.</strong> Long legs soften the spring: the equivalent coil
+            count n<sub>e</sub> includes their compliance, so 8 active coils here behave like
+            8,42. If a leg length is left blank the calculator substitutes D<sub>m</sub> rather
+            than zero &mdash; a torsion spring has to have legs &mdash; and writes the value back
+            into the field so you can see and change it.</p>
+            <p><strong>What is not covered.</strong> The bending stress at the <em>root of a
+            tangent leg</em>, where the leg leaves the coil, is not calculated: it depends on the
+            bend radius there, which is not an input. On a spring whose legs are long relative to
+            the coil that root can govern, so check it separately. The leg <em>type</em> also does
+            not change the rate here, only the moment arm.</p>
         </div>
     </details>
 

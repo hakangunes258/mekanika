@@ -35,7 +35,23 @@ R = G d&#8308; / (8 D&#8344;&#179; n)                 spring rate
 k  = (4w &minus; 1)/(4w &minus; 4) + 0,615/w     Wahl correction
 &tau;&#8342; = k &tau;                              corrected, at the inner fibre
 
-L&#7580; = L&#8320; / D&#8344;                          slenderness, for buckling</pre>
+lambda      = L_0 / D_m                 slenderness
+lambda_eff  = nu . lambda               effective slenderness
+
+s_K = L_0 . (0,5/(1 - G/E))
+          . [1 - sqrt(1 - ((1 - G/E)/(0,5 + G/E)) (pi D_m/(nu L_0))^2)]
+
+S_a = (0,0015 D_m^2/d + 0,1 d) . n      minimum coil clearance</pre>
+            <p><strong>&#957; is a buckling-LENGTH factor, exactly as in Euler's column.</strong>
+            The buckling length is &#957;&middot;L&#8320;, so a <em>larger</em> &#957; buckles more
+            easily, and the effective slenderness is &#957;&middot;&#955; rather than
+            &#955;/&#957;. Ends ground and held parallel against flat plates cannot rotate, which
+            makes them the fixed&ndash;fixed case at &#957; = 0,5 &mdash; the most stable of the
+            set, not the middle of it. &#957; = 1 is both ends hinged, and &#957; = 2 is one end
+            built in with the other entirely free.</p>
+            <p>The spring buckles once its working deflection reaches s<sub>K</sub>. When the term
+            under the root goes negative the coil is too short and fat for the instability to
+            exist at all, at any deflection.</p>
             <p>The Wahl factor exists because the inside of the coil is tighter than the outside,
             so the shear stress there is higher than the plain torsion formula gives. At index 8
             it adds 18 %; at index 4 it adds 40 %. Low-index springs are not the compact solution
@@ -50,7 +66,10 @@ L&#7580; = L&#8320; / D&#8344;                          slenderness, for bucklin
                     <tr><td>G</td><td>Shear modulus of the wire</td><td>MPa</td></tr>
                     <tr><td>R</td><td>Spring rate</td><td>N/mm</td></tr>
                     <tr><td>k</td><td>Wahl stress correction factor</td><td>&ndash;</td></tr>
-                    <tr><td>&#957;</td><td>End support factor for buckling</td><td>&ndash;</td></tr>
+                    <tr><td>&#957;</td><td>Seating (buckling length) factor; larger buckles more easily</td><td>&ndash;</td></tr>
+                    <tr><td>E</td><td>Elastic modulus of the wire</td><td>MPa</td></tr>
+                    <tr><td>s<sub>K</sub></td><td>Deflection at which the spring buckles</td><td>mm</td></tr>
+                    <tr><td>S<sub>a</sub></td><td>Minimum sum of coil clearances at the working force</td><td>mm</td></tr>
                 </tbody>
             </table>
         </div>
@@ -69,9 +88,12 @@ L&#7580; = L&#8320; / D&#8344;                          slenderness, for bucklin
             <p><strong>Load type, static or dynamic.</strong> This changes which allowable stress
             applies and whether a fatigue check runs at all. A spring that cycles more than about
             10&#8308; times in its life is dynamic, whatever the application looks like.</p>
-            <p><strong>End support.</strong> The factor &#957; describes how the ends are held,
-            and it decides the buckling limit. Both ends free on flat surfaces is the worst case
-            at &#957; = 1,0; ends fixed and guided is far more stable.</p>
+            <p><strong>End support.</strong> The factor &#957; describes how the ends are held
+            and it sets the buckling length. The usual case &mdash; ends ground and resting on
+            flat faces that stay parallel &mdash; is the <em>most stable</em> of the set at
+            &#957; = 0,5, because neither end can rotate. The worst case is one end built in with
+            the other entirely free, &#957; = 2,0. A guide rod or bore prevents buckling outright
+            and is not one of these cases at all.</p>
             <p><strong>Shot peening.</strong> Leave it on for a dynamic spring. It puts the
             surface into residual compression and typically doubles fatigue life at the same
             stress.</p>
@@ -98,17 +120,28 @@ Stress at L&#8321;                            500 MPa   &rarr; SF 1,53  &#10003;
 Stress at solid length                  1000 MPa   &rarr; SF 0,77  &#10007;
 Allowable  0,45 &times; R&#7504;                    765 MPa
 
-Slenderness  L&#8320;/D&#8344;                       3,33   &#9888; buckles</pre>
-            <p>The spring passes at its working point and fails twice on the checks around it.
+Slenderness  lambda = L_0/D_m            3,33
+Minimum coil clearance  S_a              4,70 mm
+
+Buckling, by seating:
+  ends flat and parallel  nu 0,5    no buckling at any deflection
+  one end fixed, one hinged  nu 0,7  no buckling at any deflection
+  both ends hinged        nu 1,0    s_K 24,3 mm  -> buckles at 25 mm
+  one end fixed, one free nu 2,0    s_K  5,2 mm  -> buckles</pre>
+            <p>The spring passes at its working point and fails on the check beside it.
             At solid length the stress reaches 1000 MPa against 765 allowable, so
             <strong>if anything ever compresses this spring fully it takes a permanent set</strong>
             and never returns to 80 mm. That is not a fatigue failure at 10&#8310; cycles &mdash;
             it happens once, on the first over-travel, usually during assembly.</p>
-            <p>And at a slenderness of 3,33 with unguided flat ends it buckles sideways before
-            reaching the working point. Both problems have the same family of fixes: shorter free
-            length, larger coil diameter, or a guide rod. <strong>A compression spring result is
-            never just the working stress</strong> &mdash; the solid-length and buckling rows are
-            where real designs come apart.</p>
+            <p><strong>Buckling depends entirely on how the ends are held</strong>, and the four
+            lines above are the same spring at the same 25 mm of deflection. Held parallel between
+            flat faces it cannot buckle at any deflection; with one end free it goes at about
+            5 mm. That is a factor of four in seating alone, and it is why &#957; is an input
+            rather than a constant.</p>
+            <p>The <strong>coil clearance</strong> is the other row to read. EN 13906-1 asks for
+            S<sub>a</sub> = 4,70 mm still open between the coils at the largest working force;
+            this spring leaves 25 mm, so it is comfortable. A clearance merely greater than zero
+            is not the test &mdash; a spring that runs solid under load hammers its end coils.</p>
         </div>
     </details>
 
@@ -117,14 +150,33 @@ Slenderness  L&#8320;/D&#8344;                       3,33   &#9888; buckles</pre
         <div class="mc-body">
             <p><strong>Static safety at the working length</strong> wants 1,2 or better against
             0,45 R<sub>m</sub>. This is the easy check and it is rarely the one that fails.</p>
+            <p><strong>That static check is a conservative simplification of EN 13906-1, not the
+            standard's own method.</strong> It compares the <em>corrected</em> stress (Wahl k)
+            against 0,45&middot;R<sub>m</sub>. The standard checks a statically loaded spring on
+            the <em>uncorrected</em> stress against roughly 0,5&middot;R<sub>m</sub>, and applies
+            the correction factor only to a dynamically loaded one &mdash; using
+            Bergstr&auml;sser's form, k = (w + 0,5)/(w &minus; 0,75), rather than Wahl's. On the
+            worked example that is a safety factor of 1,53 here against about 2,01 the standard's
+            way, so roughly 1,3 times conservative. Both correction factors are shown in the
+            results so a figure can be traced to the one it came from. R<sub>m</sub> is also taken
+            as a single value per wire grade, where EN 10270 makes it fall with increasing wire
+            diameter &mdash; a thick wire is therefore credited with more strength than the
+            standard allows, and a thin one with less.</p>
             <p><strong>Stress at solid length</strong> is the check that matters for anything a
             person can push on. If the spring cannot be compressed solid without yielding, either
             it must be mechanically prevented from getting there, or it needs redesigning. Design
             offices differ on this; the safe convention is that a spring should survive being
             pressed solid.</p>
-            <p><strong>Buckling.</strong> Above a slenderness of about 2,6 with flat unguided
-            ends, a compression spring will kick sideways. A guide rod or a bore fixes it, at the
-            cost of friction and wear.</p>
+            <p><strong>Buckling.</strong> Read s<sub>K</sub>, not the slenderness alone: the
+            results give the deflection at which this spring goes unstable <em>for the seating you
+            chose</em>, and compare it with the deflection you asked for. Get the seating right
+            before anything else &mdash; it moves the answer by a factor of four on the worked
+            example, and a larger &#957; is the <em>less</em> stable case. A guide rod or a bore
+            removes the problem entirely, at the cost of friction and wear.</p>
+            <p><strong>Coil clearance.</strong> EN 13906-1 wants at least
+            S<sub>a</sub> = (0,0015&middot;D<sub>m</sub>&sup2;/d + 0,1&middot;d)&middot;n left
+            between the coils at the largest working force, so the spring never reaches solid in
+            service. Clearance greater than zero is not enough on its own.</p>
             <p><strong>Natural frequency</strong> matters when the spring is excited near it
             &mdash; a valve spring is the classic case. Surge means individual coils resonate and
             hammer each other, and it destroys springs quickly.</p>
