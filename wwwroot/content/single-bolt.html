@@ -72,7 +72,8 @@ F&#8344;&#7523;&#7523;&#8336;&#8347; = &#945;&#8336; &middot; F&#8344;&#7523;&#7
             <p><strong>Tightening method.</strong> Choose honestly. A torque wrench carries
             &#945;&#8336; = 1,6, meaning the joint must tolerate 60 % more preload than the
             minimum &mdash; that scatter is often what forces the next bolt size up.</p>
-            <p><strong>Bolting type SV1 to SV6.</strong> This describes where the load enters the
+            <p><strong>Bolting type.</strong> The list offers SV1 to SV3 for a through-bolt and
+            SV4 to SV6 for a tapped hole, so only three are selectable at a time. This describes where the load enters the
             joint relative to the bolt head. It sets the load introduction factor n, and moving
             the load introduction deeper into the joint sharply reduces what the bolt feels.</p>
         </div>
@@ -85,28 +86,48 @@ F&#8344;&#7523;&#7523;&#8336;&#8347; = &#945;&#8336; &middot; F&#8344;&#7523;&#7
             substitute diameter 36 mm, all friction at 0,12, tightened with a torque wrench to
             90 % of yield, load applied at the head (SV1), external load swinging between 2 kN
             and 10 kN, and the joint must retain 5 kN of clamp force.</p>
-<pre>Stress area                        84,3 mm&#178;
-Load factor &Phi;&#8345;                     0,0474
-Embedding                          23,5 &micro;m   &rarr; preload loss 7,60 kN
-Part of F&#8336; reaching the bolt       0,47 kN   of 10 kN applied
+<pre>Stress area                        84,3 mm^2
+Load introduction factor n        0,461        (Table 5.2/1, SV1)
+Load factor Phi_n                 0,1254
+Embedding                         33,5 um      -> preload loss 8,48 kN
+Part of F_A reaching the bolt      1,25 kN     of 10 kN applied
 
-Minimum required preload          22,12 kN   &rarr; M&#8336; 41,7 Nm
-Maximum required preload          35,39 kN   &rarr; M&#8336; 66,7 Nm
-Bolt capacity at 90 % yield       37,77 kN   &rarr; M&#8336; 71,2 Nm
+Minimum required preload          22,22 kN     -> M_A 47,7 Nm
+Maximum required preload          35,56 kN     -> M_A 76,4 Nm
+Bolt capacity at 90 % yield       37,77 kN     -> M_A 81,2 Nm
 
-Yielding (assembly)                 1,19    &#9888; low
-Surface pressure under head         1,91    &#10003;
-Fatigue                            22,21    &#10003;  infinite life</pre>
-            <p>The striking number is 0,47 kN. Ten kilonewtons are applied to the joint and less
-            than half a kilonewton reaches the bolt &mdash; the other 9,5 kN simply relieves the
-            compressed plates. <strong>That is the entire reason preloaded joints survive
-            fatigue</strong>, and it is why the fatigue safety factor comes out at 22 rather than
-            near 1.</p>
-            <p>The tight number is assembly yielding at 1,19. The gap between 22,12 kN needed and
-            35,39 kN worst case is nothing but torque-wrench scatter. Switch the tightening method
-            to angle control and &#945;&#8336; drops from 1,6 to about 1,2, the maximum preload
-            falls with it, and the same bolt stops being marginal &mdash; without changing a
-            single part.</p>
+Required clamp force in service    5,00 kN
+Clamp force the bolt can deliver   6,38 kN
+
+Pressure on the part (over the washer)  111,2 MPa  of 490 allowed
+
+Yielding (assembly)                 1,18    low
+Clamp force margin                  1,28    low
+Surface pressure on the part        4,41    OK
+Fatigue                             8,40    OK, infinite life</pre>
+            <p>The striking number is 1,25 kN. Ten kilonewtons are applied to the joint and barely
+            a tenth of it reaches the bolt &mdash; the other 8,75 kN simply relieves the compressed
+            plates. <strong>That is the entire reason preloaded joints survive fatigue</strong>,
+            and it is why the fatigue safety factor comes out at 8,4 rather than near 1.</p>
+            <p>The tight numbers are assembly yielding at 1,18 and the clamp force margin at 1,28.
+            The gap between 22,22 kN needed and 35,56 kN worst case is nothing but torque-wrench
+            scatter: &alpha;<sub>A</sub> = 1,6. Switch the tightening method to angle or yield
+            control and &alpha;<sub>A</sub> falls to about 1,0, the maximum preload falls with it,
+            and the same bolt stops being marginal &mdash; without changing a single part. Note
+            what the results then say about yielding: those methods take the bolt <em>to</em> its
+            yield point on purpose, so the row reads &quot;n/a&quot; rather than a safety factor.</p>
+            <p><strong>Washers move the surface pressure check.</strong> The head bears on the
+            washer at 419,6 MPa, but the part sees only 111,2 MPa, because the washer spreads the
+            load over its own outside diameter. Comparing the 419,6 against the part's 490 MPa
+            gave a safety factor of 1,24 for a part that is really at 4,41 &mdash; the wrong
+            pressure against the wrong limit.</p>
+            <p><strong>Add a transverse force and the answer changes completely.</strong> Put
+            F<sub>Q</sub> = 4 kN on this joint and the clamp force needed for slip resistance is
+            F<sub>Q</sub>/(q<sub>F</sub>&middot;&micro;<sub>T</sub>) = 33,3 kN, against the 6,4 kN
+            this bolt can deliver. The margin collapses to 0,21 and the M12 fails on yielding,
+            clamp force and surface pressure together. A transverse load is not a small correction
+            to an axial one: friction is a poor way to carry shear, and that is why dowels and
+            fitted bolts exist.</p>
         </div>
     </details>
 
@@ -125,11 +146,27 @@ Fatigue                            22,21    &#10003;  infinite life</pre>
             and therefore on joint stiffness, not on how strong the bolt is. A higher class of
             bolt does almost nothing for fatigue; a longer, more resilient bolt does a great
             deal.</p>
-            <p><strong>Loss of clamp reads 1,00 whenever you enter a required clamp force.</strong>
-            That is by construction, not a result: the minimum preload is <em>sized</em> to deliver
-            exactly the clamp force you asked for, so the ratio is always one. Read it as
-            &quot;the preload was sized to meet your requirement&quot;, and put your margin into
-            the required clamp force itself.</p>
+            <p><strong>The clamp force margin</strong> compares the residual clamp force the bolt
+            can actually deliver &mdash; F<sub>M,zul</sub>/&alpha;<sub>A</sub> less the embedding
+            loss and the part relief &mdash; against what the joint requires. It used to be
+            F<sub>K,min</sub>/F<sub>KR,min</sub>, which is 1,00 <em>by construction</em> because the
+            minimum preload is sized to deliver exactly the clamp force asked for; every reader who
+            entered a required clamp force therefore saw a red FAIL at 1,00. The figure now moves,
+            and below 1 it means the bolt genuinely cannot hold the joint together.</p>
+            <p><strong>Transverse force and bending moment both reach the calculation now.</strong>
+            They did not: the load case defaulted to axial-only and the two fields were zeroed on
+            every run, so a reader who entered them saw identical results and had no way to tell.
+            F<sub>Q</sub> sets the clamp force needed against slipping, and M<sub>B</sub> sets the
+            clamp force needed to keep the interface in compression. The required clamp force is
+            broken down by cause in the results so you can see which one governs.</p>
+            <p><strong>What is still not modelled.</strong> Eccentric loading &mdash; VDI 2230's
+            R3 to R5, where the load line sits at a distance <em>a</em> from the bolt axis &mdash;
+            is not implemented. The field on the input form is l<sub>A</sub>, the distance to the
+            point where the load <em>enters the clamped parts</em>, which Table 5.2/1 uses to find
+            n; it is not the eccentricity, and it was labelled as such. Thread stripping in a
+            tapped hole is checked against a practice minimum engagement by material rather than
+            VDI's R9 calculation, and the results say so. The bending moment is treated as a
+            concentric circular interface, which a multi-bolt flange is not.</p>
         </div>
     </details>
 

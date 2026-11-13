@@ -197,6 +197,11 @@ namespace MechanicalCalculatorWeb.Services
         public double FKR_min { get; set; }     // Minimum required clamp force (N)
         public double FKR_slip { get; set; }    // Required for slip resistance (N)
         public double FKR_separation { get; set; } // Required to prevent separation (N)
+        /// <summary>
+        /// Clamp force required to keep the interface in compression under the
+        /// working moment M_B (N). Zero when no moment is entered.
+        /// </summary>
+        public double FKR_moment { get; set; }
 
 
         // Assembly preload (R7)
@@ -224,10 +229,29 @@ namespace MechanicalCalculatorWeb.Services
         public double PressureWasherHead { get; set; }  // Pressure under washer at head (MPa)
         public double PressureWasherNut { get; set; }   // Pressure under washer at nut (MPa)
         public double PressureAllowable { get; set; }   // Allowable surface pressure (MPa)
+        /// <summary>
+        /// Pressure the clamped PART sees at the head end (MPa): over the washer's
+        /// outside diameter when one is fitted, otherwise under the head itself.
+        /// </summary>
+        public double PressureOnPartHead { get; set; }
+        /// <summary>Same at the nut end (MPa). 0 for a tapped hole.</summary>
+        public double PressureOnPartNut { get; set; }
+        /// <summary>
+        /// True when a washer stands between the head or nut and the part, so the
+        /// head-on-washer pressure is borne by a hardened component whose own
+        /// limit this module does not carry.
+        /// </summary>
+        public bool WasherCarriesTheHeadPressure { get; set; }
 
         // Safety factors (R10)
         public double SF_yield { get; set; }            // Against yielding (Rp0.2/σred)
-        public double SF_clamp { get; set; }            // Against loss of clamp (FKR/FKR_min)
+        public double SF_clamp { get; set; }            // Against loss of clamp (FKR_available/FKR_min)
+        /// <summary>
+        /// Residual clamp force the bolt can actually deliver, at the low end of
+        /// the tightening scatter: F_M,zul/alpha_A - F_Z - F_PA (N). Negative
+        /// means the joint comes apart.
+        /// </summary>
+        public double FKR_available { get; set; }
         public double SF_slip { get; set; }             // Against slipping
         public double SF_fatigue { get; set; }          // Against fatigue
         public double SF_pressure { get; set; }         // Against surface crushing
@@ -253,6 +277,15 @@ namespace MechanicalCalculatorWeb.Services
         // Geometry for visualization
         public double ClampLength { get; set; }         // Total clamping length lK (mm)
         public double BoltLength { get; set; }          // Required bolt length (mm)
+        /// <summary>False when the selected bolt is shorter than the length this joint needs.</summary>
+        public bool BoltLengthSufficient { get; set; } = true;
+
+        // Thread engagement, tapped hole only. The depth the thread actually has,
+        // the practice minimum for the tapped material, and whether it is enough.
+        public double ThreadEngagement { get; set; }
+        public double MinThreadEngagement { get; set; }
+        public string ThreadEngagementMaterial { get; set; } = "";
+        public bool ThreadEngagementSufficient { get; set; } = true;
 
         // Additional bolt specifications
         public string BoltType { get; set; } = "";      // Bolt standard type (ISO 4014, DIN 912, etc.)
@@ -610,8 +643,52 @@ namespace MechanicalCalculatorWeb.Services
             // such requirement it stays 0 and FKR_min is governed by slip alone.
             _result.FKR_separation = Math.Max(0, _input.RequiredResidualClampForce);
 
+            // ---- No gapping under a working moment ----
+            //
+            // The bending moment field reached nothing at all: the engine never read
+            // it, so entering M_B = 200 Nm left every result identical. A moment at
+            // the interface tries to lift one edge of the joint, and the clamp force
+            // has to keep the whole face in compression.
+            //
+            // For the circular interface this module already models - outside
+            // diameter D_A, bolt hole d_h - that is plain section mechanics: the
+            // uniform compressive stress from the clamp force must not be overcome by
+            // the bending stress at the edge,
+            //
+            //   F_K/A >= M_B/W   ->   F_K,req = M_B . A/W
+            //   A = pi(D_A^2 - d_h^2)/4        W = pi(D_A^4 - d_h^4)/(32 D_A)
+            //
+            // This is the single-bolt, concentric-interface case. A flange with
+            // several bolts distributes the moment differently, which this module
+            // does not cover - but it is far better than ignoring the moment.
+            _result.FKR_moment = 0;
+            double MB = _input.BendingMoment * phiA;   // Nmm
+            if (MB > 0)
+            {
+                double DA = _input.ClampedParts.Count > 0 ? _input.ClampedParts[0].OuterDiameter : 0;
+                double dh = GetHoleDiameter();
+                if (DA > dh && dh >= 0)
+                {
+                    double area = Math.PI * (DA * DA - dh * dh) / 4.0;
+                    double sectionModulus = Math.PI * (Math.Pow(DA, 4) - Math.Pow(dh, 4)) / (32.0 * DA);
+                    if (sectionModulus > 0)
+                    {
+                        _result.FKR_moment = MB * area / sectionModulus;
+                    }
+                }
+                else
+                {
+                    _result.Warnings.Add(
+                        "A bending moment was entered but the interface outside diameter is not usable, " +
+                        "so the no-gapping requirement could not be worked out. Enter the clamped parts' " +
+                        "outside diameter.");
+                }
+            }
+
             // The overall minimum required clamp force in service is the maximum of all requirements.
-            _result.FKR_min = Math.Max(_result.FKR_slip, _result.FKR_separation);
+            _result.FKR_min = Math.Max(
+                Math.Max(_result.FKR_slip, _result.FKR_separation),
+                _result.FKR_moment);
         }
 
         private void CalculateCompliance()
@@ -1353,6 +1430,29 @@ namespace MechanicalCalculatorWeb.Services
                         GetMaterialSurfacePressure(_input.ClampedParts.LastOrDefault()?.MaterialName) : firstPartPressure;
         
                     _result.PressureAllowable = Math.Min(firstPartPressure, lastPartPressure);
+
+                    // The pressure the CLAMPED PART actually sees. With a washer
+                    // fitted the head bears on the washer and the washer bears on
+                    // the part over its own, much larger, outside diameter - so
+                    // comparing the head-on-washer pressure against the part's
+                    // permissible value is the wrong pair on both sides. On the
+                    // worked example that is 419,6 MPa against S235's 490 (a
+                    // safety of 1,24) where the part is really at about 122 MPa.
+                    //
+                    // The washer itself is a hardened component with a far higher
+                    // limit of its own, and that limit is not in this module - so
+                    // the head-on-washer figure is reported but not turned into a
+                    // safety factor it cannot be judged against.
+                    _result.PressureOnPartHead = _input.UseWasherUnderHead && washer != null
+                        ? _result.PressureWasherHead
+                        : _result.PressureHead;
+                    _result.PressureOnPartNut = _input.JointType == JointType.ThroughHole
+                        ? (_input.UseWasherUnderNut && washer != null
+                            ? _result.PressureWasherNut
+                            : _result.PressureNut)
+                        : 0;
+                    _result.WasherCarriesTheHeadPressure =
+                        (_input.UseWasherUnderHead || _input.UseWasherUnderNut) && washer != null;
         
                     // === BOLT AND PARTS EXTENSION ===
                     // Bolt extension: fS = FM_max × δS (mm)
@@ -1369,16 +1469,30 @@ namespace MechanicalCalculatorWeb.Services
         
                     // SF against clamp force loss.
                     //
-                    // FM_min is SIZED as FKR_min + FZ + FPA, so FK_min = FM_min - FPA - FZ
-                    // lands back on exactly FKR_min. With no clamp requirement that is
-                    // exactly zero - give or take the last floating point bit. The old
-                    // "FK_min > 0 ? 999 : 0" therefore sat on a knife edge and could
-                    // report either infinity or a hard 0.00 FAIL for the same joint.
-                    // With nothing required to stay clamped there is simply nothing to
-                    // fall short of, so the check does not apply.
+                    // FK_min/FKR_min is 1,00 BY CONSTRUCTION, because FM_min is sized
+                    // as FKR_min + FZ + FPA. Reporting that ratio and then colouring
+                    // it red meant every user who entered a required clamp force saw
+                    // a FAIL, while the page's own text explained the 1,00 away. A
+                    // number that cannot be anything else is not a safety factor.
+                    //
+                    // What the designer actually wants to know is whether the BOLT can
+                    // deliver the preload the joint needs. The usable preload is
+                    // F_M,zul, and the tightening method spreads it by alpha_A, so the
+                    // lowest assembly preload that can be relied on is F_M,zul/alpha_A.
+                    // The clamp force left at that preload, against what the joint
+                    // requires, is a real margin:
+                    //
+                    //   FKR_available = F_M,zul/alpha_A - FZ - FPA
+                    //   SF_clamp      = FKR_available / FKR_min
+                    double usablePreload = _result.F09_max;              // F_M,zul at 90 % of yield
+                    double lowestReliablePreload = _result.AlphaA > 0
+                        ? usablePreload / _result.AlphaA
+                        : usablePreload;
+                    _result.FKR_available = lowestReliablePreload - _result.FZ - _result.FPA;
+
                     _result.SF_clamp = _result.FKR_min > 0
-                        ? _result.FK_min / _result.FKR_min
-                        : 999;
+                        ? _result.FKR_available / _result.FKR_min
+                        : (_result.FKR_available > 0 ? 999 : 0);
         
                     // SF against slipping (if shear load present)
                     if (_input.ShearForce > 0)
@@ -1391,8 +1505,8 @@ namespace MechanicalCalculatorWeb.Services
                         _result.SF_slip = 999; // No shear load, no risk of slipping
                     }
         
-                    // SF against surface pressure
-                    double maxPressure = Math.Max(_result.PressureHead, _result.PressureNut);
+                    // SF against surface pressure, on the pressure the PART bears.
+                    double maxPressure = Math.Max(_result.PressureOnPartHead, _result.PressureOnPartNut);
                     if (maxPressure > 0)
                     {
                         _result.SF_pressure = _result.PressureAllowable / maxPressure;
@@ -1424,16 +1538,23 @@ namespace MechanicalCalculatorWeb.Services
                     else if (_result.SF_yield < 1.1)
                         _result.Warnings.Add("Yield safety factor low (< 1.1)");
         
-                    // Only a joint that was REQUIRED to stay clamped can fail by opening.
-                    // Guarding on FKR_min matters: without it this fired on every purely
-                    // axial, concentric joint, because FK_min is 0 there by construction.
-                    //
-                    // No "SF_clamp < 1.2" warning either: since FM_min is sized to meet
-                    // FKR_min exactly, SF_clamp is 1.00 whenever a clamp force is required,
-                    // so the warning would fire on literally every such joint. The margin
-                    // above the requirement is what the F0.9,max scenario shows instead.
-                    if (_result.FKR_min > 0 && _result.FK_min <= 0)
-                        _result.Errors.Add("Joint opens under load (FK_min <= 0)!");
+                    // A joint that comes apart has failed whether or not the user
+                    // entered a required clamp force. This used to be guarded on
+                    // FKR_min > 0, so a joint that visibly separated - the page
+                    // printing a working clamp force of -23,18 kN - was reported as
+                    // "n/a, no clamp force required". Negative clamp force IS the
+                    // parts lifting off.
+                    if (_result.FKR_available <= 0)
+                        _result.Errors.Add(
+                            "Joint opens under load: the bolt cannot be preloaded hard enough to keep the " +
+                            "parts together once settling and the service load have taken their share " +
+                            $"(available residual clamp force {_result.FKR_available:F0} N).");
+                    else if (_result.FKR_min > 0 && _result.SF_clamp < 1.0)
+                        _result.Errors.Add(
+                            $"Required clamp force not reachable: the bolt can hold {_result.FKR_available:F0} N " +
+                            $"against the {_result.FKR_min:F0} N this joint needs.");
+                    else if (_result.FKR_min > 0 && _result.SF_clamp < 1.2)
+                        _result.Warnings.Add("Clamp force margin is below 1.2 - little reserve for tightening scatter");
         
                     if (_result.SF_slip < 1.0 && _input.ShearForce > 0)
                         _result.Errors.Add("Slip safety factor < 1.0 - joint will slip!");
@@ -1441,7 +1562,9 @@ namespace MechanicalCalculatorWeb.Services
                         _result.Warnings.Add("Slip safety factor low (< 1.1)");
         
                     if (_result.SF_pressure < 1.0)
-                        _result.Warnings.Add("Surface pressure exceeds allowable - consider using washers");
+                        _result.Warnings.Add(_result.WasherCarriesTheHeadPressure
+                            ? "Surface pressure on the clamped part exceeds its allowable value even with washers fitted - a larger washer, a harder part material or a larger bolt is needed"
+                            : "Surface pressure exceeds allowable - consider using washers");
         
                     // Load utilization: ratio of applied load to maximum working bolt force
                     // This shows how much of the bolt's load-carrying capacity is being used
@@ -1723,6 +1846,73 @@ namespace MechanicalCalculatorWeb.Services
 
                     // Round up to standard lengths (5mm increments)
                     _result.BoltLength = Math.Ceiling(_result.BoltLength / 5.0) * 5.0;
+
+                    // The required length was computed, displayed and then never
+                    // compared with the bolt actually selected. A 45 mm bolt sat
+                    // next to "Required Bolt Length 50 mm" with no warning at all,
+                    // and a nut on it does not fully engage - which is the one
+                    // failure mode that strips a thread rather than stretching it.
+                    _result.BoltLengthSufficient = _input.BoltLength <= 0
+                        || _input.BoltLength >= _result.BoltLength;
+                    if (!_result.BoltLengthSufficient)
+                        _result.Errors.Add(
+                            $"The selected bolt is {_input.BoltLength:F0} mm but this joint needs " +
+                            $"{_result.BoltLength:F0} mm. The thread would not engage fully.");
+
+                    // ---- Thread engagement in a tapped hole ----
+                    //
+                    // Nothing checked this, and nothing asked for it. A tapped hole
+                    // is the one configuration where the thread can STRIP rather
+                    // than the bolt stretch, and the required depth depends on the
+                    // tapped material: a bolt of class 8.8 into aluminium needs
+                    // roughly twice the engagement it needs into steel of its own
+                    // strength. On the worked example the engagement works out at
+                    // about 0,6 d, which is short even for steel.
+                    //
+                    // This is the practice rule (a multiple of d by material), not
+                    // VDI 2230 R9's own calculation - R9 needs the standard, and the
+                    // results say which of the two this is.
+                    if (_input.JointType == JointType.TappedHole)
+                    {
+                        _result.ThreadEngagement = _input.BoltLength > 0
+                            ? _input.BoltLength - lK
+                            : threadEngagement;
+
+                        string tapped = (_input.ClampedParts.LastOrDefault()?.MaterialName ?? "")
+                            .ToLowerInvariant();
+                        double factor;
+                        string reason;
+                        if (tapped.Contains("alumin") || tapped.Contains("almg") || tapped.Contains("alzn"))
+                        {
+                            factor = 2.0; reason = "aluminium";
+                        }
+                        else if (tapped.Contains("gjl") || tapped.Contains("gjs")
+                                 || tapped.StartsWith("gg") || tapped.Contains("cast"))
+                        {
+                            factor = 1.5; reason = "cast iron";
+                        }
+                        else if (tapped.Contains("cuzn") || tapped.Contains("cusn")
+                                 || tapped.Contains("brass") || tapped.Contains("bronze"))
+                        {
+                            factor = 1.5; reason = "a copper alloy";
+                        }
+                        else
+                        {
+                            factor = 0.8; reason = "steel";
+                        }
+
+                        _result.MinThreadEngagement = factor * _result.d;
+                        _result.ThreadEngagementMaterial = reason;
+                        _result.ThreadEngagementSufficient =
+                            _result.ThreadEngagement >= _result.MinThreadEngagement;
+
+                        if (!_result.ThreadEngagementSufficient)
+                            _result.Errors.Add(
+                                $"Thread engagement is {_result.ThreadEngagement:F1} mm " +
+                                $"({_result.ThreadEngagement / Math.Max(_result.d, 1e-9):F2}·d). Tapped into {reason} " +
+                                $"a class {_input.StrengthClass} bolt needs about {factor:F1}·d = " +
+                                $"{_result.MinThreadEngagement:F1} mm, or the thread strips before the bolt yields.");
+                    }
                 }
         
                 // === HELPER METHODS ===

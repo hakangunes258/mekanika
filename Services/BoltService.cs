@@ -108,6 +108,12 @@ namespace MechanicalCalculatorWeb.Services
         public double AlphaA_min { get; set; }            // Tightening factor min
         public double AlphaA_max { get; set; }            // Tightening factor max
         public double AlphaA_typical { get; set; }        // Tightening factor typical
+        /// <summary>
+        /// True for methods that tighten the bolt TO its yield point by design
+        /// (yield controlled, angle controlled). A "safety factor against
+        /// yielding" is not meaningful for these - the bolt is meant to be there.
+        /// </summary>
+        public bool IsYieldControlled { get; set; }
         public double Scatter { get; set; }               // Scatter percentage (%)
     }
 
@@ -312,13 +318,24 @@ namespace MechanicalCalculatorWeb.Services
         /// </summary>
         public static List<TighteningMethod> TighteningMethods { get; } = new List<TighteningMethod>
         {
+            // alpha_A values, VDI 2230 Table A8. Two notes on this table:
+            //
+            //  * YIELD and ANGLE controlled tightening take the bolt deliberately
+            //    TO its yield point - that is how they work. VDI defines the
+            //    preload for them as F_M = F_M,zul and a "safety factor against
+            //    yielding" is not a meaningful quantity there. IsYieldControlled
+            //    marks them so the results can say so instead of reporting 1,78.
+            //  * An ULTRASONIC or hydraulic method is a measurement, not magic:
+            //    1,01-1,05 was optimistic against the table's ~1,1-1,2, and an
+            //    un-adjusted IMPACT wrench is worse than 2,0 - the table runs to
+            //    about 2,5-4.
             new TighteningMethod { Method = "Torque wrench",            Description = "Standard torque-controlled tightening",                AlphaA_min = 1.4, AlphaA_max = 2.0, AlphaA_typical = 1.6, Scatter = 25 },
             new TighteningMethod { Method = "Torque wrench (precision)", Description = "Calibrated torque wrench with controlled conditions",  AlphaA_min = 1.2, AlphaA_max = 1.6, AlphaA_typical = 1.4, Scatter = 15 },
-            new TighteningMethod { Method = "Angle controlled",          Description = "Torque + angle tightening",                           AlphaA_min = 1.1, AlphaA_max = 1.3, AlphaA_typical = 1.2, Scatter = 10 },
-            new TighteningMethod { Method = "Yield controlled",          Description = "Tightening to yield point detection",                 AlphaA_min = 1.02, AlphaA_max = 1.10, AlphaA_typical = 1.06, Scatter = 4 },
-            new TighteningMethod { Method = "Hydraulic tensioner",       Description = "Direct bolt elongation measurement",                  AlphaA_min = 1.02, AlphaA_max = 1.10, AlphaA_typical = 1.06, Scatter = 4 },
-            new TighteningMethod { Method = "Ultrasonic",                Description = "Ultrasonic elongation measurement",                   AlphaA_min = 1.01, AlphaA_max = 1.05, AlphaA_typical = 1.03, Scatter = 2 },
-            new TighteningMethod { Method = "Impact wrench",             Description = "Pneumatic/electric impact - NOT recommended for critical joints", AlphaA_min = 1.6, AlphaA_max = 2.5, AlphaA_typical = 2.0, Scatter = 40 },
+            new TighteningMethod { Method = "Angle controlled",          Description = "Torque + angle, tightened past yield",                AlphaA_min = 1.0, AlphaA_max = 1.1, AlphaA_typical = 1.0, Scatter = 10, IsYieldControlled = true },
+            new TighteningMethod { Method = "Yield controlled",          Description = "Tightening to yield point detection",                 AlphaA_min = 1.0, AlphaA_max = 1.1, AlphaA_typical = 1.0, Scatter = 4, IsYieldControlled = true },
+            new TighteningMethod { Method = "Hydraulic tensioner",       Description = "Direct bolt elongation measurement",                  AlphaA_min = 1.05, AlphaA_max = 1.20, AlphaA_typical = 1.1, Scatter = 10 },
+            new TighteningMethod { Method = "Ultrasonic",                Description = "Ultrasonic elongation measurement",                   AlphaA_min = 1.10, AlphaA_max = 1.20, AlphaA_typical = 1.15, Scatter = 10 },
+            new TighteningMethod { Method = "Impact wrench",             Description = "Pneumatic/electric impact - NOT recommended for critical joints", AlphaA_min = 2.5, AlphaA_max = 4.0, AlphaA_typical = 3.0, Scatter = 60 },
         };
 
         /// <summary>

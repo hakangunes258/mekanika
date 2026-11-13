@@ -355,12 +355,28 @@
             </div>
 
             <div class="form-group">
-                <label>Load Eccentricity (e)</label>
+                @* Renamed to what it actually does. This field is VDI 2230's l_A -
+                   the distance to the point where the service load is INTRODUCED
+                   into the clamped parts - and it feeds Table 5.2/1 to get n. It
+                   was labelled "Load Eccentricity", which is the standard's `a`,
+                   a different quantity governing the eccentric branch (R3-R5).
+                   Read as eccentricity it looked badly wrong: entering 10 mm took
+                   Phi_n from 0,125 to 0,040 and the fatigue safety from 8,4 to
+                   26,2, i.e. an eccentric load made the joint look safer. That
+                   fall in n is correct FOR l_A - a load introduced further from
+                   the bolt sends less of itself into the bolt - but the eccentric
+                   branch that would have raised the bolt force is not modelled. *@
+                <label>Load Introduction Distance (l<sub>A</sub>)</label>
                 <div class="input-group">
                     <input type="number" step="0.5" min="0" @bind="input.Eccentricity" />
                     <span class="unit">mm</span>
                 </div>
-                <small class="hint">Distance from bolt axis to load point (0 = concentric)</small>
+                <small class="hint">
+                    VDI 2230 Table 5.2/1: distance from the bolt axis to where the service load
+                    <em>enters the clamped parts</em>, used to find n. <strong>Not</strong> the
+                    eccentricity of the load line &mdash; eccentric loading (R3&ndash;R5) is not
+                    modelled, see the note with the results.
+                </small>
             </div>
 
             <div class="form-group">
@@ -836,7 +852,36 @@ else
                     <tr><td>Yield Strength</td><td>R<sub>p0.2</sub></td><td>@result.Rp02.ToString("F0")</td><td>MPa</td></tr>
                     <tr><td>Young's Modulus</td><td>E<sub>bolt</sub></td><td>@((result.YoungModulusBolt/1000).ToString("F0"))</td><td>GPa</td></tr>
                     <tr class="highlight"><td>Stress Area</td><td>A<sub>s</sub></td><td>@result.As.ToString("F1")</td><td>mm²</td></tr>
-                    <tr><td>Required Bolt Length</td><td>L<sub>req</sub></td><td>@result.BoltLength.ToString("F0")</td><td>mm</td></tr>
+                    <tr class="@(result.BoltLengthSufficient ? "" : "danger")">
+                        <td>Required Bolt Length</td><td>L<sub>req</sub></td>
+                        <td>@result.BoltLength.ToString("F0")</td>
+                        <td>@(result.BoltLengthSufficient ? "mm" : "mm ❌ too short")</td>
+                    </tr>
+                    @if (input.JointType == JointType.TappedHole && result.MinThreadEngagement > 0)
+                    {
+                        <tr class="@(result.ThreadEngagementSufficient ? "" : "danger")">
+                            <td>Thread Engagement in the Tapped Part</td>
+                            <td>m</td>
+                            <td>@result.ThreadEngagement.ToString("F1")</td>
+                            <td>mm (@((result.ThreadEngagement / Math.Max(result.d, 1e-9)).ToString("F2"))·d)</td>
+                        </tr>
+                        <tr class="@(result.ThreadEngagementSufficient ? "" : "danger")">
+                            <td>Minimum Engagement for @result.ThreadEngagementMaterial</td>
+                            <td>m<sub>min</sub></td>
+                            <td>@result.MinThreadEngagement.ToString("F1")</td>
+                            <td>@(result.ThreadEngagementSufficient ? "✓ OK" : "❌ strips")</td>
+                        </tr>
+                        <tr>
+                            <td colspan="4" style="font-size: 12px; color: #666; font-style: italic;">
+                                A tapped hole is the one configuration where the <em>thread</em> can strip
+                                rather than the bolt stretch, and nothing used to check it. The minimum above
+                                is the practice rule &mdash; a multiple of d set by the tapped material, so a
+                                high-class bolt into aluminium needs roughly twice what it needs into steel
+                                &mdash; <strong>not</strong> VDI 2230 R9's own calculation, which is not
+                                implemented here.
+                            </td>
+                        </tr>
+                    }
                 </tbody>
             </table>
         </div>
@@ -954,6 +999,24 @@ else
                         <td>Required Clamp Force in Service</td>
                         <td>F<sub>KR</sub></td>
                         <td>@((result.FKR_min / 1000).ToString("F2"))</td>
+                        <td>kN</td>
+                    </tr>
+                    @if (result.FKR_slip > 0)
+                    {
+                        <tr><td>&nbsp;&nbsp;to resist slipping, F<sub>Q</sub>/(q<sub>F</sub>&middot;&mu;<sub>T</sub>)</td><td>-</td><td>@((result.FKR_slip / 1000).ToString("F2"))</td><td>kN</td></tr>
+                    }
+                    @if (result.FKR_moment > 0)
+                    {
+                        <tr><td>&nbsp;&nbsp;to keep the interface closed under M<sub>B</sub></td><td>-</td><td>@((result.FKR_moment / 1000).ToString("F2"))</td><td>kN</td></tr>
+                    }
+                    @if (result.FKR_separation > 0)
+                    {
+                        <tr><td>&nbsp;&nbsp;requested directly (F<sub>Kerf</sub>)</td><td>-</td><td>@((result.FKR_separation / 1000).ToString("F2"))</td><td>kN</td></tr>
+                    }
+                    <tr class="@(result.FKR_available <= 0 ? "danger" : "")">
+                        <td>Clamp Force the Bolt Can Deliver (F<sub>M,zul</sub>/&alpha;<sub>A</sub> &minus; F<sub>Z</sub> &minus; F<sub>PA</sub>)</td>
+                        <td>F<sub>KR,av</sub></td>
+                        <td>@((result.FKR_available / 1000).ToString("F2"))</td>
                         <td>kN</td>
                     </tr>
                     @if (result.FKR_min <= 0)
@@ -1079,7 +1142,12 @@ else
             <table class="results-table">
                  <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
                  <tbody>
-                    <tr><td>Allowable Surface Pressure</td><td>p<sub>allow</sub></td><td>@result.PressureAllowable.ToString("F1")</td><td>MPa</td></tr>
+                    <tr><td>Allowable Surface Pressure (clamped part)</td><td>p<sub>allow</sub></td><td>@result.PressureAllowable.ToString("F1")</td><td>MPa</td></tr>
+                    <tr class="highlight"><td>Pressure on the Part (head end)</td><td>p<sub>part</sub></td><td>@result.PressureOnPartHead.ToString("F1")</td><td>MPa</td></tr>
+                    @if (result.PressureOnPartNut > 0)
+                    {
+                        <tr><td>Pressure on the Part (nut end)</td><td>-</td><td>@result.PressureOnPartNut.ToString("F1")</td><td>MPa</td></tr>
+                    }
                     <tr><td>Yield Strength</td><td>R<sub>p0.2</sub></td><td>@result.Rp02.ToString("F0")</td><td>MPa</td></tr>
                     <tr><td>Tensile Strength</td><td>R<sub>m</sub></td><td>@result.Rm.ToString("F0")</td><td>MPa</td></tr>
                     <tr><td>Loosening Torque</td><td>M<sub>L</sub></td><td>@result.ML.ToString("F1")</td><td>Nm</td></tr>
@@ -1092,20 +1160,45 @@ else
             <table class="results-table">
                  <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Status</th></tr></thead>
                  <tbody>
-                    <tr class="@(GetSafetyRowClass(result.SF_yield, 1.1))">
+                    @{
+                        bool yieldControlled = selectedTightening?.IsYieldControlled == true;
+                    }
+                    @* Yield and angle controlled tightening take the bolt TO its yield
+                       point by design, so a "safety factor against yielding" of 1,78
+                       told the user the opposite of what is happening. *@
+                    <tr class="@(yieldControlled ? "warning" : GetSafetyRowClass(result.SF_yield, 1.1))">
                         <td>Yielding (Assembly)</td>
                         <td>SF<sub>yield</sub></td>
-                        <td>@result.SF_yield.ToString("F2")</td>
-                        <td>@GetStatus(result.SF_yield, 1.1)</td>
+                        <td>@(yieldControlled ? "n/a" : result.SF_yield.ToString("F2"))</td>
+                        <td>@(yieldControlled ? "tightened to yield by design" : GetStatus(result.SF_yield, 1.1))</td>
                     </tr>
-                    @* With no residual clamp force required and no shear load, FKR_min is
-                       legitimately 0 - there is no requirement to fall short of. Say that,
-                       rather than printing an infinity that reads as a divide-by-zero. *@
-                    <tr class="@(result.FKR_min > 0 ? GetSafetyRowClass(result.SF_clamp, 1.2) : "")">
-                        <td>Loss of Clamp</td>
+                    @if (yieldControlled)
+                    {
+                        <tr>
+                            <td colspan="4" style="font-size: 12px; color: #666; font-style: italic;">
+                                @selectedTightening!.Method tightening works by taking the bolt to its yield
+                                point, so VDI 2230 defines the preload as F<sub>M</sub> = F<sub>M,zul</sub>
+                                and &alpha;<sub>A</sub> = 1. The bolt is <em>meant</em> to be at yield and
+                                takes a small permanent elongation; it cannot be reused without checking it.
+                                A safety factor against yielding is not a meaningful number here, which is
+                                why this row reads n/a rather than the 1,78 it used to.
+                            </td>
+                        </tr>
+                    }
+                    @* This used to report FK_min/FKR_min, which is 1,00 by construction
+                       because FM_min is SIZED as FKR_min + FZ + FPA - so every user who
+                       entered a required clamp force saw a FAIL at exactly 1,00. It is
+                       now the clamp force the bolt can actually deliver at the low end
+                       of the tightening scatter, against what the joint needs. *@
+                    <tr class="@(result.FKR_min > 0 ? GetSafetyRowClass(result.SF_clamp, 1.2) : (result.FKR_available <= 0 ? "danger" : ""))">
+                        <td>Clamp Force Margin</td>
                         <td>SF<sub>clamp</sub></td>
-                        <td>@(result.FKR_min > 0 ? result.SF_clamp.ToString("F2") : "n/a")</td>
-                        <td>@(result.FKR_min > 0 ? GetStatus(result.SF_clamp, 1.2) : "no clamp force required")</td>
+                        <td>@(result.FKR_min > 0 ? result.SF_clamp.ToString("F2") : (result.FKR_available > 0 ? "n/a" : "0.00"))</td>
+                        <td>
+                            @(result.FKR_min > 0
+                                ? GetStatus(result.SF_clamp, 1.2)
+                                : result.FKR_available > 0 ? "no clamp force required" : "❌ joint opens")
+                        </td>
                     </tr>
                     @if (input.ShearForce > 0)
                     {
@@ -1116,12 +1209,31 @@ else
                              <td>@GetStatus(result.SF_slip, 1.1)</td>
                         </tr>
                     }
+                    @* On the pressure the PART bears. With a washer fitted the head
+                       bears on the washer and the washer on the part over its own,
+                       much larger, outside diameter - so the head-on-washer figure
+                       against the part's permissible value was the wrong pair on
+                       both sides: 419,6 MPa against S235's 490 where the part is
+                       really at about 122. *@
                     <tr class="@(GetSafetyRowClass(result.SF_pressure, 1.0))">
-                        <td>Surface Pressure</td>
+                        <td>Surface Pressure on the Clamped Part</td>
                         <td>SF<sub>p</sub></td>
                         <td>@result.SF_pressure.ToString("F2")</td>
                         <td>@GetStatus(result.SF_pressure, 1.0)</td>
                     </tr>
+                    @if (result.WasherCarriesTheHeadPressure)
+                    {
+                        <tr>
+                            <td colspan="4" style="font-size: 12px; color: #666; font-style: italic;">
+                                A washer stands between the head or nut and the part, so the part is judged on
+                                the pressure over the washer's outside diameter
+                                (@result.PressureOnPartHead.ToString("F1") MPa). The head itself bears on the
+                                washer at @result.PressureHead.ToString("F1") MPa; a washer is a hardened
+                                component with a far higher limit of its own, and that limit is not carried in
+                                this module, so it is reported rather than turned into a safety factor.
+                            </td>
+                        </tr>
+                    }
                     @* Gate on the engine's own verdict, not on the cycle count: a cycle
                        count means nothing if the load does not actually swing. *@
                     @if (result.FatigueRelevant)
@@ -1154,7 +1266,12 @@ else
                      <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
                      <tbody>
                         <tr><td>Load Type (from FA range)</td><td>-</td><td colspan="2">@DescribeLoadType(result.LoadTypeUsed)</td></tr>
-                        <tr class="highlight"><td>Fatigue Load (Amplitude)</td><td>F<sub>a</sub></td><td>@((result.FatigueLoad / 1000).ToString("F2"))</td><td>kN</td></tr>
+                        @* Labelled "Amplitude" while holding |FSA - FSA,min|, which is
+                           the RANGE. The stress amplitude below is correctly half of
+                           it, so only the label was wrong - but reading the two rows
+                           together made the arithmetic look broken. *@
+                        <tr class="highlight"><td>Fatigue Load (Range, F<sub>SA,max</sub> &minus; F<sub>SA,min</sub>)</td><td>&Delta;F<sub>SA</sub></td><td>@((result.FatigueLoad / 1000).ToString("F2"))</td><td>kN</td></tr>
+                        <tr><td>Fatigue Load (Amplitude, half the range)</td><td>F<sub>a</sub></td><td>@((result.FatigueLoad / 2000).ToString("F2"))</td><td>kN</td></tr>
                         <tr><td>Stress Amplitude</td><td>σ<sub>a</sub></td><td>@result.SigmaA.ToString("F1")</td><td>MPa</td></tr>
                         <tr><td>Mean Stress</td><td>σ<sub>m</sub></td><td>@result.SigmaM.ToString("F1")</td><td>MPa</td></tr>
                         <tr class="highlight"><td>Allowable Stress Amplitude</td><td>σ<sub>ASV</sub></td><td>@result.SigmaASV.ToString("F1")</td><td>MPa</td></tr>
@@ -2132,7 +2249,19 @@ else
 
 
 
-    private void OnBoltSizeChanged() { selectedBolt = GetBoltBySize(input.BoltSize); selectedWasher = GetWasherBySize(input.BoltSize); }
+    private void OnBoltSizeChanged()
+    {
+        selectedBolt = GetBoltBySize(input.BoltSize);
+        selectedWasher = GetWasherBySize(input.BoltSize);
+
+        // The clearance hole has to follow the bolt. It did not: going from M10 to
+        // M12 left the hole at 11 mm, i.e. SMALLER than the bolt - and because a
+        // smaller hole enlarges the bearing area under the head, that impossible
+        // geometry IMPROVED the surface pressure safety from 1,24 to 1,87. The hole
+        // is re-sized to the ISO 273 medium series whenever the bolt changes.
+        AutoSizeHoleDiameter();
+        OnHoleDiameterChanged();
+    }
 
     private void OnStrengthClassChanged() { selectedStrength = GetStrengthClass(input.StrengthClass); }
 
@@ -2357,6 +2486,21 @@ else
             if (string.IsNullOrEmpty(input.BoltSize)) validationMessages.Add("Select a bolt size.");
             if (input.AxialForceMax <= 0) validationMessages.Add("Max axial force (FA,max) must be greater than 0.");
             if (clampedParts.Count == 0) validationMessages.Add("Add at least one clamped part.");
+            // A hole smaller than the bolt is not a geometry, and it made the
+            // surface pressure check LOOK better by enlarging the bearing area.
+            double boltNominal = selectedBolt?.d ?? 0;
+            if (boltNominal > 0 && holeDiameter > 0 && holeDiameter < boltNominal)
+                validationMessages.Add($"The clearance hole ({holeDiameter:0.##} mm) is smaller than the bolt ({boltNominal:0.##} mm) — the bolt would not pass through. The gear button beside the field sets the ISO 273 medium clearance.");
+            if (holeDiameter <= 0)
+                validationMessages.Add("Clearance hole diameter must be greater than 0.");
+            if (input.InterfaceFriction <= 0)
+                validationMessages.Add("The interface friction coefficient must be greater than 0.");
+            if (input.NumberOfInterfaces <= 0)
+                validationMessages.Add("There must be at least one friction interface.");
+            if (input.ShearForce < 0 || input.BendingMoment < 0 || input.AxialForceMin < 0 || input.AxialForceMax < 0)
+                validationMessages.Add("Loads cannot be negative. Enter magnitudes.");
+            if (input.AxialForceMin > input.AxialForceMax)
+                validationMessages.Add($"The minimum axial force ({input.AxialForceMin:0.#} N) cannot exceed the maximum ({input.AxialForceMax:0.#} N).");
             else if (clampedParts.Any(p => p.Thickness <= 0)) validationMessages.Add("Every clamped part needs a thickness greater than 0.");
 
             if (validationMessages.Count > 0)
@@ -2427,15 +2571,15 @@ else
 
 
 
-            if (input.LoadCase == LoadCaseType.AxialOnly)
-
-            {
-
-                input.ShearForce = 0;
-
-                input.BendingMoment = 0;
-
-            }
+            // The load case FOLLOWS the loads entered; it must not silently discard
+            // them. LoadCase defaulted to AxialOnly and nothing on the page ever
+            // changed it, so these two lines zeroed the transverse force and the
+            // bending moment on every single run - the two fields were dead inputs
+            // and the user had no way to tell. Entering FQ = 4000 N left every
+            // result byte-identical.
+            input.LoadCase = (input.ShearForce > 0 || input.BendingMoment > 0)
+                ? LoadCaseType.AxialAndTransverse
+                : LoadCaseType.AxialOnly;
 
 
 
