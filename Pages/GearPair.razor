@@ -1162,6 +1162,52 @@ else
             }
         </div>
 
+        @if (!Internal)
+        {
+            <!-- Interference Checks (external pair) -->
+            @* These checks existed only on the internal page. An external pair
+               whose mesh began below the pinion's root form circle reported the
+               contact ratio, the specific sliding and the flank stresses as OK
+               and gave a final verdict of "meets ISO 6336". *@
+            <div class="card">
+                <div class="card-header"><ModuleIcon Type="warning" Size="medium" Style="solid" /><h2>Interference Checks</h2></div>
+                <table class="results-table">
+                    <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                    <tbody>
+                        <tr class="@(engine.PinionRootContactRadius > 0 ? "success" : "danger")">
+                            <td>Start of Contact above the Pinion Base Circle</td><td>&#961;<sub>A1</sub></td>
+                            <td>@engine.PinionRootContactRadius.ToString("F3")</td><td>mm</td></tr>
+                        <tr class="@(engine.PinionRootContactRadius > 0 && engine.PinionActiveRootDiameter >= engine.PinionFormDiameter - 1e-6 ? "success" : "danger")">
+                            <td>Pinion: Start of Active Profile vs Root Form Circle</td><td>d<sub>Nf1</sub> / d<sub>Ff1</sub></td>
+                            <td>@engine.PinionActiveRootDiameter.ToString("F3") / @engine.PinionFormDiameter.ToString("F3")</td><td>mm</td></tr>
+                        <tr class="@(engine.TipClearance >= 0.1 * engine.NormalModule ? "success" : "danger")">
+                            <td>Tip Clearance</td><td>c</td>
+                            <td>@engine.TipClearance.ToString("F3")</td><td>mm</td></tr>
+                    </tbody>
+                </table>
+                @if (engine.InternalGearWarnings.Count == 0)
+                {
+                    <div class="alert alert-success" style="margin: 16px;">
+                        <ModuleIcon Type="check" Size="small" Style="default" CustomStyle="margin-right: 8px;" />
+                        <div><strong>OK:</strong> the mesh runs entirely on both involutes and the tip clearance is adequate.</div>
+                    </div>
+                }
+                @foreach (var w in engine.InternalGearWarnings)
+                {
+                    <div class="alert alert-danger" style="margin: 12px 16px; font-size: 13px;">
+                        <ModuleIcon Type="warning" Size="small" Style="default" CustomStyle="margin-right: 8px;" />
+                        <div>@w</div>
+                    </div>
+                }
+                <div class="note-box">
+                    Involute interference is a <strong>geometric</strong> failure, not a strength one: where it
+                    occurs there is no involute to mesh with, so the contact ratio, the specific sliding and the
+                    flank stresses all describe a mesh that cannot happen. It is what sets the minimum tooth
+                    count for a given pressure angle, and it is why a small pinion needs profile shift.
+                </div>
+            </div>
+        }
+
         @if (Internal)
         {
             <!-- Internal Gear Checks -->
@@ -1231,8 +1277,12 @@ else
                     <tr class="highlight"><td>Total Contact Ratio</td><td>&#949;<sub>&#947;</sub></td><td>@engine.TotalContactRatio.ToString("F3")</td><td>-</td><td>-</td></tr>
                     <tr><td>Virtual Contact Ratio</td><td>&#949;<sub>&#945;n</sub></td><td>@engine.VirtualContactRatio.ToString("F3")</td><td>-</td><td>-</td></tr>
                     <tr><td>Length of Path of Contact</td><td>g<sub>&#945;</sub></td><td>@engine.PathOfContact.ToString("F3")</td><td>mm</td><td>-</td></tr>
-                    <tr><td>Approach Path / Contact Ratio</td><td>g<sub>f</sub> / &#949;<sub>1</sub></td><td>@engine.ApproachPath.ToString("F3") / @engine.ApproachContactRatio.ToString("F3")</td><td>mm / -</td><td>-</td></tr>
-                    <tr><td>Recess Path / Contact Ratio</td><td>g<sub>a</sub> / &#949;<sub>2</sub></td><td>@engine.RecessPath.ToString("F3") / @engine.RecessContactRatio.ToString("F3")</td><td>mm / -</td><td>-</td></tr>
+                    @* These two were labelled "approach" and "recess" and did not change when the
+                       driver did - but which end is the approach depends entirely on which gear
+                       drives. The geometry does not move, so the rows are named by the END OF THE
+                       PATH they describe and the approach/recess designation follows the driver. *@
+                    <tr><td>Path A&#8594;C (@(engine.PinionDrives ? "approach" : "recess")) / Contact Ratio</td><td>g<sub>f</sub> / &#949;<sub>1</sub></td><td>@engine.ApproachPath.ToString("F3") / @engine.ApproachContactRatio.ToString("F3")</td><td>mm / -</td><td>-</td></tr>
+                    <tr><td>Path C&#8594;E (@(engine.PinionDrives ? "recess" : "approach")) / Contact Ratio</td><td>g<sub>a</sub> / &#949;<sub>2</sub></td><td>@engine.RecessPath.ToString("F3") / @engine.RecessContactRatio.ToString("F3")</td><td>mm / -</td><td>-</td></tr>
                     <tr class="@(Math.Abs(engine.SpecificSliding1) > 3.0 ? "warning" : "")"><td>Specific Sliding at Pinion Root</td><td>&#950;<sub>1</sub></td><td>@engine.SpecificSliding1.ToString("F3")</td><td>|&#950;| &#8804; 3</td><td>@(Math.Abs(engine.SpecificSliding1) > 3.0 ? "⚠️ High" : "✓ OK")</td></tr>
                     <tr class="@(Math.Abs(engine.SpecificSliding2) > 3.0 ? "warning" : "")"><td>Specific Sliding at @(Internal ? "Internal Gear" : "Wheel") Root</td><td>&#950;<sub>2</sub></td><td>@engine.SpecificSliding2.ToString("F3")</td><td>|&#950;| &#8804; 3</td><td>@(Math.Abs(engine.SpecificSliding2) > 3.0 ? "⚠️ High" : "✓ OK")</td></tr>
                     <tr><td>Gear Loss Factor</td><td>H<sub>V</sub></td><td>@engine.ToothLossFactor.ToString("F4")</td><td>-</td><td>-</td></tr>
@@ -1257,13 +1307,30 @@ else
                     <tr><td>Speed</td><td>n</td><td>@engine.Speed1.ToString("F1")</td><td>@engine.Speed2.ToString("F1")</td><td>rpm</td></tr>
                     <tr><td>Torque</td><td>T</td><td>@engine.Torque1.ToString("F2")</td><td>@engine.Torque2.ToString("F2")</td><td>Nm</td></tr>
                     <tr><td>Pitch Line Velocity</td><td>v</td><td colspan="2">@engine.PitchLineVelocity.ToString("F2")</td><td>m/s</td></tr>
+                    <tr><td colspan="5" class="table-section-header">At the reference circle &mdash; what ISO 6336 uses</td></tr>
                     <tr class="highlight"><td>Tangential Force</td><td>F<sub>t</sub></td><td colspan="2">@engine.TangentialForce.ToString("F0")</td><td>N</td></tr>
                     <tr><td>Radial Force</td><td>F<sub>r</sub></td><td colspan="2">@engine.RadialForce.ToString("F0")</td><td>N</td></tr>
                     <tr><td>Axial Force</td><td>F<sub>a</sub></td><td colspan="2">@engine.AxialForce.ToString("F0")</td><td>N</td></tr>
                     <tr><td>Normal Force</td><td>F<sub>n</sub></td><td colspan="2">@engine.NormalForce.ToString("F0")</td><td>N</td></tr>
                     <tr><td>Specific Load</td><td>w</td><td colspan="2">@engine.SpecificLoad.ToString("F1")</td><td>N/mm</td></tr>
+                    <tr><td colspan="5" class="table-section-header">At the working pitch circle &mdash; what the bearings carry</td></tr>
+                    <tr class="highlight"><td>Tangential Force</td><td>F<sub>t,w</sub></td><td colspan="2">@engine.WorkingTangentialForce.ToString("F0")</td><td>N</td></tr>
+                    <tr class="highlight"><td>Radial Force</td><td>F<sub>r,w</sub></td><td colspan="2">@engine.WorkingRadialForce.ToString("F0")</td><td>N</td></tr>
+                    <tr><td>Axial Force</td><td>F<sub>a,w</sub></td><td colspan="2">@engine.WorkingAxialForce.ToString("F0")</td><td>N</td></tr>
                 </tbody>
             </table>
+            <div class="note-box">
+                @* Only the reference-circle set was shown, and a reader takes this table to the
+                   shaft calculation. On a profile-shifted pair the two differ by 10-20 %, with
+                   the reference-circle radial force on the LOW side - the unsafe direction for a
+                   bearing. *@
+                ISO 6336 is written on the <strong>reference-circle</strong> tangential force, so that is
+                what every load factor and stress above uses. The mesh, however, acts on the
+                <strong>working pitch circle</strong> at the working pressure angle &#945;<sub>wt</sub>, and
+                on a profile-shifted pair the two differ: the working radial force here is
+                @(engine.RadialForce > 0 ? (engine.WorkingRadialForce / engine.RadialForce * 100 - 100).ToString("+0.0;-0.0") : "0")&nbsp;%
+                against the reference value. Take the working set to the shaft and bearing calculation.
+            </div>
         </div>
 
         <!-- Load Factors -->
@@ -1934,7 +2001,46 @@ else
                 </tbody>
             </table>
 
-            @if (engine.MinRootSafety < GearPairEngine.MinSafetyFactorRoot * 0.8 || engine.MinFlankSafety < GearPairEngine.MinSafetyFactorFlank * 0.8)
+            @* The verdict has to put GEOMETRY first. Interference, a pointed tooth
+               and a negative tip clearance are not "marginal safety factors" -
+               they describe a mesh that cannot physically happen, and every
+               contact-based number below them is meaningless. A pair with
+               involute interference used to read "Tooth root and flank meet
+               ISO 6336". *@
+            @if (engine.InternalGearWarnings.Count > 0)
+            {
+                <div class="alert alert-danger" style="margin-top: 16px;">
+                    <ModuleIcon Type="warning" Size="small" Style="default" CustomStyle="margin-right: 8px;" />
+                    <div>
+                        <strong>FAIL — the geometry is not workable.</strong>
+                        @(engine.InternalGearWarnings.Count == 1 ? "An interference or clearance check" : $"{engine.InternalGearWarnings.Count} of the interference and clearance checks")
+                        above @(engine.InternalGearWarnings.Count == 1 ? "has" : "have") failed. Fix that first:
+                        the safety factors, the contact ratio and the sliding velocities all assume a mesh that
+                        runs on both involutes, so none of them applies until this does.
+                    </div>
+                </div>
+            }
+            @* Below 1,00 the material yields or pits - that is a failure, not a
+               marginal result. The old band treated anything above 0,8 of the
+               required minimum as merely marginal, so S_H = 0,84 against a
+               required 1,00 came out "Marginal" instead of FAIL. *@
+            else if (engine.MinRootSafety < 1.0 || engine.MinFlankSafety < 1.0)
+            {
+                <div class="alert alert-danger" style="margin-top: 16px;">
+                    <ModuleIcon Type="warning" Size="small" Style="default" CustomStyle="margin-right: 8px;" />
+                    <div>
+                        <strong>FAIL —</strong>
+                        @(engine.MinRootSafety < 1.0 && engine.MinFlankSafety < 1.0
+                            ? $"the tooth root (S_F = {engine.MinRootSafety:F2}) and the flank (S_H = {engine.MinFlankSafety:F2}) are both below 1,00"
+                            : engine.MinRootSafety < 1.0
+                                ? $"the tooth root safety factor is {engine.MinRootSafety:F2}"
+                                : $"the flank safety factor is {engine.MinFlankSafety:F2}")
+                        — the calculated stress exceeds the permissible stress, so the material yields or pits.
+                        A safety factor below 1,00 is a failure whatever the required minimum is.
+                    </div>
+                </div>
+            }
+            else if (engine.MinRootSafety < GearPairEngine.MinSafetyFactorRoot * 0.8 || engine.MinFlankSafety < GearPairEngine.MinSafetyFactorFlank * 0.8)
             {
                 <div class="alert alert-danger" style="margin-top: 16px;"><ModuleIcon Type="warning" Size="small" Style="default" CustomStyle="margin-right: 8px;" /> <strong>Warning:</strong> Design is unsafe! Safety factor well below the ISO 6336 minimum requirement.</div>
             }
@@ -2689,10 +2795,18 @@ else
         if (bore <= 0 || d <= 0 || engine.NormalModule <= 0) return null;
 
         double df = d - 2.0 * engine.NormalModule * (engine.DedendumCoeff - x);
+        double da = d + 2.0 * engine.NormalModule * (engine.AddendumCoeff + x);
         double sR = (df - bore) / 2.0;
         if (sR <= 0) return null;
 
-        double ratio = sR / engine.NormalModule;
+        // s_R over the TOOTH HEIGHT, which is ISO 6336-3's criterion for an
+        // external gear. s_R/m_n is the INTERNAL gear's criterion and carries
+        // different thresholds; h is about 2,25 m_n, so using m_n overstated the
+        // ratio by that much and a thin rim looked adequate.
+        double h = (da - df) / 2.0;
+        if (h <= 0) return null;
+
+        double ratio = sR / h;
         double yb = ratio >= 1.2 ? 1.0 : 1.6 * Math.Log(2.242 / Math.Max(ratio, 0.5));
         return (sR, ratio, yb);
     }
@@ -3367,7 +3481,7 @@ else
                 <div class="alert @(rim.yb > 1.0 ? "alert-warning" : "alert-info")" style="margin: 16px 0 0;">
                     <ModuleIcon Type="info" Size="small" Style="default" CustomStyle="margin-right: 8px;" />
                     <div>
-                        s<sub>R</sub>/m<sub>n</sub> = @rim.ratio.ToString("F2")
+                        s<sub>R</sub>/h = @rim.ratio.ToString("F2")
                         &#8594; Y<sub>B</sub> = @rim.yb.ToString("F3").
                         @if (rim.yb > 1.0)
                         {
@@ -3376,7 +3490,7 @@ else
                         else
                         {
                             <text>
-                                Above s<sub>R</sub>/m<sub>n</sub> = 1.2 the rim is thick enough that
+                                Above s<sub>R</sub>/h = 1.2 the rim is thick enough that
                                 Y<sub>B</sub> = 1 and the bore changes nothing.
                             </text>
                         }
@@ -3928,9 +4042,15 @@ else
     private string GetScuffingStatus(Iso13989FlashTemperature.Result s)
         => s.MarginKelvin < 0 ? "❌ FAIL" : s.MarginKelvin < 50 ? "⚠️ Marginal" : "✓ OK";
 
+    // A safety factor below 1,00 is a FAIL whatever the required minimum is: the
+    // calculated stress exceeds the permissible stress and the material yields or
+    // pits. Grading only against minRequired*0.8 made S_H = 0,86 against a
+    // required 1,00 read "Marginal", and 0,84 on the external page likewise.
+    // "Marginal" is for the band between 1,00 and the required minimum, which is
+    // where the standard's own margin lives.
     private string GetSafetyRowClass(double sf, double minRequired)
     {
-        if (sf < minRequired * 0.8) return "danger";
+        if (sf < 1.0 || sf < minRequired * 0.8) return "danger";
         if (sf < minRequired) return "warning";
         return "success";
     }
@@ -3939,7 +4059,7 @@ else
     // renders, so "&#10003;" would show up on the page verbatim instead of a tick.
     private string GetSafetyStatus(double sf, double minRequired)
     {
-        if (sf < minRequired * 0.8) return "❌ FAIL";
+        if (sf < 1.0 || sf < minRequired * 0.8) return "❌ FAIL";
         if (sf < minRequired) return "⚠️ Marginal";
         return "✓ OK";
     }
@@ -3967,6 +4087,49 @@ else
             validationMessages.Add("The internal gear needs more teeth than the pinion inside it (z₂ > z₁).");
         if (Internal && engine.RingOuterDiameter < 0)
             validationMessages.Add("Rim outside diameter (Dₒ) cannot be negative; enter 0 to leave the rim unchecked.");
+
+        // A bore larger than the root circle is not a gear. It was accepted with
+        // no warning at all, gave a NEGATIVE rim thickness - which Y_B then
+        // ignored, returning 1,000 - and shrank the reduced mass m_red, so K_V
+        // fell from 1,075 to 1,037. An impossible blank IMPROVED the result.
+        if (engine.NormalModule > 0)
+        {
+            foreach (int gear in new[] { 1, 2 })
+            {
+                if (Internal && gear == 2) continue;      // the annulus has a rim, not a bore
+                double bore = gear == 1 ? engine.BoreDiameter1 : engine.BoreDiameter2;
+                if (bore <= 0) continue;
+
+                double d = ReferenceDiameterOf(gear);
+                double x = gear == 1 ? engine.ProfileShiftCoeff1 : engine.ProfileShiftCoeff2;
+                if (d <= 0) continue;
+                double df = d - 2.0 * engine.NormalModule * (engine.DedendumCoeff - x);
+                if (bore >= df)
+                    validationMessages.Add($"The bore of gear {gear} (d_i = {bore:0.##} mm) reaches the root circle "
+                                         + $"(d_f = {df:0.##} mm). There would be no rim under the teeth.");
+            }
+        }
+
+        // The annulus rim has to exist too.
+        if (Internal && engine.RingOuterDiameter > 0 && engine.NormalModule > 0
+            && engine.NumberOfTeeth2 > 0)
+        {
+            double d2 = ReferenceDiameterOf(2);
+            double df2 = d2 + 2.0 * engine.NormalModule * (engine.DedendumCoeff - engine.ProfileShiftCoeff2);
+            if (engine.RingOuterDiameter <= df2)
+                validationMessages.Add($"Rim outside diameter (Dₒ = {engine.RingOuterDiameter:0.##} mm) must be larger "
+                                     + $"than the annulus root diameter ({df2:0.##} mm) — otherwise the rim thickness is "
+                                     + "negative, which Y_B silently reads as a solid blank.");
+        }
+
+        // ISO 6336 is written for the common pressure angles. 45° was accepted
+        // and reported "OK" with a pointed tooth on both gears.
+        if (engine.PressureAngle < 10 || engine.PressureAngle > 30)
+            validationMessages.Add($"A normal pressure angle of {engine.PressureAngle:0.#}° is outside the range "
+                                 + "ISO 6336 covers. Standard tooling is 20°; 14,5° to 25° is the usable band.");
+        if (Math.Abs(engine.HelixAngle) >= 45)
+            validationMessages.Add($"A helix angle of {engine.HelixAngle:0.#}° is beyond what ISO 6336 covers "
+                                 + "(it is written for up to about 30°, and the tolerance standards stop sooner).");
 
         // cos α_wt = a_d cos α_t / a must not exceed 1. Below a_d cos α_t no working pressure
         // angle exists; the engine would clamp it to 0° and return an infinite zone factor.

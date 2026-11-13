@@ -149,7 +149,9 @@ public static class Iso13989FlashTemperature
         public bool Valid { get; set; }
 
         public double MuM { get; set; }             // mean coefficient of friction
-        public double XL { get; set; }              // lubricant factor
+        public double XL { get; set; }              // lubricant factor of the FRICTION equation, Eq. (27)
+        /// <summary>Base oil factor of the scuffing temperature, Eq. (99). Type only.</summary>
+        public double XLScuffingTemperature { get; set; }
         public double XR { get; set; }              // roughness factor
         public double XM { get; set; }              // thermo-elastic factor
         public double XS { get; set; }              // lubrication method factor
@@ -198,22 +200,44 @@ public static class Iso13989FlashTemperature
         _ => 1.00
     };
 
-    /// <summary>Lubricant factor X_L, Eq. (27). eta in mPa·s at the oil temperature.</summary>
+    /// <summary>
+    /// Base oil coefficient: the part of the lubricant factor that depends on the
+    /// oil TYPE alone. 1,0 for a mineral oil.
+    /// </summary>
+    private static double BaseOilCoefficient(LubricantType type) => type switch
+    {
+        LubricantType.PolyglycolWaterSoluble => 0.6,
+        LubricantType.PolyglycolNonWaterSoluble => 0.7,
+        LubricantType.Polyalphaolefin => 0.8,
+        LubricantType.PhosphateEster => 1.3,
+        LubricantType.TractionFluid => 1.5,
+        _ => 1.0
+    };
+
+    /// <summary>
+    /// Lubricant factor X_L of the FRICTION equation, Eq. (27): the base oil
+    /// coefficient times eta^-0,05, with eta in mPa·s at the oil temperature.
+    ///
+    /// This is NOT the X_L that appears in the scuffing temperature of Eq. (99).
+    /// The two are different quantities that the standard gives the same symbol,
+    /// and using this one in Eq. (99) put the scuffing temperature 14 % low:
+    /// 348 °C instead of 404 °C for a mineral oil at FZG stage 12, because
+    /// eta^-0,05 is 0,826 at 46 mPa·s where Eq. (99) wants 1,0. The integral
+    /// method next door was already using 1,0, so the two methods disagreed with
+    /// each other on the same oil.
+    /// </summary>
     public static double LubricantFactor(LubricantType type, double etaOil)
     {
         if (etaOil <= 0) return 0;
-
-        double coefficient = type switch
-        {
-            LubricantType.PolyglycolWaterSoluble => 0.6,
-            LubricantType.PolyglycolNonWaterSoluble => 0.7,
-            LubricantType.Polyalphaolefin => 0.8,
-            LubricantType.PhosphateEster => 1.3,
-            LubricantType.TractionFluid => 1.5,
-            _ => 1.0
-        };
-        return coefficient * Math.Pow(etaOil, -0.05);
+        return BaseOilCoefficient(type) * Math.Pow(etaOil, -0.05);
     }
+
+    /// <summary>
+    /// Base oil factor X_L of the SCUFFING TEMPERATURE, Eq. (99). Type only - no
+    /// viscosity term.
+    /// </summary>
+    public static double ScuffingTemperatureLubricantFactor(LubricantType type)
+        => BaseOilCoefficient(type);
 
     /// <summary>
     /// Kinematic viscosity at an arbitrary temperature from two datasheet points, by the
@@ -346,8 +370,26 @@ public static class Iso13989FlashTemperature
             return r;
         }
 
-        r.MuM = 0.060 * Math.Pow(r.wBt / (vSigmaC * rhoRelC), 0.2) * r.XL * r.XR;                  // (25)
-        // (w_Bt here is the plain load - K_Bgamma enters the flash temperature only.)
+        // Clause 5.1 range limit, as the integral method already applied: the
+        // empirical friction correlation is not valid below 150 N/mm, so the
+        // limiting value is used there. Part 1 did not apply it while Part 2 did,
+        // so the same gear got two different friction coefficients depending on
+        // which criterion was running - and the note printed beside the result
+        // said the limit HAD been used. Raising w_Bt to the floor raises mu_m, so
+        // the correction is conservative (0,0603 to 0,0612 on the default gear).
+        //
+        // (w_Bt here is the plain load - K_Bgamma enters the flash temperature
+        // only, which is why the reports print the two separately. Part 2 does
+        // use K_Bgamma in its friction; the two parts genuinely differ there.)
+        double wForFriction = r.wBt;
+        if (wForFriction < 150.0)
+        {
+            wForFriction = 150.0;
+            r.Notes.Add($"The specific tooth load is {r.wBt:F0} N/mm; Clause 5.1 requires the "
+                      + "limiting value of 150 N/mm to be used in the friction equation below that.");
+        }
+
+        r.MuM = 0.060 * Math.Pow(wForFriction / (vSigmaC * rhoRelC), 0.2) * r.XL * r.XR;           // (25)
 
         // --- Optimal tip relief, Eq. (B.1) ---
         double cGamma = i.cGamma > 0 ? i.cGamma : 20.0;
@@ -408,7 +450,10 @@ public static class Iso13989FlashTemperature
         r.ContactExposureTime = ContactExposureTime(r.GammaAtMax, i, wBtFlash, Er, aS, uS);
 
         // --- Scuffing temperature, Eq. (99), and safety, Eq. (100) ---
-        r.ScuffingTemperature = 80.0 + (0.85 + 1.4 * i.XW) * r.XL * i.FzgLoadStage * i.FzgLoadStage;
+        // The base oil factor of Eq. (99), NOT the friction factor of Eq. (27).
+        r.XLScuffingTemperature = ScuffingTemperatureLubricantFactor(i.Lubricant);
+        r.ScuffingTemperature = 80.0
+            + (0.85 + 1.4 * i.XW) * r.XLScuffingTemperature * i.FzgLoadStage * i.FzgLoadStage;
 
         if (i.AntiScuffAdditives && r.ContactExposureTime < 18.0)
         {

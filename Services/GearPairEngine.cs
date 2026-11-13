@@ -547,7 +547,12 @@ public class GearPairEngine
     // ============ CALCULATED VALUES - FORCES ============
 
     public double TangentialForce { get; set; }          // Ft (N)
-    public double RadialForce { get; set; }              // Fr (N)
+    public double RadialForce { get; set; }              // Fr (N), at the reference circle
+    // The same forces at the WORKING pitch circle and working pressure angle -
+    // what the bearings carry. ISO 6336 uses the reference-circle values above.
+    public double WorkingTangentialForce { get; set; }   // Ft,w (N)
+    public double WorkingRadialForce { get; set; }       // Fr,w (N)
+    public double WorkingAxialForce { get; set; }        // Fa,w (N)
     public double AxialForce { get; set; }               // Fa (N)
     public double NormalForce { get; set; }              // Fn (N)
     public double SpecificLoad { get; set; }             // w (N/mm)
@@ -830,12 +835,24 @@ public class GearPairEngine
             ? RootDiameter2 / 2.0 - CenterDistance - TipDiameter1 / 2.0
             : CenterDistance - TipDiameter1 / 2.0 - RootDiameter2 / 2.0;
 
-        // Undercut limit (ISO 21771): x_min = h*aP - z sin²(αt) / (2 cos β)
-        MinProfileShift1 = AddendumCoeff
+        // Undercut limit (ISO 21771): x_min = h*_FfP0/m_n - z sin²(αt) / (2 cos β)
+        //
+        // The first term is the depth of the tool's STRAIGHT flank, not its whole
+        // addendum: the tip rounding of radius rho_fP generates a trochoid rather
+        // than cutting the involute, so what matters is
+        //     h_FfP0 = h_fP - rho_fP (1 - sin α_n)
+        // Using h*_aP instead put x_min at -0,1698 where the true limit is
+        // -0,1172 for ISO 53 profile B (rho* = 0,30), so a gear shifted to
+        // x = -0,15 was undercut and drew no warning at all. The two happen to
+        // coincide for profile A (rho* = 0,38, h*_fP = 1,25), where
+        // h_FfP0 = 1,0002 m_n - which is why this was invisible on the internal
+        // module and showed up only on the external one's profile B default.
+        double tipRoundingDepth = DedendumCoeff - RootRadiusCoeff * (1.0 - Math.Sin(PressureAngle * Math.PI / 180.0));
+        MinProfileShift1 = tipRoundingDepth
             - NumberOfTeeth1 * Math.Pow(Math.Sin(alphatRad), 2) / (2.0 * Math.Cos(betaRad));
         // An annulus cannot undercut in the rack sense; its limits are the internal-pair
         // checks instead. NaN tells the page there is nothing to show.
-        MinProfileShift2 = InternalGear ? double.NaN : AddendumCoeff
+        MinProfileShift2 = InternalGear ? double.NaN : tipRoundingDepth
             - NumberOfTeeth2 * Math.Pow(Math.Sin(alphatRad), 2) / (2.0 * Math.Cos(betaRad));
     }
 
@@ -942,11 +959,102 @@ public class GearPairEngine
         CalculateSlidingAndLossFactor(alphaWTRad, basePitch);
 
         if (InternalGear) CheckInternalPair(alphaWTRad);
-        else
+        else CheckExternalPair(alphaWTRad);
+    }
+
+    /// <summary>
+    /// The geometric show-stoppers of an EXTERNAL pair. These had no checks at
+    /// all: the internal module grew them during its own review and the external
+    /// one was left without, so a pair whose mesh began BELOW the pinion's root
+    /// form circle - involute interference, the mesh running onto the fillet -
+    /// reported ε_α = 1,567 "OK", ζ₁ clamped to 0,000 "OK", and a final verdict
+    /// of "Tooth root and flank meet ISO 6336".
+    ///
+    /// Two conditions, one at each end of the path of contact:
+    ///
+    ///   at A, where the WHEEL tip first touches the pinion,
+    ///     ρ_A1 = a sin α_wt − sqrt(r_a2² − r_b2²)
+    ///   at E, where the PINION tip leaves the wheel,
+    ///     ρ_E2 = a sin α_wt − sqrt(r_a1² − r_b1²)
+    ///
+    /// A negative ρ means contact starts inside the base circle, where no
+    /// involute exists. Positive but below the mating gear's root form circle
+    /// means the tip is running on the fillet, which the strength model does not
+    /// describe either. Both are compared against the rack-generated form circle
+    /// at the NOMINAL profile shift, which is the conservative side.
+    /// </summary>
+    private void CheckExternalPair(double alphaWTRad)
+    {
+        InternalGearWarnings.Clear();
+        TipInterferenceMargin = 0;
+
+        double rb1 = BaseDiameter1 / 2.0, rb2 = BaseDiameter2 / 2.0;
+        double ra1 = TipDiameter1 / 2.0, ra2 = TipDiameter2 / 2.0;
+        double t1t2 = CenterDistance * Math.Sin(alphaWTRad);
+
+        // --- Pinion end (point A) ---
+        PinionRootContactRadius = t1t2 - Math.Sqrt(Math.Max(0, ra2 * ra2 - rb2 * rb2));
+        PinionActiveRootDiameter = 2.0 * Math.Sqrt(
+            rb1 * rb1 + Math.Max(0, PinionRootContactRadius) * Math.Max(0, PinionRootContactRadius));
+
+        double rhoFf1 = FormCircleRoll(ReferenceDiameter1 / 2.0, ProfileShiftCoeff1, internalGear: false);
+        PinionFormDiameter = 2.0 * Math.Sqrt(rb1 * rb1 + Math.Max(0, rhoFf1) * Math.Max(0, rhoFf1));
+
+        if (PinionRootContactRadius <= 0)
         {
-            InternalGearWarnings.Clear();
-            TipInterferenceMargin = 0;
-            PinionRootContactRadius = 0;
+            InternalGearWarnings.Add(
+                $"Involute interference at the pinion: contact would begin {-PinionRootContactRadius:F3} mm "
+              + "INSIDE the pinion's base circle, where there is no involute at all. The wheel tip digs into "
+              + "the pinion flank. Raise the pinion tooth count, add profile shift, or reduce the wheel's tip "
+              + "diameter. Every contact-based result below - the contact ratio, the specific sliding and the "
+              + "flank stresses - is invalid while this holds.");
+        }
+        else if (PinionActiveRootDiameter < PinionFormDiameter - 1e-6)
+        {
+            InternalGearWarnings.Add(
+                $"Root interference at the pinion: the mesh starts at d_Nf1 = {PinionActiveRootDiameter:F3} mm, "
+              + $"below the pinion's root form circle d_Ff1 = {PinionFormDiameter:F3} mm. The wheel tip runs "
+              + $"{(PinionFormDiameter - PinionActiveRootDiameter) / 2.0:F3} mm down the fillet rather than on "
+              + "the involute, which neither the contact nor the strength model describes.");
+        }
+
+        // --- Wheel end (point E) ---
+        RingActiveRootDiameter = 0;
+        RingFormDiameter = 0;
+        double rhoE2 = t1t2 - Math.Sqrt(Math.Max(0, ra1 * ra1 - rb1 * rb1));
+        double wheelActiveRoot = 2.0 * Math.Sqrt(rb2 * rb2 + Math.Max(0, rhoE2) * Math.Max(0, rhoE2));
+        double rhoFf2 = FormCircleRoll(ReferenceDiameter2 / 2.0, ProfileShiftCoeff2, internalGear: false);
+        double wheelForm = 2.0 * Math.Sqrt(rb2 * rb2 + Math.Max(0, rhoFf2) * Math.Max(0, rhoFf2));
+
+        if (rhoE2 <= 0)
+        {
+            InternalGearWarnings.Add(
+                $"Involute interference at the wheel: contact would end {-rhoE2:F3} mm inside the wheel's base "
+              + "circle. Reduce the pinion's tip diameter or add profile shift to the wheel.");
+        }
+        else if (wheelActiveRoot < wheelForm - 1e-6)
+        {
+            InternalGearWarnings.Add(
+                $"Root interference at the wheel: the mesh reaches d_Nf2 = {wheelActiveRoot:F3} mm, below its "
+              + $"root form circle d_Ff2 = {wheelForm:F3} mm, so the pinion tip runs on the wheel's fillet.");
+        }
+
+        // --- Tip clearance ---
+        // A negative clearance means the teeth collide at the bottom of the
+        // space. x2 driven to 4,38 by an over-large centre distance gave
+        // c = -1,200 mm and the page still reported the contact ratio and the
+        // flank safety as OK.
+        if (TipClearance < 0)
+        {
+            InternalGearWarnings.Add(
+                $"Negative tip clearance: c = {TipClearance:F3} mm. The tip of one gear reaches past the root "
+              + "of the other - the teeth collide and the pair cannot be assembled.");
+        }
+        else if (TipClearance < 0.1 * NormalModule)
+        {
+            InternalGearWarnings.Add(
+                $"Tip clearance c = {TipClearance:F3} mm is below the usual minimum of 0,1 m_n = "
+              + $"{0.1 * NormalModule:F3} mm.");
         }
     }
 
@@ -1151,6 +1259,23 @@ public class GearPairEngine
         RadialForce = TangentialForce * Math.Tan(alphatRad);
         AxialForce = TangentialForce * Math.Tan(betaRad);
         NormalForce = TangentialForce / (Math.Cos(alphanRad) * Math.Cos(betaRad));
+
+        // ---- The forces a BEARING actually sees ----
+        //
+        // ISO 6336 is written on the reference-circle tangential force, and that
+        // is what every strength factor above uses - correctly. But a reader
+        // takes the "Kinematics & Forces" table to the shaft calculation, and
+        // there the mesh acts on the WORKING pitch circle at the WORKING pressure
+        // angle. On a profile-shifted pair those differ: at x1 = 0,3 and
+        // a = 45,75 the radial force is 362 N at the working circle against the
+        // 324 N the reference circle gives - 10,5 % low, in the unsafe direction
+        // for a bearing. Both are reported, each labelled.
+        double alphaWtRad = WorkingPressureAngle * Math.PI / 180.0;
+        WorkingTangentialForce = WorkingPitchDiameter1 > 0
+            ? 2000.0 * Torque1 / WorkingPitchDiameter1
+            : TangentialForce;
+        WorkingRadialForce = WorkingTangentialForce * Math.Tan(alphaWtRad);
+        WorkingAxialForce = WorkingTangentialForce * Math.Tan(betaRad);
 
         double effectiveFaceWidth = Math.Min(FaceWidth1, FaceWidth2);
         SpecificLoad = TangentialForce / effectiveFaceWidth;
@@ -1368,8 +1493,14 @@ public class GearPairEngine
             Material1.ContactFatigueLimit <= Material2.ContactFatigueLimit
                 ? Material1.Iso6336Type : Material2.Iso6336Type);
 
+        // Footnote 12 makes the GOVERNING deviation max(f_pb, f_fα), and the
+        // running-in allowance has to be worked out from the same one. It was
+        // computed from f_pb alone while q_α used the maximum, so on the default
+        // gear y_α came from 7,5 µm and q_α from 8,0 - about 1 % on σ_H, and a
+        // pair of numbers that could not be reconciled by hand.
+        double governingDeviation = Math.Max(BasePitchDeviation, ProfileFormDeviation);
         double yAlpha = Iso6336TransverseFactor.RunningInAllowance(
-            runInGroup, BasePitchDeviation, sigmaHlimSoft, PitchLineVelocity);
+            runInGroup, governingDeviation, sigmaHlimSoft, PitchLineVelocity);
 
         var transverse = Iso6336TransverseFactor.Calculate(
             TangentialForce, effectiveFaceWidth,
@@ -1464,10 +1595,10 @@ public class GearPairEngine
             : TransverseContactRatio;
 
         // Rim thickness factor YB (ISO 6336-3 Clause 8) and deep tooth factor YDT (Clause 9)
-        RimThicknessFactor1 = RimThicknessFactor(RootDiameter1, BoreDiameter1, NormalModule);
+        RimThicknessFactor1 = RimThicknessFactor(RootDiameter1, TipDiameter1, BoreDiameter1, NormalModule);
         RimThicknessFactor2 = InternalGear
             ? InternalRimThicknessFactor(RootDiameter2, RingOuterDiameter, NormalModule)
-            : RimThicknessFactor(RootDiameter2, BoreDiameter2, NormalModule);
+            : RimThicknessFactor(RootDiameter2, TipDiameter2, BoreDiameter2, NormalModule);
         DeepToothFactor = DeepToothFactorFor(VirtualContactRatio, Math.Max(QualityGrade1, QualityGrade2));
 
         // Nominal tooth root stress (ISO 6336-3 Eq. 2):
@@ -1638,14 +1769,35 @@ public class GearPairEngine
     ///     0.5 &lt; s_R/m_n &lt; 1.2 : Y_B = 1.6 ln(2.242 m_n / s_R)
     /// The two branches meet at s_R/m_n = 1.2, where 1.6 ln(2.242/1.2) = 1.000.
     /// </summary>
-    private static double RimThicknessFactor(double rootDiameter, double boreDiameter, double mn)
+    /// <summary>
+    /// Rim thickness factor Y_B of an EXTERNAL gear - ISO 6336-3:2006 Clause 8.
+    ///
+    ///     s_R/h &gt;= 1.2        : Y_B = 1
+    ///     0.5 &lt; s_R/h &lt; 1.2 : Y_B = 1.6 ln(2.242 h / s_R)
+    ///
+    /// The criterion is s_R/<b>h</b>, the rim thickness over the TOOTH HEIGHT. It was
+    /// implemented as s_R/m_n - the INTERNAL gear's criterion, which carries its own
+    /// thresholds of 1.75 and 3.5. The two are not interchangeable: h is typically
+    /// 2.25 m_n, so dividing by m_n overstates the ratio by that factor and a rim that
+    /// needs amplifying looks adequate.
+    ///
+    /// On the default pinion with a 22 mm bore (d_f1 = 26.25, h = 3.375) that is
+    /// s_R/h = 0.63 and Y_B = 2.03, against the s_R/m_n = 1.42 that returned 1.000 -
+    /// so the root stress was half what it should be and S_F1 read 2.99 for a gear
+    /// whose real figure is about 1.5. Thin-rimmed pinions are exactly where this
+    /// factor exists to be used.
+    /// </summary>
+    private static double RimThicknessFactor(double rootDiameter, double tipDiameter, double boreDiameter, double mn)
     {
         if (boreDiameter <= 0 || mn <= 0) return 1.0;      // solid blank
 
         double sR = (rootDiameter - boreDiameter) / 2.0;
         if (sR <= 0) return 1.0;                            // inconsistent input; do not amplify
 
-        double ratio = sR / mn;
+        double h = (tipDiameter - rootDiameter) / 2.0;      // tooth height
+        if (h <= 0) return 1.0;
+
+        double ratio = sR / h;
         if (ratio >= 1.2) return 1.0;
 
         // Below 0.5 the standard requires a dedicated analysis; clamp at the limit rather
