@@ -2465,6 +2465,17 @@ both are worth keeping:
   the wedge opposes an axial load and does nothing to a torque, so the two capacities
   differ. It uses an interaction ellipse instead, which reduces exactly to each separate
   safety when the other load is zero.
+- **A new engine output is worthless until the page actually feeds it.** The review added
+  `MaxWorkingDeflection` so the buckling and coil-clearance checks would run at the stroke
+  the user asked for instead of at the solid length. `Pages/CompressionSpring.razor` keeps
+  L_1 and L_2 in its own fields and computes the stresses itself, so it never wrote
+  `engine.Length1` / `engine.Length2`: the new field stayed 0 and both checks silently fell
+  back to the solid-length deflection - 50 mm on the page's own example where the stroke is
+  25, which flags a short-stroke spring as buckling. It shipped that way for one deploy and
+  was caught by reading the live page, not by a test. **Passing the lengths through then
+  needed a guard**: `CalculateSpringRate` treats two lengths as measured test points and
+  takes the rate from (F2 - F1)/(s2 - s1), which with no forces is 0 - 0, so the rate would
+  have collapsed to zero. The forces are what make a pair of lengths a test point.
 
 **Equation blocks are plain ASCII now, in every content file.** Nine of the thirteen were
 spelling subscripts with whatever Unicode modifier letter looked closest — several of them
