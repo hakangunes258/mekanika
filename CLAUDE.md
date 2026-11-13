@@ -2393,6 +2393,114 @@ contradicted the warning right below. Those two rows read "not reachable" in tha
 **Not in scope and now stated on the page:** the shaft's own torsion/bending check with the
 keyway's notch effect, and key forms B and C (`l_eff = l − b` is the round-ended form A).
 
+### **The Nov 2026 review — the other eleven modules**
+
+Same exercise as the parallel key above, driven from the user's own browser test notes
+(Joplin, `Business / Programlar / Mekanika`, one note per module), checked against the
+code, then fixed. **Every finding that was acted on reproduced first.** Anchors live in
+`Tests/` — `InterferenceFitTests`, `TaperFitTests`, `MomentOfInertiaTests`,
+`ClampConnectionTests`, `BearingTests`, `SpringTests`, `SingleBoltTests`,
+`GearReviewTests`.
+
+Three patterns ran through all of it, and they are worth recognising before the next
+module is written:
+
+- **A factor that is definitionally constant is not a check.** The single bolt's "loss of
+  clamp" was `FK_min/FKR_min`, which is 1,00 by construction because `FM_min` is *sized*
+  as `FKR_min + FZ + FPA` — and it was coloured red, so every user who entered a required
+  clamp force saw a FAIL at exactly 1,00 with the page's own text explaining it away.
+- **An input that reaches nothing is worse than a missing input**, because the user
+  believes it was considered. The single bolt zeroed its transverse force and bending
+  moment on every run; the torsion spring's winding direction changed no number at all;
+  the gear module's bending-moment property was never read by the engine.
+- **A sentinel of 999 paints an impossible design green.** Key connection, interference
+  fit and the bearings all did this somewhere. Zero capacity is a safety factor of 0, not
+  of infinity.
+
+**Non-conservative findings, by module.** Each of these made a design look safer than it is:
+
+| module | what was wrong | size |
+|---|---|---|
+| interference / taper fit | a HOLLOW shaft's peak stress is at its BORE (σ_r = 0, σ_t = −2p/(1−Qi²)), not at the fit surface | 34 % at Qi = 0,8 |
+| interference / taper fit | torque and axial force checked separately though they share one friction interface | 1,28 and 1,59 on a joint at 0,90 |
+| interference fit | yield checked only in the operating state; rotation and a hot hub both RELIEVE the interference | S 2,43 shown as 59 |
+| taper fit | self-locking decided by a fixed 7,5° threshold, and a self-releasing cone reported the MAGNITUDE of its negative axial factor | +232 kN where the answer is "none" |
+| taper fit | stresses read at the mean diameter; with constant D_a the pressure rises towards the SMALL end | 6 %, and 0,85 → 0,60 on a 1:2 cone |
+| moment of inertia | an angle buckles about its PRINCIPAL axis; the text said to use min(rx, ry) | Euler load 2,4× too high |
+| clamp connection | no torsion in the bolt check (VDI 2230 σ_red) | 78 % of yield shown for 88 % |
+| clamp connection | a preload past yield was believed, and hub stress ran on the MEAN pressure | S 4,00 "OK"; 7,65 vs 4,87 |
+| ball bearing | static Y₀ taken from the catalogue column, which holds DOUBLE ROW values | P₀ 3,33 kN vs 2,50 |
+| roller bearing | a tapered bearing's own induced axial force, 0,5·Fr/Y, never mentioned | P 5000 N for a bearing at 1563 N of thrust |
+| compression spring | the seating factor DIVIDED into the slenderness, inverting the whole ranking | the worst seating read "No buckling — OK" |
+| extension spring | hook bending moment arm was the BEND radius, not the loop radius | 298 MPa for 576; SF 3,99 for 2,07 |
+| extension spring | max force from the body alone; the hook reaches its limit first | 150 N quoted where the hook allows 103 |
+| torsion spring | bore scaled the INNER diameter where EN 13906-3 scales the mean then subtracts the wire | 0,5 mm at n = 2, on the mandrel check |
+| single bolt | F_Q and M_B zeroed on every run | a joint needing 33 kN of clamp force read "OK" |
+| single bolt | surface pressure judged on head-on-WASHER against the PART's limit | SF 1,24 for a part at 4,41 |
+| gear pair | Y_B graded on s_R/m_n, the INTERNAL gear's criterion; external uses s_R/h | Y_B 1,000 for 2,03; S_F 2,99 for ~1,5 |
+| gear pair | no interference checks at all on the external pair | "meets ISO 6336" for a mesh that cannot happen |
+| gear pair | a safety factor below 1,00 read "Marginal" | S_H 0,84 not a FAIL |
+| gear pair | the undercut limit ignored the tool tip radius | x = −0,15 undercut, no warning |
+
+**Two diagnoses in the notes were right about the symptom and wrong about the cause**, and
+both are worth keeping:
+
+- Key connection: the hidden length floor was `0,9·l`, not `0,75·b` — they coincide at
+  exactly the note's test point, which is how the guess looked right.
+- Bearings: the "L10h shown as 11.3k on one page and 1951 on the other" was not an
+  inconsistency. Both pages use the same formatter; the magnitudes differed.
+
+**Things the review itself got wrong, before they shipped:**
+
+- A blanket character map over the `<pre>` blocks turned `K_V` into `KF` and `I_y` into
+  `Ik`, because one entity was standing in for F, V *and* B depending on where it sat.
+  **Never sweep those by regex** — the mangled characters are ambiguous by construction.
+  Each block was rewritten by hand with the symbol it means.
+- A test asserting that standstill always governs the interference fit's yield check was
+  wrong: at 10 000 rpm the centrifugal hoop stress added at the hub bore outweighs the
+  pressure it relieves, so the rotating state genuinely governs there. The engine was
+  right; the test's premise was not. **Both states have to be evaluated**, which is the
+  point.
+- The taper fit cannot use a single "resultant capacity" the way the cylindrical fit does:
+  the wedge opposes an axial load and does nothing to a torque, so the two capacities
+  differ. It uses an interaction ellipse instead, which reduces exactly to each separate
+  safety when the other load is zero.
+
+**Equation blocks are plain ASCII now, in every content file.** Nine of the thirteen were
+spelling subscripts with whatever Unicode modifier letter looked closest — several of them
+*superscripts*, so they rendered raised where a lowered letter was meant, and the key
+connection's euro sign was only the most visible case. `wwwroot/content/*.html` `<pre>`
+blocks use `F_t`, `sigma_F0`, `K_V`, `L10h`. Prose outside `<pre>` keeps real `<sub>`
+markup, which is correct and legible. A scan for the offending code points is two lines of
+Python; run it before adding a block.
+
+**What is deliberately NOT implemented, and now says so on the page:**
+
+- single bolt: VDI 2230's eccentric branch (R3–R5). The input field is `l_A`, the load
+  *introduction* distance that feeds Table 5.2/1 — not the eccentricity `a`, which it was
+  labelled as. Read as eccentricity its behaviour looked badly wrong (e = 10 mm took the
+  fatigue safety from 8,4 to 26,2); the fall in n is correct for `l_A`, and it is the
+  eccentric branch that would have raised the bolt force.
+- single bolt: thread stripping is checked against a practice minimum engagement by
+  material (0,8·d steel, 1,5·d cast iron, 2,0·d aluminium), not VDI R9.
+- clamp connection: the single-slit lever effect, which is why `IsVerified` is still false.
+- ball bearing: ISO 281's e and Y for the 15° angular contact series depend on i·Fa/C0; the
+  single catalogue pair is used for the whole range and the results flag it.
+- gear pair: the bending moment is treated as a concentric circular interface. A multi-bolt
+  flange is not one.
+
+**Still waiting on sources** (`references/<module>/`, gitignored — nothing dropped there is
+ever committed): DIN 6885-1 above 130 mm and its length series, DIN 6892's permissible
+pressure method, EN 10270's wire-diameter-dependent Rm for all three spring modules,
+ISO 281 Table 3 for the 15° series, and current bearing catalogue values — the databases
+carry several internally inconsistent rows (NU314's C0, 6305, 6807, and identical C/C0 on
+different sizes).
+
+**One public claim is still unsettled.** `ModuleMetadataService` advertises DIN 6892 for
+the key connection in its description, keywords and `VerificationStandards`, with
+`IsVerified = true`, while the engine uses 0,9·R_e practice values. Decide the flag and the
+description together when the standard is to hand.
+
 ### **Related Calculators Feature**
 
 ```razor
@@ -2536,8 +2644,8 @@ Aggressive:
 
 ---
 
-**Last Updated:** 2026-02-19
-**Template Version:** 3.1 (Module Status Updated)
+**Last Updated:** 2026-11-13
+**Template Version:** 3.2 (Nov 2026 review of all thirteen calculator routes)
 **Standard Format:** `Pages/KeyConnection.razor` + `Services/KeyConnectionEngine.cs`
 **Contact:** contact@mekanika.org
 **YouTube:** youtube@mekanika.org
