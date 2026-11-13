@@ -57,6 +57,17 @@ without the source. Everything else in the review has been done.
 - NJ and NUP data if those types are to be offered; the dropdown now says
   "NU series" because that is all the database holds.
 
+### clamp-connection — a slotted-hub source
+- The single-slit lever effect: a hub cut through on one side hinges at the
+  slot root, so the bolt force is amplified by the lever arm and the pressure
+  is not the uniform band the split-hub model assumes. The module is
+  `IsVerified = false` for exactly this. Anything with the geometry and the
+  verified result would do — a machine-design handbook treatment (Roloff/Matek,
+  Niemann, Decker), a VDI or DIN clause if one exists, or a published FE study.
+- VDI 2230 Table 5.4/1 and Table A8 help here too, for the same reason as the
+  single bolt: the embedding amount f_Z and the tightening factor alpha_A are
+  shared between the two modules.
+
 ### gear-pair — ISO 1328-1:1995
 - The 1995 grades alongside the 2013 classes. ISO 6336-1:2006 normatively
   references the 1995 edition, and the mismatch is the dominant remaining
@@ -76,3 +87,13 @@ without the source. Everything else in the review has been done.
   is used instead, and the results say which.
 - Table A8's own α_A values, to confirm the ones now in `BoltService`.
 - Table 5.4/1's embedding amounts per interface, to confirm f_Z.
+
+### Needs nothing
+
+**interference-fit**, **taper-fit** and **moment-of-inertia** have no open
+source-dependent finding. The first two follow DIN 7190 and every correction
+from the review was made against physics the module already had (Lame, von
+Mises, the rotating disc); the third is pure geometry with no standard behind
+it. If DIN 7190-1/-2 ever comes to hand it is still worth a confirmation pass
+on the roughness allowance and the assembly temperature, but nothing is
+blocked on it.
