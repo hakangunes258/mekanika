@@ -211,8 +211,13 @@ public class SpringEngine
         SpringRateCalculated = (ShearModulus * Math.Pow(WireDiameter, 4)) / 
                                (8 * Math.Pow(MeanCoilDiameter, 3) * ActiveCoils);
 
-        // Spring rate from test points (if both provided)
-        if (Length1 > 0 && Length2 > 0 && Length1 != Length2)
+        // Spring rate from two measured points, when they were actually measured.
+        // The FORCES are what makes a pair of lengths a test point: the page
+        // supplies Length1/Length2 so the buckling and clearance checks know the
+        // real working stroke, and computes its own forces from the rate - with
+        // Force1 = Force2 = 0 the subtraction below is 0 - 0 and the rate would
+        // silently collapse to zero.
+        if (Length1 > 0 && Length2 > 0 && Length1 != Length2 && (Force1 > 0 || Force2 > 0))
         {
             double s1 = FreeLength - Length1;
             double s2 = FreeLength - Length2;

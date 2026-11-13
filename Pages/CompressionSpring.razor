@@ -1252,6 +1252,15 @@ else
         StateHasChanged();
         await Task.Delay(350); // let the spinner render + feel responsive
 
+        // The page keeps the working lengths in its own fields and computes the
+        // stresses itself, so the engine never saw them. That left
+        // MaxWorkingDeflection at 0, and the buckling and coil-clearance checks
+        // fell back to the SOLID-length deflection - conservative, but not what
+        // the "largest working deflection" row claims, and it flags a
+        // short-stroke spring as buckling when it does not.
+        engine.Length1 = assembledLength;
+        engine.Length2 = loadType == "Dynamic" ? compressedLength : 0;
+
         engine.Calculate();
 
         double stressConstant = (8 * engine.MeanCoilDiameter) / (Math.PI * Math.Pow(engine.WireDiameter, 3));

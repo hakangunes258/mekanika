@@ -263,6 +263,31 @@ public class SpringTests
     };
 
     /// <summary>
+    /// The page keeps the working lengths in its own fields and computes the
+    /// forces itself, so it hands the engine Length1/Length2 with no Force1/
+    /// Force2. Two things have to hold at once: the working deflection must
+    /// reach the buckling and clearance checks (they fell back to the SOLID
+    /// length deflection, 50 mm where the stroke is 25), and the rate must stay
+    /// on the closed form - a pair of lengths with no forces is not a test
+    /// point, and subtracting 0 from 0 would collapse the rate to zero.
+    /// </summary>
+    [Fact]
+    public void WorkingLengthsWithoutForcesAreNotTestPoints()
+    {
+        var spring = Default80();
+        spring.TotalCoils = 10;          // L_c = 30, so s_max to solid is 50
+        spring.Length1 = 55;             // the working stroke is 25
+        spring.Length2 = 45;
+        spring.Calculate();
+
+        Assert.Equal(spring.SpringRateCalculated, spring.SpringRate, 9);
+        Assert.True(spring.SpringRate > 0, "no forces were given, so the closed form governs");
+        Assert.Equal(50.0, spring.MaxDeflection, 6);
+        Assert.Equal(35.0, spring.MaxWorkingDeflection, 6);
+        Assert.Equal(15.0, spring.ProvidedCoilClearance, 6);
+    }
+
+    /// <summary>
     /// The page's own worked example: d 3, Dm 24, L0 80, n 8, SH wire,
     /// closed and ground ends.
     /// </summary>
