@@ -30,16 +30,26 @@
         <div class="mc-body">
             <p>The two resiliences set the load factor, and the load factor governs everything
             after it:</p>
-<pre>&delta;&#8347; = &Sigma; l&#7522; / (E&#8347; A&#7522;)          bolt resilience
-&delta;&#7523; = l&#7480; / (E&#7523; A&#7523;&#8337;&#8343;)          part resilience, deformation cone
+<pre>delta_S = sum(l_i) / (E_S A_i)          bolt resilience
+delta_P = l_K / (E_P A_ers)             part resilience, deformation cone
 
-&Phi;&#8345; = n &middot; &delta;&#7523; / (&delta;&#8347; + &delta;&#7523;)      load factor with load introduction
+Phi_n   = n . delta_P / (delta_S + delta_P)   load factor with load introduction
 
-F&#8344;&#7523;&#7523;&#8345; = F&#7503;&#8341;&#8320; + F&#7526; + (1 &minus; &Phi;&#8345;) F&#8336;&#8344;&#8336;&#8339;    minimum preload needed
-F&#8344;&#7523;&#7523;&#8336;&#8347; = &#945;&#8336; &middot; F&#8344;&#7523;&#7523;&#8345;                        maximum, after tightening scatter</pre>
-            <p>&#945;&#8336; is the tightening factor: 1,6 for a torque wrench, 1,2 for angle
-            control, 1,0 for a yield-controlled tool. It multiplies the preload you must be able
-            to survive, so the tightening method changes the bolt size.</p>
+F_Mmin  = F_Kerf + F_Z + (1 - Phi_n) F_Amax   minimum preload needed
+F_Mmax  = alpha_A . F_Mmin                    maximum, after tightening scatter
+
+F_KQerf = F_Q / (q_F mu_T)              clamp force against slipping
+F_KMerf = M_B . A / W                   clamp force against gapping
+
+sigma_red = sqrt(sigma_z^2 + 3 tau^2)   assembly equivalent stress</pre>
+            <p>&alpha;<sub>A</sub> is the tightening factor: 1,6 for a torque wrench, 1,0 for an
+            angle- or yield-controlled tool, and 2,5 to 4 for an unadjusted impact wrench. It
+            multiplies the preload the bolt must survive, so the tightening method changes the
+            bolt size. The two methods at 1,0 reach that figure by taking the bolt <em>to</em> its
+            yield point, which is why the results report no yield safety factor for them.</p>
+            <p>The last three lines are what a transverse force, a working moment and the
+            thread's friction torque each add. All three used to be missing from the calculation
+            as well as from this list.</p>
             <table class="mc-sym">
                 <thead><tr><th>Symbol</th><th>Meaning</th><th>Unit</th></tr></thead>
                 <tbody>

@@ -25,12 +25,13 @@
         <summary>The equations</summary>
         <div class="mc-body">
             <p>Same ISO 281 structure as a ball bearing, with the line-contact exponent:</p>
-<pre>P = f&#7584; &middot; F&#8341;                        equivalent load, radial only
+<pre>P   = f_w . F_r                    equivalent load, radial only
 
-L&#8321;&#8320;  = (C / P)&#7527;                    p = 10/3 for roller bearings
-L&#8321;&#8320;&#8341; = 10&#8310; L&#8321;&#8320; / (60 n)
+L10  = (C / P)^p                   p = 10/3 for roller bearings
+L10h = 10^6 L10 / (60 n)
 
-S&#8320; = C&#8320; / F&#8341;</pre>
+P0  = max(F_r, 0,5 F_r + Y0 F_a)   static equivalent load, ISO 76
+S0  = C0 / P0</pre>
             <p>The exponent 10/3 rather than 3 makes life a little more sensitive to load, not
             less. Halving the load multiplies a ball bearing's life by 8 and a roller bearing's
             by about 10.</p>
@@ -74,15 +75,15 @@ S&#8320; = C&#8320; / F&#8341;</pre>
             <p>An NU205E cylindrical roller bearing (25 &times; 52 &times; 15, C = 29,3 kN,
             C&#8320; = 27,7 kN) carrying 4000 N radial at 1500 rpm, with a light-shock machine
             factor of 1,2.</p>
-<pre>Equivalent load  P = 1,2 &middot; 4000        4800 N
+<pre>Equivalent load  P = 1,2 . 4000        4800 N
 Load ratio  C / P                       6,10
 Life exponent  p                        10/3
 
-Basic rating life  L&#8321;&#8320;               415,68 &times; 10&#8310; rev
-                   L&#8321;&#8320;&#8341;                 4619 hours
+Basic rating life  L10               415,68 x 10^6 rev
+                   L10h                 4619 hours
 
-Static equivalent load  P&#8320;            4,00 kN
-Static safety  S&#8320;                      6,92   &#10003;</pre>
+Static equivalent load  P0            4,00 kN
+Static safety  S0                      6,92   OK</pre>
             <p>Compare this against the ball bearing page, which runs a 6205 &mdash; the same
             25 &times; 52 &times; 15 envelope. The 6205 manages 3811 hours at 2000 N; the NU205E
             manages 4619 hours at <strong>twice the load</strong>. That is the whole argument for

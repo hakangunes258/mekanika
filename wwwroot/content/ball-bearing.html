@@ -26,13 +26,14 @@
         <div class="mc-body">
             <p>ISO 281 gives the life directly from the load ratio, with the exponent set by the
             rolling element shape:</p>
-<pre>P = f&#7584; (X F&#8341; + Y F&#8336;)              equivalent dynamic load
-                                 X = 1, Y = 0 when F&#8336;/F&#8341; &le; e
+<pre>P   = f_w (X F_r + Y F_a)          equivalent dynamic load
+                                   X = 1, Y = 0 when F_a/F_r &lt;= e
 
-L&#8321;&#8320;  = (C / P)&#7527;                    p = 3 for ball bearings
-L&#8321;&#8320;&#8341; = 10&#8310; L&#8321;&#8320; / (60 n)              life in hours
+L10  = (C / P)^p                   p = 3 for ball bearings
+L10h = 10^6 L10 / (60 n)           life in hours
 
-S&#8320; = C&#8320; / P&#8320;                       static safety</pre>
+P0  = max(F_r, X0 F_r + Y0 F_a)    static equivalent load, ISO 76
+S0  = C0 / P0                      static safety</pre>
             <p>The limit e is interpolated from the ISO 281 table using f&#8320;F<sub>a</sub>/C&#8320;.
             Below it the axial load contributes nothing &mdash; the bearing carries it in the
             existing contact &mdash; and above it both X and Y change.</p>
@@ -79,19 +80,19 @@ S&#8320; = C&#8320; / P&#8320;                       static safety</pre>
             <p>A 6205 deep groove ball bearing (25 &times; 52 &times; 15, C = 14,0 kN,
             C&#8320; = 7,9 kN, f&#8320; = 13,9) carrying 2000 N radial and 400 N axial at
             1500 rpm, smooth running, 90 % reliability.</p>
-<pre>f&#8320; F&#8336; / C&#8320;   13,9 &middot; 400 / 7900        0,704
+<pre>f_0 F_a / C0   13,9 . 400 / 7900         0,704
 e interpolated from ISO 281              0,261
-F&#8336; / F&#8341;      400 / 2000                 0,200   &le; e
+F_a / F_r      400 / 2000                0,200   &lt;= e
 
 X = 1,00   Y = 0,00
 Equivalent dynamic load  P              2000 N
 Load ratio  C / P                        7,00
 
-Basic rating life  L&#8321;&#8320;                343,00 &times; 10&#8310; rev
-                   L&#8321;&#8320;&#8341;                  3811 hours
+Basic rating life  L10                343,00 x 10^6 rev
+                   L10h                  3811 hours
 
-Static equivalent load  P&#8320;             2,00 kN
-Static safety  S&#8320;                       3,95   &#10003;</pre>
+Static equivalent load  P0             2,00 kN
+Static safety  S0                       3,95   OK</pre>
             <p>The axial load disappears from the answer entirely. At 0,200 the ratio
             F<sub>a</sub>/F<sub>r</sub> sits below e = 0,261, so Y = 0 and P equals the radial
             load alone. <strong>This is not the calculator ignoring the axial load</strong> &mdash;

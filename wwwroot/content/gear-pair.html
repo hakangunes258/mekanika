@@ -31,13 +31,16 @@
         <summary>The equations</summary>
         <div class="mc-body">
             <p>The two fatigue criteria, each as a stress compared against a permissible stress:</p>
-<pre>F&#8348; = 2000 P / (&#969; d&#8321;)               nominal tangential force
+<pre>F_t = 2000 P / (omega d_1)              nominal tangential force
 
-&sigma;&#7515;&#8320; = F&#8348;/(b m&#8345;) &middot; Y&#7534; Y&#8347; Y&#7517; Y&#7517;&#8331; Y&#7515;      nominal root stress
-&sigma;&#7515;  = &sigma;&#7515;&#8320; &middot; K&#8336; K&#7515; K&#7515;&#7517; K&#7515;&#945;           &rarr; S&#7515; = &sigma;&#7515;&#7527; / &sigma;&#7515;
+sigma_F0 = F_t/(b m_n) . Y_F Y_S Y_beta Y_B Y_DT    nominal root stress
+sigma_F  = sigma_F0 . K_A K_V K_Fbeta K_Falpha
+                                     -> S_F = sigma_FP / sigma_F
 
-&sigma;&#7511;&#8320; = Z&#7511; Z&#7497; Z&#949; Z&#7517; &radic;[F&#8348;(u+1)/(d&#8321; b u)]   nominal contact stress
-&sigma;&#7511;  = Z&#7517; &sigma;&#7511;&#8320; &radic;(K&#8336; K&#7515; K&#7511;&#7517; K&#7511;&#945;)      &rarr; S&#7511; = &sigma;&#7511;&#7527; / &sigma;&#7511;</pre>
+sigma_H0 = Z_H Z_E Z_eps Z_beta sqrt[F_t(u+1)/(d_1 b u)]
+                                          nominal contact stress
+sigma_H  = Z_B sigma_H0 sqrt(K_A K_V K_Hbeta K_Halpha)
+                                     -> S_H = sigma_HP / sigma_H</pre>
             <p>Note that the flank stress carries the <em>square root</em> of the load factors,
             because contact stress goes as the square root of load. The same K factor therefore
             hurts the root roughly twice as much as the flank.</p>
@@ -88,21 +91,21 @@
             z = 20/40 on 45 mm centres, 15 mm face width, no profile shift, ISO 1328 class 6,
             18CrNiMo7-6 case-hardened both, dip lubrication in Mobilgear 600 XP 220, transmitting
             3,5 kW at 2500 rpm with K<sub>A</sub> = 1,0 for 10 000 hours.</p>
-<pre>d          30,000 / 60,000 mm      &#949;&#945;  1,635    v  3,93 m/s
-F&#8348;            891 N               F&#8341;   324 N
+<pre>d          30,000 / 60,000 mm      eps_a  1,635    v  3,93 m/s
+F_t            891 N (reference circle)    F_r   324 N
 
-K&#8336; 1,000   K&#7515; 1,075   K&#7511;&#7517; 2,096   K&#7511;&#945; 1,035
+K_A 1,000   K_V 1,075   K_Hbeta 2,096   K_Halpha 1,035
 
-Root      &sigma;&#7515;&#8320;  126,0 / 118,3 MPa
-          &sigma;&#7515;   250,3 / 235,0     &sigma;&#7515;&#7527;  746,2 / 759,9
-          S&#7515;    2,98 / 3,23      &#10003;
+Root      sigma_F0  126,0 / 118,3 MPa
+          sigma_F   250,3 / 235,0     sigma_FP  746,2 / 759,9
+          S_F       2,98 / 3,23      OK
 
-Flank     &sigma;&#7511;&#8320;  724,6 MPa
-          &sigma;&#7511;  1106,4            &sigma;&#7511;&#7527; 1308,5 / 1336,6
-          S&#7511;    1,11 / 1,21      &#10003;
+Flank     sigma_H0  724,6 MPa
+          sigma_H  1106,4            sigma_HP 1308,5 / 1336,6
+          S_H       1,11 / 1,21      OK
 
-Scuffing  margin 245 K   S&#7476; 8,64     &#10003;
-Micropitting            S&#955;  1,09     &#9888;</pre>
+Scuffing  margin 245 K   S_B 8,64     OK
+Micropitting             S_lambda 1,09   marginal</pre>
             <p>Follow K<sub>H&beta;</sub> = 2,096. That single factor more than doubles the load
             used for rating, and it comes from shaft deflection and manufacturing lead deviation
             &mdash; not from the gear teeth at all. <strong>The root stress roughly doubles from

@@ -36,14 +36,18 @@
             <p>Everything is entered and shown as positive numbers. The standards write the
             internal case with z<sub>2</sub>, a and d<sub>2</sub> negative, and where that sign
             matters it is applied for you:</p>
-<pre>a&#8320; = m&#8348;(z&#8322; &minus; z&#8321;)/2                  reference centre distance
-d&#8336;&#8322; = d&#8322; &minus; 2h&#8336;&#8322;   d&#7491;&#8322; = d&#8322; + 2h&#7491;&#8322;     annulus tip inside, root outside
-g&#945; = &radic;(r&#8336;&#8321;&sup2;&minus;r&#7471;&#8321;&sup2;) &minus; &radic;(r&#8336;&#8322;&sup2;&minus;r&#7471;&#8322;&sup2;) + a sin&#945;&#7530;&#8348;   path of contact
+<pre>a_d = m_t(z_2 - z_1)/2                  reference centre distance
+d_a2 = d_2 - 2h_a2   d_f2 = d_2 + 2h_f2 annulus tip inside, root outside
 
-&sigma;&#7511;&#8320; = Z&#7511; Z&#7497; Z&#949; Z&#7517; &radic;[F&#8348;(u&minus;1)/(d&#8321; b u)]   (u&minus;1), not (u+1)
+g_alpha = sqrt(r_a1^2 - r_b1^2) - sqrt(r_a2^2 - r_b2^2) + a sin(alpha_wt)
+                                        path of contact
 
-G&#8347; = z&#8321;(inv&#945;&#8336;&#8321; + &#948;&#8321;) + (z&#8322;&minus;z&#8321;)inv&#945;&#7530;&#8348; &minus; z&#8322;(inv&#945;&#8336;&#8322; + &#948;&#8322;) &ge; 0
-                                       tip (trochoid) interference</pre>
+sigma_H0 = Z_H Z_E Z_eps Z_beta sqrt[F_t(u-1)/(d_1 b u)]
+                                        (u-1), not (u+1)
+
+G_s = z_1(inv alpha_a1 + delta_1) + (z_2 - z_1) inv alpha_wt
+      - z_2(inv alpha_a2 + delta_2)  &gt;= 0
+                                        tip (trochoid) interference</pre>
             <p>The tooth root of the annulus is rated with the 60&deg; tangent construction of
             ISO 6336-3 instead of the 30&deg; one, and its rim factor Y<sub>B</sub> has its own
             internal-gear curve, which is why the rim outside diameter is an input.</p>
@@ -96,21 +100,21 @@ G&#8347; = z&#8321;(inv&#945;&#8336;&#8321; + &#948;&#8321;) + (z&#8322;&minus;z
             diameter 110 mm, ISO 1328 class 6, 18CrNiMo7-6 case-hardened both, dip lubrication in
             Mobilgear 600 XP 220, transmitting 3,5 kW at 2500 rpm with K<sub>A</sub> = 1,0 for
             10 000 hours.</p>
-<pre>d          36,000 / 90,000 mm      d&#8336;  39,300 / 89,063 mm
-&#949;&#945;  1,672          v  4,71 m/s       F&#8348;  743 N
+<pre>d          36,000 / 90,000 mm      d_a  39,300 / 89,063 mm
+eps_a  1,672       v  4,71 m/s     F_t  743 N
 
-Checks    d_Nf1 34,226 &gt; d_Ff1 34,116 mm    G&#8347;  1,2175    &#10003;
+Checks    d_Nf1 34,226 &gt; d_Ff1 34,116 mm    G_s  1,2175    OK
 
-K&#8336; 1,000   K&#7515; 1,146   K&#7511;&#7517; 2,304   K&#7511;&#945; 1,094
+K_A 1,000   K_V 1,146   K_Hbeta 2,304   K_Halpha 1,094
 
-Root      Y&#7534;   1,429 / 0,872     Y&#8347;  1,926 / 3,603   q&#8347;&#8322; 6,90
-          &sigma;&#7515;   219,1 / 250,0     S&#7515;  3,41 / 3,16    &#10003;
+Root      Y_F   1,429 / 0,872     Y_S  1,926 / 3,603   q_s2 6,90
+          sigma_F   219,1 / 250,0   S_F  3,41 / 3,16    OK
 
-Flank     &sigma;&#7511;&#8320;  341,6 MPa         &sigma;&#7511;  580,4
-          S&#7511;    1,90 / 2,41       &#10003;
+Flank     sigma_H0  341,6 MPa       sigma_H  580,4
+          S_H       1,90 / 2,41     OK
 
-Scuffing  margin 268 K            &#10003;
-Micropitting            S&#955;  2,28   &#10003;</pre>
+Scuffing  margin 268 K              OK
+Micropitting             S_lambda 2,28   OK</pre>
             <p>Look at the flank. The nominal contact stress of 341,6 MPa carries
             &radic;((u&minus;1)/u) where an external pair carries &radic;((u+1)/u) &mdash; at
             u = 2,5 that alone is a factor of 0,65 &mdash; and the longer path of contact lowers
