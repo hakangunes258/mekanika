@@ -2512,6 +2512,130 @@ the key connection in its description, keywords and `VerificationStandards`, wit
 `IsVerified = true`, while the engine uses 0,9·R_e practice values. Decide the flag and the
 description together when the standard is to hand.
 
+### **Navigation menu, and the one warm colour (Nov 2026)**
+
+The sidebar is **categorised and collapsible**, to the structure agreed in the Joplin
+note ("Kategorili, açılır kapanır navigasyon menüsü"): Shaft & Hub, Bearings, Gears,
+Springs, Fasteners, General, Libraries, in that order, with Home above them and
+About / Contact / Privacy below.
+
+- **The category list is a static array in `Shared/NavMenu.razor`, not
+  `ModuleMetadataService`.** The service has a `Category` per module but no ordering
+  and no short label — the nav says "Parallel Key" where the service says "Parallel
+  Key Calculator" — and it carries no non-module rows. Driving the nav from it means
+  adding display concerns to a metadata service that the static-page generator also
+  reads. Adding a module is two lines in one array; keep it there.
+- **The active module's category opens on load**, and `CurrentRoute` strips the query,
+  the fragment and any trailing slash before matching. All three matter: a shared
+  calculation arrives as `key-connection#s=<payload>`, and the generated static pages
+  land on `/key-connection/`. Leave any of them in and the category stays shut on
+  exactly the links people send each other.
+- **Several categories may be open at once.** Closing the one the visitor just opened
+  in order to open another is the thing accordions are disliked for. State lives in a
+  `HashSet` on the component, which survives in-app navigation because NavMenu sits in
+  MainLayout and is never re-created.
+- **A closed panel is `visibility: hidden`, not merely clipped.** The panel animates
+  with `grid-template-rows: 0fr → 1fr` so the open height is the content's real
+  height; but a 0fr row clips its content without removing it from the tab order, so
+  without the visibility rule a keyboard user tabs through a dozen invisible links.
+  `visibility` is transitioned alongside the rows: `visible` applies immediately,
+  `hidden` waits out the animation.
+- **Planned-but-unwritten modules are not listed.** Woodruff, Spline, bevel/rack/worm
+  gears, disc springs, power transmission and tolerance analysis were considered as
+  greyed "coming soon" rows and rejected: a nav row that cannot be clicked is a dead
+  end. The roadmap belongs on the About page.
+- **`.nav-account*` moved out of NavMenu's `<style>` block into `app.css`**, for the
+  same reason the module reference sections did — shared chrome has no business
+  shipping CSS through the component tree. There is no `<style>` block in NavMenu now;
+  do not add one back.
+
+**`--signal` (#E07A30, "Şafak") is carried over from the Bengam palette and its scope
+is deliberately two things:** the active navigation row's left bar, and the focus
+ring. It is the only warm colour on a blue-and-grey site, which is exactly what makes
+*where you are* and *where the keyboard is* findable without reading. Spend it on a
+third thing and it stops working as a marker — that is the whole argument for the
+restriction, not timidity.
+
+Contrast, measured rather than assumed: **4,05:1** on the #2B3550 sidebar and
+**3,00:1** on white. Both clear the 3:1 that WCAG asks of a UI component, and neither
+clears the 4,5:1 that body text needs. **For orange text on white use `--signal-dark`
+(#A9531A, 5,33:1).** The light tone is for rules and rings only.
+
+**`internal-gear` is its own icon now.** It used to alias to `gear`, so the two gear
+rows in the menu were identical. The new one is an external pinion inside an annulus;
+what makes it read as internal rather than as another bearing is that the teeth sit on
+the *inside* of a plain rim and the pinion is offset to the mesh point. A concentric
+first version was indistinguishable from `ball-bearing` at every size.
+
+### **The logo, and where it is used (Nov 2026)**
+
+The hand-drawn `logo.png` was **redrawn**, not replaced, as SVG in `wwwroot/brand/`.
+Source and the design record: `docs/design-assets/logo/2026-11-redraw/` — `sketch.py`
+holds the geometry, `build.py` the variants, `emit2.py` writes the SVGs, `raster2.py`
+the PNGs. **Regenerate, never hand-edit the output in `wwwroot/brand/`.**
+
+A geometric monoline identity was proposed first and **rejected**
+(`docs/design-assets/logo/2026-11-proposal/`). It fixed the legibility and threw away
+the technical-drawing character that made the logo Mekanika's. Read that folder's
+README before proposing anything like it again.
+
+**The original goes faint for a structural reason, not a line-weight one.** Its
+letters are an *outline with fine 45° hatching inside*, so they are mostly
+background; at 200px the hatch fills in to grey while the outline thins to a
+hairline and no mass is left. The redraw **swaps the figure and ground of the
+hatch**: the letters are solid and the hatch is cut *out* of them in the background
+colour. Large, you still read a hatched section; small, the hatch closes up and you
+get a solid bold wordmark. Do not "simplify" this back to a hatch-on-outline fill.
+
+**MEKANIKA has no curved letter**, so each one is a polygon on a 0–100 cap height
+with a 20-unit stem — no typeface, nothing to outline, no webfont to fail. The A's
+counter is derived from the leg geometry (inner edges parallel to the outer, offset
+22 horizontally, meeting at y = 33.3); eyeballed, it came out a 12-unit slit.
+
+**Hatch pitch is 12 with a 3.0 cut**, chosen against 11/2.8, 13/3.2, 14/4.0 and
+16/4.4 — at 16 the letters go stripey and lose mass, which is the original's failure
+mode returning.
+
+**Annotations carry a background-coloured halo and the draw order is dimensions →
+annotations → letters.** A real drawing interrupts a dimension line behind a part in
+front of it; without the halo the orange lines ran straight through the gear teeth
+and read as a mistake rather than as depth.
+
+**Four shapes, and the size each is for:** `wordmark*` (sidebar, 200px — below about
+240px the dimension lines are two hairlines that crowd the word), `logo*` (hero,
+loading screen, PDF header), `logo-full*` (share card and print — gears, ruler,
+compass, rotation arrows need real width), `mark*` (square uses).
+
+- **`-on-dark` is a different file, not a filter.** `.sidebar-logo` and `.hero-logo`
+  used to carry `filter: brightness(0) invert(1)`, which is why the old logo could
+  never hold a second colour. Both filters are gone, and so are `.hero-logo`'s
+  negative margins — they only existed to claw back whitespace baked into the PNG.
+  Do not reintroduce either; pick the right file instead.
+- **Every `<img>` carries `width`/`height` matching its file's aspect** (wordmark
+  5.723:1 in the sidebar, logo 2.897:1 in the hero), so the box is reserved before
+  the SVG arrives. Change the geometry and those four attribute pairs change with it
+  (NavMenu, Index, index.html, and the generator's own copy of the loading screen) —
+  `emit2.py` prints the aspects and the pixel heights for 200 and 300 wide.
+- **Three rasters exist because three consumers cannot take SVG**: `brand/og.png`
+  (1200×630 — share cards used to point at `logo.png` and every network cropped it to
+  its own aspect), `brand/apple-touch-icon.png` (iOS composites transparency onto
+  black, so it ships with its own ground), and `wwwroot/logo.png`, which stays only
+  because `pdfGenerator.js` loads it for the report header. `raster2.py` shoots all
+  three with headless Chrome from the same SVGs; it passes `--disable-lcd-text`,
+  because the CSS `-webkit-font-smoothing` property is ignored there and subpixel
+  antialiasing fringes the share card's caption in red and blue.
+- **`brand/favicon.svg` carries its own `prefers-color-scheme` switch**, because the
+  tab strip is the one surface whose background cannot be known. Safari ignores the
+  media query and gets the light rule, which is the safe one. **Its M is solid while
+  everything else is hatched**: at 16px the knocked-out hatch lines are sub-pixel and
+  turn the letter into grey noise. The two files differ on purpose.
+- **The iOS icon ships without the mark's plate.** iOS supplies the ground and masks
+  the corners itself, so a rounded plate inside a square gives a plate-on-plate look.
+
+**Four places still name the OG image** and must stay in step: `wwwroot/index.html`,
+`tools/generate-static-pages.mjs` (`image`), and the `OgImage`/`TwitterImage` pairs
+in ten page components.
+
 ### **Related Calculators Feature**
 
 ```razor

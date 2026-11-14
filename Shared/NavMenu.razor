@@ -1,10 +1,27 @@
+@implements IDisposable
 @inject SupabaseAuthService Auth
 @inject NavigationManager Navigation
+
+@*
+    Categorised, collapsible navigation. The category list is the one agreed in the
+    Joplin spec ("Kategorili, açılır kapanır navigasyon menüsü"), in that order:
+    Shaft & Hub, Bearings, Gears, Springs, Fasteners, General, Libraries.
+
+    Two rules the spec names explicitly and the code below implements:
+      - the active module's category is open when the page loads, so the visitor
+        never loses their place;
+      - the mobile drawer behaviour is unchanged - MainLayout still owns `Open`.
+
+    Only modules that actually exist are listed. Planned ones (Woodruff, Spline,
+    bevel/rack/worm gears, disc springs, power transmission, tolerance analysis)
+    are deliberately NOT shown as greyed "coming soon" rows: a nav row that cannot
+    be clicked is a dead end, and the roadmap belongs on the About page.
+*@
 
 <nav class="sidebar @(Open ? "open" : "")" id="main-nav">
     <div class="sidebar-header">
         <a href="/">
-            <img src="logo.png" alt="Mekanika" class="sidebar-logo" />
+            <img src="brand/wordmark-on-dark.svg" alt="Mekanika" class="sidebar-logo" width="200" height="35" />
         </a>
     </div>
 
@@ -31,181 +48,158 @@
     </div>
 
     <div class="nav-menu">
-        <div class="nav-section">General</div>
-        <hr class="nav-separator">
-        <NavLink class="nav-item" href="" Match="NavLinkMatch.All">
+        <NavLink class="nav-item nav-item-flush" href="" Match="NavLinkMatch.All">
             <ModuleIcon Type="home" Size="medium" Style="default" /> Home
         </NavLink>
 
-        <div class="nav-section">Shaft-Hub Connections</div>
-        <hr class="nav-separator">
-        <NavLink class="nav-item" href="interference-fit">
-            <ModuleIcon Type="interference-fit" Size="medium" Style="default" /> Interference Fit
-        </NavLink>
-        <NavLink class="nav-item" href="taper-fit">
-            <ModuleIcon Type="taper-fit" Size="medium" Style="default" /> Taper Fit
-        </NavLink>
-        <NavLink class="nav-item" href="key-connection">
-            <ModuleIcon Type="key-connection" Size="medium" Style="default" /> Parallel Key
-        </NavLink>
-        <NavLink class="nav-item" href="clamp-connection">
-            <ModuleIcon Type="clamp-connection" Size="medium" Style="default" /> Clamp Connection
-        </NavLink>
+        @foreach (var group in Groups)
+        {
+            var isOpen = expanded.Contains(group.Title);
+            var panelId = PanelId(group.Title);
+            <div class="nav-group @(isOpen ? "open" : "")">
+                <button type="button" class="nav-group-toggle @(HoldsActive(group) ? "has-active" : "")"
+                        @onclick="() => Toggle(group.Title)"
+                        aria-expanded="@(isOpen ? "true" : "false")"
+                        aria-controls="@panelId">
+                    <ModuleIcon Type="@group.Icon" Size="medium" Style="default" />
+                    <span class="nav-group-title">@group.Title</span>
+                    <svg class="nav-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
+                         stroke-linejoin="round" aria-hidden="true">
+                        <path d="M9 6 L15 12 L9 18" />
+                    </svg>
+                </button>
+                <div class="nav-group-items" id="@panelId">
+                    <div class="nav-group-inner">
+                        @foreach (var item in group.Items)
+                        {
+                            <NavLink class="nav-item" href="@item.Href">
+                                <ModuleIcon Type="@item.Icon" Size="medium" Style="default" /> @item.Label
+                            </NavLink>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
 
-        <div class="nav-section">Gears</div>
-        <hr class="nav-separator">
-        <NavLink class="nav-item" href="gear-pair">
-            <ModuleIcon Type="gear-pair" Size="medium" Style="default" /> Cylindrical Gear Pair
-        </NavLink>
-        <NavLink class="nav-item" href="internal-gear">
-            <ModuleIcon Type="internal-gear" Size="medium" Style="default" /> Internal Gear Pair
-        </NavLink>
+        <hr class="nav-separator" />
 
-        <div class="nav-section">Fasteners</div>
-        <hr class="nav-separator">
-        <NavLink class="nav-item" href="single-bolt">
-            <ModuleIcon Type="bolt" Size="medium" Style="default" /> Single Bolt
-        </NavLink>
-
-        <div class="nav-section">Bearings</div>
-        <hr class="nav-separator">
-        <NavLink class="nav-item" href="ball-bearing">
-            <ModuleIcon Type="ball-bearing" Size="medium" Style="default" /> Ball Bearing Life
-        </NavLink>
-        <NavLink class="nav-item" href="roller-bearing">
-            <ModuleIcon Type="roller-bearing" Size="medium" Style="default" /> Roller Bearing Life
-        </NavLink>
-
-        <div class="nav-section">Springs</div>
-        <hr class="nav-separator">
-        <NavLink class="nav-item" href="compression-spring">
-            <ModuleIcon Type="compression" Size="medium" Style="default" /> Compression Spring
-        </NavLink>
-
-	<NavLink class="nav-item" href="extension-spring">
-    	    <ModuleIcon Type="tension" Size="medium" Style="default" /> Extension Spring
-	</NavLink>
-        <NavLink class="nav-item" href="torsion-spring">
-            <ModuleIcon Type="torque" Size="medium" Style="default" /> Torsion Spring
-        </NavLink>
-
-        <div class="nav-section">Section Properties</div>
-        <hr class="nav-separator">
-        <NavLink class="nav-item" href="moment-of-inertia">
-            <ModuleIcon Type="moment-inertia" Size="medium" Style="default" /> Moment of Inertia
-        </NavLink>
-
-        <div class="nav-section">Resources</div>
-        <hr class="nav-separator">
-        <NavLink class="nav-item" href="materials">
-            <ModuleIcon Type="material" Size="medium" Style="default" /> Material Database
-        </NavLink>
-        <NavLink class="nav-item" href="bearings">
-            <ModuleIcon Type="bearing-database" Size="medium" Style="default" /> Bearing Database
-        </NavLink>
-        <NavLink class="nav-item" href="boltdatabase">
-            <ModuleIcon Type="bolt-database" Size="medium" Style="default" /> Bolt Database
-        </NavLink>
-        <NavLink class="nav-item" href="about">
+        <NavLink class="nav-item nav-item-minor" href="about">
             <ModuleIcon Type="info" Size="medium" Style="default" /> About
         </NavLink>
-        <NavLink class="nav-item" href="contact">
+        <NavLink class="nav-item nav-item-minor" href="contact">
             <ModuleIcon Type="contact" Size="medium" Style="default" /> Contact Us
         </NavLink>
-        <NavLink class="nav-item" href="privacy">
-            <ModuleIcon Type="info" Size="medium" Style="default" /> Privacy Policy
+        <NavLink class="nav-item nav-item-minor" href="privacy">
+            <ModuleIcon Type="safety" Size="medium" Style="default" /> Privacy Policy
         </NavLink>
     </div>
 </nav>
 
-<style>
-    .nav-account {
-        padding: 12px 16px;
-        border-bottom: 1px solid rgba(255,255,255,0.08);
-        margin-bottom: 8px;
-    }
-
-    .nav-account-signin {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 8px 10px;
-        border-radius: 8px;
-        color: rgba(255, 255, 255, 0.85);
-        text-decoration: none;
-        font-weight: 500;
-        font-size: 15px;
-    }
-    .nav-account-signin:hover { background: rgba(255,255,255,0.08); }
-
-    .nav-account-user {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 6px 8px;
-        border-radius: 8px;
-        text-decoration: none;
-        color: inherit;
-    }
-    .nav-account-user:hover { background: rgba(255,255,255,0.08); }
-
-    .nav-account-avatar {
-        flex-shrink: 0;
-        width: 30px;
-        height: 30px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #0077be 0%, #005a91 100%);
-        color: white;
-        font-weight: 700;
-        font-size: 14px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .nav-account-email {
-        font-size: 13px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .nav-account-link {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-top: 6px;
-        padding: 6px 8px;
-        border-radius: 8px;
-        text-decoration: none;
-        color: inherit;
-        font-size: 13px;
-        opacity: 0.9;
-    }
-    .nav-account-link:hover { background: rgba(255,255,255,0.08); opacity: 1; }
-
-    .nav-account-signout {
-        margin-top: 6px;
-        width: 100%;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        text-align: left;
-        background: none;
-        border: none;
-        color: inherit;
-        opacity: 0.7;
-        font-size: 12px;
-        padding: 4px 8px;
-        cursor: pointer;
-        border-radius: 6px;
-    }
-    .nav-account-signout:hover { opacity: 1; background: rgba(255,255,255,0.08); }
-</style>
-
 @code {
     /// <summary>Drives `.sidebar.open` - the mobile drawer state, owned by MainLayout.</summary>
     [Parameter] public bool Open { get; set; }
+
+    private sealed record NavEntry(string Href, string Label, string Icon);
+    private sealed record NavGroup(string Title, string Icon, NavEntry[] Items);
+
+    private static readonly NavGroup[] Groups =
+    {
+        new("Shaft & Hub", "shaft&hub", new NavEntry[]
+        {
+            new("interference-fit", "Interference Fit", "interference-fit"),
+            new("taper-fit",        "Taper Fit",        "taper-fit"),
+            new("key-connection",   "Parallel Key",     "key-connection"),
+            new("clamp-connection", "Clamp Connection", "clamp-connection"),
+        }),
+        new("Bearings", "ball-bearing", new NavEntry[]
+        {
+            new("ball-bearing",   "Ball Bearing Life",   "ball-bearing"),
+            new("roller-bearing", "Roller Bearing Life", "roller-bearing"),
+        }),
+        new("Gears", "gear", new NavEntry[]
+        {
+            new("gear-pair",     "Cylindrical Gear Pair", "gear"),
+            new("internal-gear", "Internal Gear Pair",    "internal-gear"),
+        }),
+        new("Springs", "spring", new NavEntry[]
+        {
+            new("compression-spring", "Compression Spring", "spring"),
+            new("extension-spring",   "Extension Spring",   "tension"),
+            new("torsion-spring",     "Torsion Spring",     "torque"),
+        }),
+        new("Fasteners", "bolt", new NavEntry[]
+        {
+            new("single-bolt", "Single Bolt", "bolt"),
+        }),
+        new("General", "geometry", new NavEntry[]
+        {
+            new("moment-of-inertia", "Moment of Inertia", "moment-inertia"),
+        }),
+        new("Libraries", "table", new NavEntry[]
+        {
+            new("materials",     "Material Database", "material"),
+            new("bearings",      "Bearing Database",  "bearing-database"),
+            new("boltdatabase",  "Bolt Database",     "bolt-database"),
+        }),
+    };
+
+    /// <summary>
+    /// Open categories. Several may be open at once - collapsing the one the visitor
+    /// just opened in order to open another is the behaviour accordions are disliked
+    /// for. The set survives in-app navigation because NavMenu lives in MainLayout
+    /// and is never re-created.
+    /// </summary>
+    private readonly HashSet<string> expanded = new(StringComparer.Ordinal);
+
+    protected override void OnInitialized()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        OpenActiveGroup();
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        OpenActiveGroup();
+        StateHasChanged();
+    }
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+
+    private void Toggle(string title)
+    {
+        if (!expanded.Remove(title)) expanded.Add(title);
+    }
+
+    private void OpenActiveGroup()
+    {
+        var group = Groups.FirstOrDefault(HoldsActive);
+        if (group is not null) expanded.Add(group.Title);
+    }
+
+    private bool HoldsActive(NavGroup group)
+        => group.Items.Any(i => string.Equals(i.Href, CurrentRoute, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// The current route with query, fragment and any trailing slash removed. The
+    /// fragment matters: a shared calculation arrives as `key-connection#s=&lt;payload&gt;`,
+    /// and the trailing slash matters because the generated static pages redirect
+    /// through `/key-connection/`. Either one left in place would stop the active
+    /// module's category from opening.
+    /// </summary>
+    private string CurrentRoute
+    {
+        get
+        {
+            var path = Navigation.ToBaseRelativePath(Navigation.Uri);
+            var cut = path.IndexOfAny(new[] { '?', '#' });
+            if (cut >= 0) path = path[..cut];
+            return path.Trim('/');
+        }
+    }
+
+    private static string PanelId(string title)
+        => "nav-group-" + new string(title.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
 
     private async Task SignOut()
     {

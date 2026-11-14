@@ -18,10 +18,14 @@
     <meta property="og:url" content="https://mekanika.org/" />
     <meta property="og:title" content="Mekanika - Free Engineering Calculations | DIN & ISO Standards" />
     <meta property="og:description" content="Professional mechanical engineering calculations online. Interference fit, taper fit, parallel key, bearing life, spring calculators. Free and accurate." />
-    <!-- og-image.png has never existed in wwwroot, so every share of this site
-         rendered with an empty preview image. logo.png is the real file. A purpose-made
-         1200x630 card would be better; this at least is not broken. -->
-    <meta property="og:image" content="https://mekanika.org/logo.png" />
+    <!-- og-image.png never existed in wwwroot, so for a long time every share of
+         this site rendered with an empty preview; logo.png then stood in and was
+         letterboxed by each network in turn. brand/og.png is the purpose-made
+         1200x630 card. Keep this and the generator's `image` in step - that file
+         sets the same tags on every generated module page. -->
+    <meta property="og:image" content="https://mekanika.org/brand/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <meta property="og:site_name" content="Mekanika" />
     <meta property="og:locale" content="en_US" />
 
@@ -30,7 +34,7 @@
     <meta property="twitter:url" content="https://mekanika.org/" />
     <meta property="twitter:title" content="Mekanika - Free Engineering Calculations | DIN & ISO Standards" />
     <meta property="twitter:description" content="Professional mechanical engineering calculations online. Interference fit, taper fit, parallel key, bearing life, spring calculators. Free and accurate." />
-    <meta property="twitter:image" content="https://mekanika.org/logo.png" />
+    <meta property="twitter:image" content="https://mekanika.org/brand/og.png" />
 
     <!-- Structured Data - Organization -->
     <script type="application/ld+json">
@@ -81,16 +85,24 @@
         })();
     </script>
 
-    <link rel="icon" type="image/png" href="logo.png" />
-    <link rel="apple-touch-icon" href="logo.png" />
+    <!-- The wide wordmark was the favicon until Nov 2026, which at 32px was an
+         unreadable smear. brand/favicon.svg is the square mark and carries its
+         own prefers-color-scheme switch, because the tab strip is the one surface
+         whose background we cannot know. Its M is SOLID while the rest of the brand
+         is hatched: at 16px the knocked-out hatch lines are sub-pixel and turn the
+         letter into grey noise. The PNG is the fallback for browsers that do not
+         take an SVG icon, and iOS needs its own 180px raster. -->
+    <link rel="icon" type="image/svg+xml" href="brand/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="180x180" href="brand/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" href="brand/apple-touch-icon.png" />
     <!-- Bump BOTH ?v= numbers whenever EITHER stylesheet changes, and keep them in
          lockstep - browsers cache linked CSS aggressively and a stale sheet fails
          silently. This bit once: modern-icons.css gained the schematic-modal styles
          but kept ?v=5, so returning visitors got the old file and the modal rendered
          as unstyled markup dumped into the middle of the form. Same number on both
          means there is one thing to remember, not two. -->
-    <link href="css/modern-icons.css?v=19" rel="stylesheet" />
-    <link href="css/app.css?v=19" rel="stylesheet" />
+    <link href="css/modern-icons.css?v=20" rel="stylesheet" />
+    <link href="css/app.css?v=20" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
     <!-- Google tag (gtag.js) -->
@@ -109,7 +121,7 @@
     <div id="app">
         <div class="loading-screen">
             <div class="loading-content">
-                <img src="logo.png" alt="Mekanika" style="width: 280px; height: auto; margin-bottom: 16px; filter: brightness(0) invert(1);" />
+                <img src="brand/logo-on-dark.svg" alt="Mekanika" width="300" height="104" style="width: min(300px, 80%); height: auto; margin-bottom: 16px;" />
                 <p>Loading application...</p>
                 <div class="spinner" style="margin-top: 16px;"></div>
             </div>

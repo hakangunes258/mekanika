@@ -6,6 +6,13 @@
     --primary-light: #e6f3fa;
     --accent: #00b74a;
     --accent-dark: #008c38;
+    /* Şafak - carried over from the Bengam palette (#E07A30 / #A9531A). Deliberately
+       narrow in scope: it marks WHERE YOU ARE (the active navigation row) and WHERE
+       THE KEYBOARD IS (the focus ring), and nothing else. It is the only warm colour
+       on the site, which is what makes those two things findable at a glance; spend
+       it on a third thing and it stops working as a marker. */
+    --signal: #e07a30;
+    --signal-dark: #a9531a;
     --warning: #ff6b6b;
     --dark: #2b3550;
     --gray-100: #f8f9fa;
@@ -46,15 +53,13 @@ img {
 }
 
 .hero-logo {
-    /* Was 450px, which made the logo the tallest thing on the page and pushed the
-       hero to roughly half the viewport. The negative margins trim the whitespace
-       baked into logo.png, so they are tuned to the width - rescale both together
-       if this changes. */
-    width: 280px;
+    /* brand/logo-on-dark.svg is already white and already trimmed, so this no
+       longer needs the brightness/invert filter or the negative margins that used
+       to claw back the whitespace baked into logo.png. Aspect is 3.323:1; the
+       width/height attributes on the <img> reserve the box so the hero does not
+       jump when the SVG arrives. */
+    width: min(300px, 80%);
     height: auto;
-    margin-top: -44px;
-    margin-bottom: -31px;
-    filter: brightness(0) invert(1);
 }
 
 html, body {
@@ -103,9 +108,11 @@ html, body {
 }
 
 .sidebar-logo {
-    width: 160px;
+    /* 200px, not 160: the lockup spends the first quarter of its width on the
+       hex mark, so the wordmark inside it is smaller than the old PNG's at the
+       same box width. The sidebar is 300px with 20px of padding, so 200 fits. */
+    width: 200px;
     height: auto;
-    filter: brightness(0) invert(1);
 }
 
 .nav-menu {
@@ -113,28 +120,110 @@ html, body {
     padding: 16px 0;
 }
 
-.nav-section {
-    padding: 8px 20px;
-    font-size: 11px;
+/* ========== Collapsible categories ==========
+   Each category is a <button> that opens a panel of module links. The panel
+   animates with grid-template-rows 0fr -> 1fr rather than max-height, so the
+   open height is the content's real height and never has to be guessed.
+
+   `visibility` is transitioned alongside it on purpose: a 0fr grid row CLIPS
+   its content but does not remove it from the tab order, so without this a
+   keyboard user would tab into a dozen links inside closed categories. Going
+   to `visible` applies immediately (so the panel is seen while it expands);
+   going to `hidden` waits out the transition. */
+.nav-group-toggle {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+    padding: 13px 20px;
+    background: none;
+    border: none;
+    border-left: 3px solid transparent;
+    color: rgba(255, 255, 255, 0.72);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    letter-spacing: 1px;
-    opacity: 0.5;
-    margin-top: 16px;
+    text-align: left;
+    cursor: pointer;
+    transition: color 0.2s, background 0.2s;
 }
 
-.nav-section:first-child {
-    margin-top: 0;
+.nav-group-toggle:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--white);
+}
+
+.nav-group-title {
+    flex: 1;
+    min-width: 0;
+}
+
+.nav-chevron {
+    flex-shrink: 0;
+    opacity: 0.6;
+    transition: transform 0.22s ease;
+}
+
+.nav-group.open .nav-chevron {
+    transform: rotate(90deg);
+}
+
+/* The category that contains the page you are on, while it is collapsed: a
+   closed category must still say "it is in here". Once open the active row
+   itself carries the marker, so the header gives it back. */
+.nav-group:not(.open) .nav-group-toggle.has-active {
+    color: var(--white);
+    border-left-color: var(--signal);
+}
+
+.nav-group-items {
+    display: grid;
+    grid-template-rows: 0fr;
+    visibility: hidden;
+    transition: grid-template-rows 0.22s ease, visibility 0.22s;
+}
+
+.nav-group.open .nav-group-items {
+    grid-template-rows: 1fr;
+    visibility: visible;
+}
+
+.nav-group-inner {
+    overflow: hidden;
 }
 
 .nav-item {
     display: flex;
     align-items: center;
     gap: 16px;
-    padding: 14px 20px;
+    padding: 12px 20px 12px 36px;
+    border-left: 3px solid transparent;
     color: rgba(255, 255, 255, 0.85);
     text-decoration: none;
     transition: all 0.2s;
     font-size: 15px;
+}
+
+/* Home, About, Contact, Privacy sit outside a category, so they are not indented. */
+.nav-item-flush,
+.nav-item-minor {
+    padding-left: 20px;
+}
+
+.nav-item-minor {
+    padding-top: 10px;
+    padding-bottom: 10px;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+/* The keyboard's position, in the one warm colour on the site. */
+.sidebar a:focus-visible,
+.sidebar button:focus-visible {
+    outline: 2px solid var(--signal);
+    outline-offset: -2px;
 }
 
 /* NavMenu icons: inline SVGs inherit the (light) sidebar text colour via
@@ -152,15 +241,101 @@ html, body {
 
 .nav-item.active {
     background: var(--primary);
+    border-left-color: var(--signal);
     color: var(--white);
 }
 
-.nav-emoji {
-    font-size: 16px;
-    width: 20px;
-    text-align: center;
-    flex-shrink: 0;
+/* ========== Account block ==========
+   These used to live in a <style> block inside NavMenu.razor. A Razor <style>
+   only reaches the DOM once its component has rendered, and shared chrome has
+   no business shipping CSS through the component tree - same rule the module
+   reference sections follow. */
+.nav-account {
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    margin-bottom: 8px;
 }
+
+.nav-account-signin {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.85);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 15px;
+}
+
+.nav-account-signin:hover { background: rgba(255, 255, 255, 0.08); }
+
+.nav-account-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    text-decoration: none;
+    color: inherit;
+}
+
+.nav-account-user:hover { background: rgba(255, 255, 255, 0.08); }
+
+.nav-account-avatar {
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: var(--white);
+    font-weight: 700;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nav-account-email {
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nav-account-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    text-decoration: none;
+    color: inherit;
+    font-size: 13px;
+    opacity: 0.9;
+}
+
+.nav-account-link:hover { background: rgba(255, 255, 255, 0.08); opacity: 1; }
+
+.nav-account-signout {
+    margin-top: 6px;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-align: left;
+    background: none;
+    border: none;
+    color: inherit;
+    opacity: 0.7;
+    font-size: 12px;
+    padding: 4px 8px;
+    cursor: pointer;
+    border-radius: 6px;
+}
+
+.nav-account-signout:hover { opacity: 1; background: rgba(255, 255, 255, 0.08); }
 
 .modules-grid {
     display: grid;

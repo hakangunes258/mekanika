@@ -1481,12 +1481,12 @@ else
                 CanonicalUrl = $"{baseUrl}{moduleInfo.Route}",
                 OgTitle = moduleInfo.Name,
                 OgDescription = moduleInfo.Description,
-                OgImage = $"{baseUrl}/logo.png",
+                OgImage = $"{baseUrl}/brand/og.png",
                 OgUrl = $"{baseUrl}{moduleInfo.Route}",
                 TwitterCard = "summary",
                 TwitterTitle = moduleInfo.Name,
                 TwitterDescription = moduleInfo.Description,
-                TwitterImage = $"{baseUrl}/logo.png"
+                TwitterImage = $"{baseUrl}/brand/og.png"
             };
 
             await Seo.SetMetaTags(seo);

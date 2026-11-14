@@ -195,7 +195,7 @@ function staticBody(mod, content) {
     */
     return `        <div class="loading-screen">
             <div class="loading-content">
-                <img src="logo.png" alt="Mekanika" style="width: 280px; height: auto; margin-bottom: 16px; filter: brightness(0) invert(1);" />
+                <img src="brand/logo-on-dark.svg" alt="Mekanika" width="300" height="104" style="width: min(300px, 80%); height: auto; margin-bottom: 16px;" />
                 <h1 style="font-size:22px;font-weight:600;margin:0 0 8px;">${esc(mod.name)}</h1>
                 <p style="max-width:620px;margin:0 auto;">${esc(mod.description)}</p>
                 ${standards}
@@ -247,7 +247,12 @@ for (const route of routes) {
     */
     const url = `${ORIGIN}${route}/`;
     const title = `${mod.name} - Free Online Tool | Mekanika`;
-    const image = `${ORIGIN}/logo.png`;
+    /*
+        A dedicated 1200x630 card, not the logo file. Until Nov 2026 this pointed at
+        logo.png, which every social preview then letterboxed and cropped to its own
+        aspect. og.png is drawn at the ratio the crawlers actually want.
+    */
+    const image = `${ORIGIN}/brand/og.png`;
 
     let html = shell;
     html = replaceOnce(html, /<title>[^<]*<\/title>/, `<title>${esc(title)}</title>`, '<title>', route);

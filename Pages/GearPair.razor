@@ -127,7 +127,7 @@
         <!-- Gear 2 (Wheel / Internal Gear) Card -->
         <div class="card">
             <div class="card-header">
-                <ModuleIcon Type="gear" Size="medium" Style="solid" />
+                <ModuleIcon Type="@(Internal ? "internal-gear" : "gear")" Size="medium" Style="solid" />
                 <h2>@(Internal ? "Gear 2 (Internal Gear)" : "Gear 2 (Wheel)")</h2>
                 @GearAdvancedDialog(2)
             </div>
