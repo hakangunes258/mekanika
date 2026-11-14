@@ -65,3 +65,6 @@ publish/
 # Local reference standards (licensed copies). Only the README is tracked.
 references/*
 !references/README.md
+
+# raster2.py intermediates (headless-Chrome scratch next to the script)
+docs/design-assets/logo/*/_r2_*

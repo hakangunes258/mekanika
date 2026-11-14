@@ -53,12 +53,16 @@ img {
 }
 
 .hero-logo {
-    /* brand/logo-on-dark.svg is already white and already trimmed, so this no
-       longer needs the brightness/invert filter or the negative margins that used
-       to claw back the whitespace baked into logo.png. Aspect is 3.323:1; the
+    /* brand/logo-full-on-dark.svg is already white and already trimmed, so this
+       no longer needs the brightness/invert filter or the negative margins that
+       used to claw back the whitespace baked into logo.png. Aspect is 2.25:1; the
        width/height attributes on the <img> reserve the box so the hero does not
-       jump when the SVG arrives. */
-    width: min(300px, 80%);
+       jump when the SVG arrives.
+
+       Wider than the other placements on purpose: the full drawing spends the
+       outer fifth of its width on the gears, ruler and compass, so the wordmark
+       inside it is smaller than the same pixel width of brand/logo-on-dark.svg. */
+    width: min(400px, 88%);
     height: auto;
 }
 

@@ -53,7 +53,7 @@ shot("og", 1200, 630, INK,
 #    ground and then masks the corners itself ───────────────────────────────
 m = B._poly_m()
 touch = ('<svg width="124" height="124" viewBox="0 0 100 100">'
-         + '<defs>' + B.hatch_def("tch", "#ffffff", INK, 11.0, 3.0) + '</defs>'
+         + '<defs>' + B.hatch_def("tch", "#ffffff", 11.0, 3.0) + '</defs>'
          + '<g transform="translate(22.56 19.00) scale(0.56)">'
          + f'<path d="{m}" fill="url(#htch)" stroke="#ffffff" stroke-width="8.93" stroke-linejoin="round"/></g>'
          + f'<path d="M34 86 H66" stroke="{ACC}" stroke-width="6" stroke-linecap="round"/></svg>')

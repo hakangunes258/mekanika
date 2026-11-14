@@ -2602,9 +2602,27 @@ front of it; without the halo the orange lines ran straight through the gear tee
 and read as a mistake rather than as depth.
 
 **Four shapes, and the size each is for:** `wordmark*` (sidebar, 200px — below about
-240px the dimension lines are two hairlines that crowd the word), `logo*` (hero,
-loading screen, PDF header), `logo-full*` (share card and print — gears, ruler,
-compass, rotation arrows need real width), `mark*` (square uses).
+240px the dimension lines are two hairlines that crowd the word), `logo*` (the
+pre-boot loading screen and the PDF header), `logo-full*` (the home page hero at
+400px, the share card, print — gears, ruler, compass, rotation arrows need real
+width), `mark*` (square uses).
+
+**The hero is wider than the other placements on purpose.** The full drawing spends
+the outer fifth of its width on the apparatus, so at the same pixel width its
+wordmark is smaller than `logo*`'s — 400px there against 300px before.
+
+**Nothing in the drawing is painted in the background colour.** It sits on the navy
+sidebar, on white, and on the hero's blue gradient, so any shape that assumes a
+ground is a bug waiting for the next placement. Two things were that bug:
+
+- **A dimension line passing behind a gear is removed by a `<mask>`, not covered by
+  a disc in the paper colour.** The painted version only disappears where the
+  background happens to match; dropped on the blue hero it showed four navy blobs
+  behind the gears, ruler and compass. `_ANN` in `build.py` drives both the part and
+  the hole it punches, so the two cannot drift apart.
+- **The hatch cut is transparent, not a stripe painted in the paper colour.** Same
+  failure: white letters with navy stripes on the blue hero. On the sidebar and on
+  white the transparent version is pixel-identical, so there was nothing to trade.
 
 - **`-on-dark` is a different file, not a filter.** `.sidebar-logo` and `.hero-logo`
   used to carry `filter: brightness(0) invert(1)`, which is why the old logo could

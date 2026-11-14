@@ -47,18 +47,32 @@ read as a scratch.
 16/4.4: at 16 the letters go stripey and lose mass, which is the original's
 failure mode returning.
 
-**Annotations carry a background-coloured halo** (`halo=` on `gear`, `ruler`,
-`compass`), and the draw order is dimensions → annotations → letters. A real
-drawing interrupts a dimension line behind a part in front of it; without the
-halo the orange lines ran straight through the gear teeth and read as a mistake.
+**A dimension line is interrupted behind the part in front of it**, the way a real
+drawing does it — without that the orange lines ran straight through the gear teeth
+and read as a mistake. The draw order is dimensions → annotations → letters, and the
+interruption is a `<mask>`.
+
+**It was a painted halo first, and that was wrong.** A disc in the paper colour only
+disappears on a background that happens to match: the moment the full drawing went
+on the home page's blue hero it showed four navy blobs behind the gears, ruler and
+compass. A mask removes the line instead of covering it. `_ANN` in `build.py` drives
+both the part and the hole it punches, so the two cannot drift apart.
+
+**The hatch cut is transparent for the same reason** — painted in the paper colour it
+gave white letters with navy stripes on the blue hero. On the navy sidebar and on
+white the transparent version is pixel-identical, so there was nothing to trade away.
+
+**Nothing in the drawing may be painted in the background colour.** It sits on navy,
+on white and on a blue gradient; `mark*`'s plate is the one exception, because there
+the plate *is* the ground.
 
 ## The four shapes, and where each is used
 
 | file | where | why not another one |
 |---|---|---|
 | `wordmark*.svg` | sidebar, 200px | below ~240px the dimension lines are two hairlines that crowd the word |
-| `logo*.svg` | home hero, loading screen, PDF header | the default lockup: word between its two dimension lines |
-| `logo-full*.svg` | share card, print | gears, ruler, compass, rotation arrows — needs real width to hold together |
+| `logo*.svg` | pre-boot loading screen, PDF header | the default lockup: word between its two dimension lines |
+| `logo-full*.svg` | home hero (400px), share card, print | gears, ruler, compass, rotation arrows — needs real width to hold together |
 | `mark*.svg` | square uses | the wordmark's own M on a plate, hatched the same way |
 
 `*-on-dark` is a **separate file**, not a CSS filter. The old logo was only ever
