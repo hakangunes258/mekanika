@@ -622,17 +622,36 @@ else
         <table class="results-table">
             <thead><tr><th>Design Parameter</th><th>Current Value</th><th>Status</th><th>Recommendation</th></tr></thead>
             <tbody>
-                <tr class="@(engine.SpringIndex < 4 || engine.SpringIndex > 12 ? "warning" : "success")">
+                @* EN 13906-1 states its own range of validity, and that is a different
+                   thing from a manufacturing preference. Outside 4 <= w <= 20 the shear
+                   stress and the correction factor are extrapolations, not results, and
+                   the table has to say so: at w = 2,00 the page reported tau = 13 900 MPa
+                   with nothing but "Too Low" beside it. *@
+                <tr class="@(engine.SpringIndex < 4 || engine.SpringIndex > 20 ? "danger" : engine.SpringIndex > 12 ? "warning" : "success")">
                     <td>Spring Index (w)</td>
                     <td>@engine.SpringIndex.ToString("F1")</td>
-                    <td>@(engine.SpringIndex < 4 ? "⚠️ Too Low" : engine.SpringIndex > 12 ? "⚠️ Too High" : "✓ OK")</td>
-                    <td>@(engine.SpringIndex < 4 ? "Difficult to manufacture, high stress" : engine.SpringIndex > 12 ? "May tangle, prone to buckling" : "Recommended range 4-12")</td>
+                    <td>@(engine.SpringIndex < 4 || engine.SpringIndex > 20 ? "❌ outside EN 13906-1" : engine.SpringIndex > 12 ? "⚠️ High" : "✓ OK")</td>
+                    <td>
+                        @(engine.SpringIndex < 4
+                            ? "EN 13906-1 is valid for 4 ≤ w ≤ 20. Below 4 the stresses above are an extrapolation, and such a coil is hard to wind"
+                            : engine.SpringIndex > 20
+                                ? "EN 13906-1 is valid for 4 ≤ w ≤ 20. Above 20 the stresses above are an extrapolation, and the spring tangles and buckles"
+                                : engine.SpringIndex > 12
+                                    ? "Within the standard, but 4-12 is the usual manufacturing range"
+                                    : "Recommended range 4-12, standard valid to 20")
+                    </td>
                 </tr>
-                <tr class="@(engine.ActiveCoils < 3 ? "warning" : "success")">
+                <tr class="@(engine.ActiveCoils < 2 ? "danger" : engine.ActiveCoils < 3 ? "warning" : "success")">
                     <td>Active Coils (n)</td>
                     <td>@engine.ActiveCoils.ToString("F1")</td>
-                    <td>@(engine.ActiveCoils < 3 ? "⚠️ Low" : "✓ OK")</td>
-                    <td>@(engine.ActiveCoils < 3 ? "Minimum 3 coils recommended" : "Adequate")</td>
+                    <td>@(engine.ActiveCoils < 2 ? "❌ outside EN 13906-1" : engine.ActiveCoils < 3 ? "⚠️ Low" : "✓ OK")</td>
+                    <td>
+                        @(engine.ActiveCoils < 2
+                            ? "EN 13906-1 assumes n ≥ 2. With fewer coils the end effects dominate and the rate and stress above do not apply"
+                            : engine.ActiveCoils < 3
+                                ? "Within the standard, but at least 3 coils is the usual minimum"
+                                : "Adequate")
+                    </td>
                 </tr>
                 <tr class="@(engine.BucklingRisk ? "danger" : "success")">
                     <td>Buckling (s<sub>K</sub>, EN 13906-1)</td>
@@ -642,10 +661,18 @@ else
                        short enough spring; it exists but the working deflection stays
                        below s_K; or the working deflection reaches it. *@
                     <td>
+                    @* The ratio, not just the verdict: on the page's own default the working
+                       deflection is 25,0 mm against s_K = 24,3 mm, and "reaches s_K" hides
+                       how little margin either side of the line there is. *@
+                    @{
+                        double sWork = engine.MaxWorkingDeflection > 0 ? engine.MaxWorkingDeflection : engine.MaxDeflection;
+                        string sRatio = engine.BucklingPossible && engine.BucklingDeflection > 0
+                            ? $" (s₁/s_K = {sWork / engine.BucklingDeflection:F2})" : "";
+                    }
                         @(engine.BucklingRisk
-                            ? $"the working deflection of {(engine.MaxWorkingDeflection > 0 ? engine.MaxWorkingDeflection : engine.MaxDeflection):F1} mm reaches s_K - guide the spring"
+                            ? $"the working deflection of {sWork:F1} mm reaches s_K{sRatio} - guide the spring"
                             : engine.BucklingPossible
-                                ? $"s_K is {engine.BucklingDeflection:F1} mm and the working deflection stays below it"
+                                ? $"s_K is {engine.BucklingDeflection:F1} mm and the working deflection stays below it{sRatio}"
                                 : $"too short and fat to buckle at any deflection (nu.lambda = {engine.EffectiveSlenderness:F2})")
                     </td>
                 </tr>
@@ -1231,15 +1258,33 @@ else
 
         // A working length outside [Lc, L0] is not a load case, it is a typo: a
         // length above L0 produced a negative force and a negative stress, and
-        // one below Lc a force the spring can never develop.
+        // one below Lc a force the spring can never develop. Only the upper bound
+        // was enforced, so L₁ = 20 mm on a spring that closes at 30 reported
+        // F₁ = 447,7 N and τ = 1200 MPa next to "Over-compressed ❌ FAIL" - a
+        // force that cannot exist, carried through every safety factor.
         double enteredL1 = assembledLength;
         double enteredL2 = compressedLength;
         if (engine.FreeLength > 0)
         {
+            double totalCoilsW = engine.EndType == "Open" ? engine.ActiveCoils : engine.ActiveCoils + 2;
+            double solidW = engine.WireDiameter > 0 && engine.ActiveCoils > 0
+                ? (engine.EndType == "ClosedGround"
+                    ? totalCoilsW * engine.WireDiameter
+                    : (totalCoilsW + 1.5) * engine.WireDiameter)
+                : 0;
+
             if (enteredL1 > engine.FreeLength)
                 validationMessages.Add($"L₁ ({enteredL1:0.#} mm) cannot exceed the free length ({engine.FreeLength:0.#} mm) — a compression spring does not pull.");
-            if (loadType == "Dynamic" && enteredL2 > engine.FreeLength)
-                validationMessages.Add($"L₂ ({enteredL2:0.#} mm) cannot exceed the free length ({engine.FreeLength:0.#} mm).");
+            else if (solidW > 0 && enteredL1 > 0 && enteredL1 < solidW)
+                validationMessages.Add($"L₁ ({enteredL1:0.#} mm) is below the solid length ({solidW:0.#} mm) — the spring closes before it gets there, so that force cannot exist.");
+
+            if (loadType == "Dynamic")
+            {
+                if (enteredL2 > engine.FreeLength)
+                    validationMessages.Add($"L₂ ({enteredL2:0.#} mm) cannot exceed the free length ({engine.FreeLength:0.#} mm).");
+                else if (solidW > 0 && enteredL2 > 0 && enteredL2 < solidW)
+                    validationMessages.Add($"L₂ ({enteredL2:0.#} mm) is below the solid length ({solidW:0.#} mm) — the spring closes before it gets there, so that force cannot exist.");
+            }
         }
 
         if (validationMessages.Count > 0)

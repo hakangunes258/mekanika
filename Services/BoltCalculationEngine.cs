@@ -1490,15 +1490,37 @@ namespace MechanicalCalculatorWeb.Services
                         : usablePreload;
                     _result.FKR_available = lowestReliablePreload - _result.FZ - _result.FPA;
 
+                    // A negative safety factor has no meaning. When the available
+                    // residual clamp force is negative the joint has already come
+                    // apart, and the error below says so; the number is 0, which is
+                    // what the no-requirement branch of this row already reported.
+                    // It read -0,93 with an impact wrench (alpha_A = 3,0) next to a
+                    // separation test that showed 0,00 for the same condition.
+                    double clampAvailable = Math.Max(0, _result.FKR_available);
+
                     _result.SF_clamp = _result.FKR_min > 0
-                        ? _result.FKR_available / _result.FKR_min
+                        ? clampAvailable / _result.FKR_min
                         : (_result.FKR_available > 0 ? 999 : 0);
         
-                    // SF against slipping (if shear load present)
+                    // SF against slipping (if shear load present).
+                    //
+                    // This was FK_min * muT * n / FQ, and FK_min collapses to FKR_min
+                    // exactly as it does for the clamp check above - and FKR_min is
+                    // itself FQ/(qF*muT) whenever slip governs it. So the ratio was
+                    // 1,00 BY CONSTRUCTION: a joint with FQ = 4000 N reported
+                    // "slipping 1,00 FAIL" whatever the bolt could actually deliver.
+                    // The real question is the same one the clamp margin asks: how
+                    // much friction the clamp force the bolt can RELIABLY produce
+                    // buys, against the shear load it has to carry.
                     if (_input.ShearForce > 0)
                     {
-                        // SF_slip = (Min Clamp Force * Friction) / Shear Force
-                        _result.SF_slip = (_result.FK_min * _input.InterfaceFriction * _input.NumberOfInterfaces) / _input.ShearForce;
+                        // Against the DESIGN shear force, the same phi_A-scaled load
+                        // FKR_slip is derived from, so that when slip is what governs
+                        // FKR_min this row and the clamp margin above agree exactly.
+                        double designShear = _input.ShearForce * _input.LoadApplicationFactorValue;
+                        _result.SF_slip = designShear > 0
+                            ? (clampAvailable * _input.InterfaceFriction * _input.NumberOfInterfaces) / designShear
+                            : 999;
                     }
                     else
                     {

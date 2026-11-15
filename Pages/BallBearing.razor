@@ -381,6 +381,31 @@ else
                 </tbody>
             </table>
 
+            @if (isPairedMounting && selectedBearingType == "AngularContact")
+            {
+                @* The static check does follow the arrangement (X0, Y0 and C0 are the
+                   pair's). The LIFE does not, and cannot: a matched pair acting as a
+                   unit is rated with ISO 281's double-row X and Y column and with
+                   C = 2^0,7 C, and that column is not carried here. Rather than apply
+                   half of it - scaling C without the factors would make the life about
+                   four times too long - the life below is the single bearing's, under
+                   the whole load, which is the conservative reading of the same pair. *@
+                <div class="alert alert-warning" style="margin-top: 16px;">
+                    <ModuleIcon Type="warning" Size="small" Style="default" />
+                    <div>
+                        <strong>The life below is for one bearing of the pair, carrying the whole
+                        load.</strong> The static check above uses the pair's own X₀, Y₀ and
+                        C₀ = 2·C₀, but rating the life of a matched pair needs ISO 281's
+                        <em>double-row</em> X and Y column together with C = 2<sup>0,7</sup>·C for the
+                        unit, and that column is not carried in this module. Applying the rating and
+                        not the factors would overstate the life several times over, so the figure here
+                        is the conservative one. For the pair's own life, take C, e, X and Y for the
+                        matched set from the manufacturer's catalogue and enter them as a single
+                        bearing.
+                    </div>
+                </div>
+            }
+
             <div class="alert alert-info" style="margin-top: 16px;">
                 <ModuleIcon Type="info" Size="small" Style="default" />
                 <div>
@@ -420,6 +445,7 @@ else
                     <tr><td>Static Radial Factor</td><td>X₀</td><td>@staticX0.ToString("F2")</td><td>-</td></tr>
                     <tr><td>Static Axial Factor (ISO 76@(selectedBearingType == "AngularContact" ? isPairedMounting ? ", pair" : ", single row" : ""))</td><td>Y₀</td><td>@staticY0.ToString("F2")</td><td>-</td></tr>
                     <tr><td>Static Equivalent Load (P₀ = max(Fr, X₀Fr + Y₀Fa))</td><td>P₀</td><td>@((staticEquivalentLoad / 1000.0).ToString("F3")) kN</td><td>-</td></tr>
+                    <tr><td>Static Load Rating Used@(isPairedMounting ? " (2 × C₀ for the pair)" : "")</td><td>C₀</td><td>@staticRatingUsed.ToString("F2") kN</td><td>-</td></tr>
                     <tr class="@(staticSafety < 1.0 ? "danger" : staticSafety < 1.5 ? "warning" : "success")">
                         <td>Static Safety Factor</td><td>S₀</td><td>@staticSafety.ToString("F2")</td>
                         <td>@(staticSafety < 1.0 ? "❌ FAIL" : staticSafety < 1.5 ? "⚠️ Marginal" : "✓ OK")</td>
@@ -584,6 +610,8 @@ else
     private double staticEquivalentLoad = 0;
     private double staticX0 = 0;
     private double staticY0 = 0;
+    /// <summary>C0 of the whole arrangement: twice the catalogue value for a pair.</summary>
+    private double staticRatingUsed = 0;
 
     /// <summary>
     /// Whether the angular contact bearings are mounted as a matched pair (DB/DF)
@@ -794,8 +822,16 @@ else
                 staticY0 = 0.5;
                 staticEquivalentLoad = Math.Max(radialLoad, 0.6 * radialLoad + 0.5 * axialLoad);
             }
+            // The CAPACITY has to follow the arrangement too. X0 and Y0 were doubled
+            // for a pair while C0 stayed the single bearing's, so choosing "matched
+            // pair" HALVED the static safety factor of a joint it should roughly
+            // double: 2,12 against the 4,24 the pair actually has. Two identical
+            // bearings carrying one load share it, so ISO 76 takes C0 for the unit
+            // as twice one bearing's.
+            staticRatingUsed = isPairedMounting ? 2.0 * staticRating : staticRating;
+
             double P0_kN = staticEquivalentLoad / 1000.0;
-            staticSafety = P0_kN > 0 ? staticRating / P0_kN : 0;
+            staticSafety = P0_kN > 0 ? staticRatingUsed / P0_kN : 0;
 
             // Range checks. None of these stops the calculation - they say where
             // the answer stops being reliable, which nothing used to.

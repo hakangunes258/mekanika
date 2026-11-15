@@ -97,7 +97,7 @@ public class TaperFitTests
         Assert.Equal(locking, engine.IsSelfLocking);
 
         double phi = engine.HalfAngle * Math.PI / 180.0;
-        Assert.Equal(muStatic / Math.Cos(phi) > Math.Tan(phi), engine.IsSelfLocking);
+        Assert.Equal(muStatic > Math.Tan(phi), engine.IsSelfLocking);
     }
 
     /// <summary>
@@ -122,7 +122,7 @@ public class TaperFitTests
         double phi = engine.HalfAngle * Math.PI / 180.0;
         double area = Math.PI * (engine.MeanDiameter / 1000.0) * (engine.FitLength / 1000.0);
         double p = engine.ContactPressure * 1e6;
-        Assert.Equal(p * area * (Math.Tan(phi) - 0.15 / Math.Cos(phi)), engine.RequiredNutForce, 3);
+        Assert.Equal(p * area * (Math.Tan(phi) - 0.15), engine.RequiredNutForce, 3);
     }
 
     /// <summary>A self-holding taper needs a pull to come apart, and no nut.</summary>

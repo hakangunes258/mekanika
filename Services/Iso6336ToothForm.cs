@@ -75,7 +75,25 @@ public static class Iso6336ToothForm
                                        : z > 0 && d > 0 && da > d;
         if (z == 0 || mn <= 0 || !signsAgree)
         {
-            r.Warning = "Invalid geometry for tooth form calculation.";
+            // Name the condition that failed. "Invalid geometry for tooth form
+            // calculation." told the reader nothing, and on an annulus driven to a
+            // large negative profile shift - which is what a big x1 forces - the
+            // page then reported a root safety factor of 0,00 with no way to see
+            // that the tip circle had passed the reference circle.
+            if (z == 0)
+                r.Warning = "Tooth form not calculable: the tooth count is zero.";
+            else if (mn <= 0)
+                r.Warning = "Tooth form not calculable: the normal module is not positive.";
+            else if (internalGear)
+                r.Warning =
+                    $"Tooth form not calculable: on an internal gear the tip circle must lie inside the " +
+                    $"reference circle, and here |d_a| = {Math.Abs(da):F3} mm against |d| = {Math.Abs(d):F3} mm. " +
+                    $"A large profile shift on the pinion drives the annulus shift the other way, which is " +
+                    $"what moves the tip circle out past the reference circle.";
+            else
+                r.Warning =
+                    $"Tooth form not calculable: the tip circle must lie outside the reference circle, and " +
+                    $"here d_a = {da:F3} mm against d = {d:F3} mm.";
             return r;
         }
 

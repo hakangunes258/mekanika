@@ -233,22 +233,34 @@ public class SpringTests
     }
 
     /// <summary>
-    /// An open-coiled spring has no dead coils, so the pitch is (L0 - d)/n and
-    /// not (L0 - 2d)/n. Every end type used to get the same pitch.
+    /// L_0 = n*p + the axial length the ends take up, so the pitch follows the end
+    /// type: d for a plain (unground) end, 3d for a squared unground one, 2d for
+    /// squared and ground. Every end type used to get 2d; the open end was then
+    /// moved to 0, which is this test's own doc comment being right while the
+    /// assertion below it checked L_0/n.
     /// </summary>
     [Fact]
-    public void AnOpenEndHasNoDeadCoils()
+    public void TheCoilPitchFollowsTheEndType()
     {
         var open = Default80();
         open.EndType = "Open";
         open.Calculate();
-        Assert.Equal(80.0 / 8.0, open.CoilPitch, 9);
+        Assert.Equal((80.0 - 3.0) / 8.0, open.CoilPitch, 9);     // 9,625 mm, not 10,00
 
         var closed = Default80();
-        closed.EndType = "ClosedGround";
+        closed.EndType = "Closed";
         closed.Calculate();
-        Assert.Equal((80.0 - 6.0) / 8.0, closed.CoilPitch, 9);
-        Assert.True(open.CoilPitch > closed.CoilPitch);
+        Assert.Equal((80.0 - 9.0) / 8.0, closed.CoilPitch, 9);
+
+        var ground = Default80();
+        ground.EndType = "ClosedGround";
+        ground.Calculate();
+        Assert.Equal((80.0 - 6.0) / 8.0, ground.CoilPitch, 9);
+
+        // An unground end needs the extra half diameter at each end, so it has the
+        // least pitch left for the same free length.
+        Assert.True(open.CoilPitch > ground.CoilPitch);
+        Assert.True(ground.CoilPitch > closed.CoilPitch);
     }
 
     private static SpringEngine Spring4x32() => new()

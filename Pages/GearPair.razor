@@ -91,6 +91,10 @@
                     <input type="number" step="1" @bind="engine.NumberOfTeeth1" @bind:after="OnGeometryChanged" placeholder="e.g. 16" />
                     <span class="unit">-</span>
                 </div>
+                @* These two bind to an int, so a fractional entry never parses and the
+                   field snaps back to the value it held - which looked like 24,5 being
+                   silently truncated to 24 when 24 was simply the previous value. *@
+                <small class="hint">Whole teeth only — a fractional entry is discarded and the field keeps its previous value.</small>
             </div>
 
             <div class="form-group">
@@ -1271,8 +1275,8 @@ else
             <table class="results-table">
                 <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Min. Req.</th><th>Status</th></tr></thead>
                 <tbody>
-                    <tr class="@(engine.TransverseContactRatio >= 1.2 ? "success" : engine.TransverseContactRatio >= 1.0 ? "warning" : "danger")">
-                        <td>Transverse Contact Ratio</td><td>&#949;<sub>&#945;</sub></td><td>@engine.TransverseContactRatio.ToString("F3")</td><td>&#8805; 1.2</td><td>@(engine.TransverseContactRatio >= 1.2 ? "✓ OK" : engine.TransverseContactRatio >= 1.0 ? "⚠️ Marginal" : "❌ FAIL")</td></tr>
+                    <tr class="@GatedClass(engine.TransverseContactRatio >= 1.2 ? "success" : engine.TransverseContactRatio >= 1.0 ? "warning" : "danger")">
+                        <td>Transverse Contact Ratio</td><td>&#949;<sub>&#945;</sub></td><td>@engine.TransverseContactRatio.ToString("F3")</td><td>&#8805; 1.2</td><td>@Gated(engine.TransverseContactRatio >= 1.2 ? "✓ OK" : engine.TransverseContactRatio >= 1.0 ? "⚠️ Marginal" : "❌ FAIL")</td></tr>
                     <tr><td>Overlap Ratio</td><td>&#949;<sub>&#946;</sub></td><td>@engine.OverlapRatio.ToString("F3")</td><td>-</td><td>-</td></tr>
                     <tr class="highlight"><td>Total Contact Ratio</td><td>&#949;<sub>&#947;</sub></td><td>@engine.TotalContactRatio.ToString("F3")</td><td>-</td><td>-</td></tr>
                     <tr><td>Virtual Contact Ratio</td><td>&#949;<sub>&#945;n</sub></td><td>@engine.VirtualContactRatio.ToString("F3")</td><td>-</td><td>-</td></tr>
@@ -1283,8 +1287,8 @@ else
                        PATH they describe and the approach/recess designation follows the driver. *@
                     <tr><td>Path A&#8594;C (@(engine.PinionDrives ? "approach" : "recess")) / Contact Ratio</td><td>g<sub>f</sub> / &#949;<sub>1</sub></td><td>@engine.ApproachPath.ToString("F3") / @engine.ApproachContactRatio.ToString("F3")</td><td>mm / -</td><td>-</td></tr>
                     <tr><td>Path C&#8594;E (@(engine.PinionDrives ? "recess" : "approach")) / Contact Ratio</td><td>g<sub>a</sub> / &#949;<sub>2</sub></td><td>@engine.RecessPath.ToString("F3") / @engine.RecessContactRatio.ToString("F3")</td><td>mm / -</td><td>-</td></tr>
-                    <tr class="@(Math.Abs(engine.SpecificSliding1) > 3.0 ? "warning" : "")"><td>Specific Sliding at Pinion Root</td><td>&#950;<sub>1</sub></td><td>@engine.SpecificSliding1.ToString("F3")</td><td>|&#950;| &#8804; 3</td><td>@(Math.Abs(engine.SpecificSliding1) > 3.0 ? "⚠️ High" : "✓ OK")</td></tr>
-                    <tr class="@(Math.Abs(engine.SpecificSliding2) > 3.0 ? "warning" : "")"><td>Specific Sliding at @(Internal ? "Internal Gear" : "Wheel") Root</td><td>&#950;<sub>2</sub></td><td>@engine.SpecificSliding2.ToString("F3")</td><td>|&#950;| &#8804; 3</td><td>@(Math.Abs(engine.SpecificSliding2) > 3.0 ? "⚠️ High" : "✓ OK")</td></tr>
+                    <tr class="@GatedClass(Math.Abs(engine.SpecificSliding1) > 3.0 ? "warning" : "")"><td>Specific Sliding at Pinion Root</td><td>&#950;<sub>1</sub></td><td>@engine.SpecificSliding1.ToString("F3")</td><td>|&#950;| &#8804; 3</td><td>@Gated(Math.Abs(engine.SpecificSliding1) > 3.0 ? "⚠️ High" : "✓ OK")</td></tr>
+                    <tr class="@GatedClass(Math.Abs(engine.SpecificSliding2) > 3.0 ? "warning" : "")"><td>Specific Sliding at @(Internal ? "Internal Gear" : "Wheel") Root</td><td>&#950;<sub>2</sub></td><td>@engine.SpecificSliding2.ToString("F3")</td><td>|&#950;| &#8804; 3</td><td>@Gated(Math.Abs(engine.SpecificSliding2) > 3.0 ? "⚠️ High" : "✓ OK")</td></tr>
                     <tr><td>Gear Loss Factor</td><td>H<sub>V</sub></td><td>@engine.ToothLossFactor.ToString("F4")</td><td>-</td><td>-</td></tr>
                 </tbody>
             </table>
@@ -1948,7 +1952,7 @@ else
                             <td>@engine.RootSafetyFactor1.ToString("F2")</td>
                             <td>@engine.RootSafetyFactor2.ToString("F2")</td>
                             <td>&#8805; @GearPairEngine.MinSafetyFactorRoot.ToString("F2")</td>
-                            <td>@GetSafetyStatus(engine.MinRootSafety, GearPairEngine.MinSafetyFactorRoot)</td>
+                            <td>@Gated(GetSafetyStatus(engine.MinRootSafety, GearPairEngine.MinSafetyFactorRoot))</td>
                         </tr>
                     }
                     <tr class="@GetSafetyRowClass(engine.MinFlankSafety, GearPairEngine.MinSafetyFactorFlank)">
@@ -1956,15 +1960,15 @@ else
                         <td>@engine.FlankSafetyFactor1.ToString("F2")</td>
                         <td>@engine.FlankSafetyFactor2.ToString("F2")</td>
                         <td>&#8805; @GearPairEngine.MinSafetyFactorFlank.ToString("F2")</td>
-                        <td>@GetSafetyStatus(engine.MinFlankSafety, GearPairEngine.MinSafetyFactorFlank)</td>
+                        <td>@Gated(GetSafetyStatus(engine.MinFlankSafety, GearPairEngine.MinSafetyFactorFlank))</td>
                     </tr>
                     @if (engine.Micropitting is { Valid: true } mps)
                     {
-                        <tr class="@(mps.SafetyFactor < 1 ? "danger" : mps.SafetyFactor < 2 ? "warning" : "success")">
+                        <tr class="@GatedClass(mps.SafetyFactor < 1 ? "danger" : mps.SafetyFactor < 2 ? "warning" : "success")">
                             <td>Micropitting Safety</td><td>S<sub>&#955;</sub></td>
                             <td colspan="2">@mps.SafetyFactor.ToString("F2")</td>
                             <td>&#8805; 2 preferred</td>
-                            <td>@(mps.SafetyFactor < 1 ? "❌ FAIL" : mps.SafetyFactor < 2 ? "⚠️ Marginal" : "✓ OK")</td>
+                            <td>@Gated(mps.SafetyFactor < 1 ? "❌ FAIL" : mps.SafetyFactor < 2 ? "⚠️ Marginal" : "✓ OK")</td>
                         </tr>
                     }
                     @if (engine.Scuffing is { Valid: true } scs)
@@ -2009,14 +2013,51 @@ else
                ISO 6336". *@
             @if (engine.InternalGearWarnings.Count > 0)
             {
+                @* The band named "an interference or clearance check" for every entry in
+                   this list, and the list also carries the rim thickness limit - so a
+                   thin annulus rim was reported as an interference failure and told the
+                   reader to look at the involutes. It names the failing checks now. *@
                 <div class="alert alert-danger" style="margin-top: 16px;">
                     <ModuleIcon Type="warning" Size="small" Style="default" CustomStyle="margin-right: 8px;" />
                     <div>
-                        <strong>FAIL — the geometry is not workable.</strong>
-                        @(engine.InternalGearWarnings.Count == 1 ? "An interference or clearance check" : $"{engine.InternalGearWarnings.Count} of the interference and clearance checks")
-                        above @(engine.InternalGearWarnings.Count == 1 ? "has" : "have") failed. Fix that first:
-                        the safety factors, the contact ratio and the sliding velocities all assume a mesh that
-                        runs on both involutes, so none of them applies until this does.
+                        <strong>FAIL — the geometry is not workable:</strong>
+                        @string.Join("; ", GeometryFailureHeadings()).
+                        @if (GeometryFailuresAffectTheMesh())
+                        {
+                            <text>
+                                Fix that first: the safety factors, the contact ratio and the sliding velocities
+                                all assume a mesh that runs on both involutes, so none of them applies until
+                                this does.
+                            </text>
+                        }
+                        else
+                        {
+                            <text>
+                                The contact geometry itself is sound, so the contact ratio and the sliding below
+                                still apply. What fails above is a limit of validity that none of the safety
+                                factors on this page covers — read it in full in the checks card.
+                            </text>
+                        }
+                    </div>
+                </div>
+            }
+            @* A tooth form that could not be evaluated leaves the root safety factor at
+               0, and the band below then announced "the tooth root safety factor is
+               0,00 - the calculated stress exceeds the permissible stress". No stress
+               was calculated at all. The summary table already says "not evaluable";
+               the verdict has to agree with it. *@
+            else if (!engine.ToothFormValid1 || !engine.ToothFormValid2)
+            {
+                <div class="alert alert-danger" style="margin-top: 16px;">
+                    <ModuleIcon Type="warning" Size="small" Style="default" CustomStyle="margin-right: 8px;" />
+                    <div>
+                        <strong>FAIL — the tooth form could not be calculated</strong>
+                        for @(!engine.ToothFormValid1 && !engine.ToothFormValid2
+                                ? "either gear"
+                                : !engine.ToothFormValid1 ? "the pinion" : Internal ? "the internal gear" : "the wheel").
+                        There is no root stress to compare, so the root safety factor is not a result —
+                        the reason is given with the tooth form figures above. The flank side is unaffected
+                        by it, but check the geometry before reading anything here.
                     </div>
                 </div>
             }
@@ -2058,7 +2099,7 @@ else
                    could sit directly under a red micropitting row and contradict it. Scuffing
                    and micropitting are different standards, so they do not turn the band red -
                    but they do stop it claiming everything passed. *@
-                <div class="alert alert-warning" style="margin-top: 16px;"><ModuleIcon Type="warning" Size="small" Style="default" CustomStyle="margin-right: 8px;" /> <strong>Note:</strong> Tooth root and flank meet ISO 6336, but @string.Join(" and ", falling) above @(falling.Count > 1 ? "are" : "is") not satisfied. Read those sections before accepting the design.</div>
+                <div class="alert alert-warning" style="margin-top: 16px;"><ModuleIcon Type="warning" Size="small" Style="default" CustomStyle="margin-right: 8px;" /> <strong>Note:</strong> The tooth root and flank safety factors meet ISO 6336, but @string.Join("; ", falling). Read those sections before accepting the design.</div>
             }
             else
             {
@@ -2604,17 +2645,24 @@ else
        value is still 0. Showing a bare 0 in the box invites the user to "correct" it, which
        silently flips the field into manual mode - exactly the trap the asymmetric default
        used to spring. Fall back to 1.000 until there is a real number. */
+    /* Rounded to three decimals. The calculated factor is a full double, so after
+       Back to Input the box read 1.1897447970152475 - fifteen digits of a figure the
+       standard quotes to three, and a number nobody can retype. Rounding only the
+       DISPLAY would make the field disagree with itself the moment it is touched,
+       since touching it switches to manual mode and stores what is shown; rounding
+       here keeps the two the same, and 0,001 on K_V is far below the accuracy of
+       any input it comes from. */
     private double KvShown
     {
-        get => engine.UseDirectDynamicFactor ? engine.DirectKV
-             : engine.DynamicFactor > 0 ? engine.DynamicFactor : 1.0;
+        get => Math.Round(engine.UseDirectDynamicFactor ? engine.DirectKV
+             : engine.DynamicFactor > 0 ? engine.DynamicFactor : 1.0, 3);
         set { engine.DirectKV = value; engine.UseDirectDynamicFactor = true; }
     }
 
     private double KhbShown
     {
-        get => engine.UseDirectFaceLoadFactor ? engine.DirectKHbeta
-             : engine.FaceLoadFactorFlank > 0 ? engine.FaceLoadFactorFlank : 1.0;
+        get => Math.Round(engine.UseDirectFaceLoadFactor ? engine.DirectKHbeta
+             : engine.FaceLoadFactorFlank > 0 ? engine.FaceLoadFactorFlank : 1.0, 3);
         set { engine.DirectKHbeta = value; engine.UseDirectFaceLoadFactor = true; }
     }
 
@@ -2651,8 +2699,25 @@ else
             falling.Add($"scuffing (margin {sc.MarginKelvin:F0} K, below the 50 K the standard suggests)");
         if (engine.ScuffingIntegral is { Valid: true } si && si.SafetyFactor < 1.8)
             falling.Add($"scuffing by the integral method (S_intS {si.SafetyFactor:F2} < 1.8)");
-        if (engine.Micropitting is { Valid: true } mp && mp.SafetyFactor < 1.0)
-            falling.Add($"micropitting (S_lambda {mp.SafetyFactor:F2} < 1.00)");
+        // Undercut reaches the verdict. It was reported in its own warning box and
+        // then left out of the decision, so a pair with x1 below x_min could still
+        // end on a band that mentioned only micropitting. It is not a FAIL: an
+        // undercut gear meshes and runs. But the ISO 6336-3 root model assumes a
+        // rack-generated fillet on an un-undercut flank, so the root safety factor
+        // above is outside the model's own ground, and the verdict has to say so.
+        if (engine.ProfileShiftCoeff1 < engine.MinProfileShift1)
+            falling.Add($"undercut on the pinion (x₁ = {engine.ProfileShiftCoeff1:F4} below x_min = {engine.MinProfileShift1:F4}), so the root model does not describe its fillet");
+        if (!Internal && engine.ProfileShiftCoeff2 < engine.MinProfileShift2)
+            falling.Add($"undercut on the wheel (x₂ = {engine.ProfileShiftCoeff2:F4} below x_min = {engine.MinProfileShift2:F4}), so the root model does not describe its fillet");
+
+        // The results row marks 1 to 2 as marginal against "2 preferred", so a band
+        // claiming "the micropitting checks above are satisfied" under an S_lambda of
+        // 1,09 contradicted the table it sat below. The threshold here is now the
+        // same 2 the row states.
+        if (engine.Micropitting is { Valid: true } mp && mp.SafetyFactor < 2.0)
+            falling.Add(mp.SafetyFactor < 1.0
+                ? $"micropitting (S_lambda {mp.SafetyFactor:F2}, below 1,00)"
+                : $"micropitting (S_lambda {mp.SafetyFactor:F2}, below the 2 this module prefers)");
         return falling;
     }
 
@@ -4064,6 +4129,56 @@ else
         return "✓ OK";
     }
 
+    /// <summary>
+    /// Whether the mesh the numbers below describe can physically happen. Every
+    /// contact-based result - the contact ratio, the specific sliding, the flank and
+    /// root safety factors, scuffing and micropitting - assumes a mesh running on
+    /// both involutes, so when an interference or clearance check has failed none of
+    /// them means anything.
+    /// </summary>
+    private bool GeometryWorkable => !GeometryFailuresAffectTheMesh();
+
+    /// <summary>
+    /// The leading phrase of each failing geometry check, for the verdict band. The
+    /// full text stays in the checks card above.
+    /// </summary>
+    private List<string> GeometryFailureHeadings()
+    {
+        var heads = new List<string>();
+        foreach (var w in engine.InternalGearWarnings)
+        {
+            // Whichever comes first: the colon these messages use to separate the
+            // name of the failure from its explanation, or the end of the first
+            // sentence for the ones written without a colon.
+            int colon = w.IndexOf(':');
+            int stop = w.IndexOf(". ", StringComparison.Ordinal);
+            int cut = colon > 0 && (stop < 0 || colon < stop) ? colon : stop;
+            string head = cut > 0 ? w.Substring(0, cut) : w;
+            if (head.Length > 140) head = head.Substring(0, 140) + "…";
+            heads.Add(char.ToLowerInvariant(head[0]) + head.Substring(1));
+        }
+        return heads;
+    }
+
+    /// <summary>
+    /// Whether any failing check describes a mesh that cannot happen. The rim
+    /// thickness limit of ISO 6336-3 sits in the same list and does not: the teeth
+    /// mesh perfectly well, the rim is simply too thin for the standard's root model.
+    /// Treating it as interference invalidated results that are in fact valid.
+    /// </summary>
+    private bool GeometryFailuresAffectTheMesh() =>
+        engine.InternalGearWarnings.Any(w => !w.StartsWith("Rim thickness", StringComparison.Ordinal));
+
+    /// <summary>
+    /// The verdict said FAIL while epsilon_alpha, zeta_1 (at 0,000) and both safety
+    /// factors kept a green tick beside them, so a reader looking at the table saw
+    /// the opposite of the verdict. A result that rests on a mesh that cannot happen
+    /// is reported as such rather than graded.
+    /// </summary>
+    private string Gated(string status) => GeometryWorkable ? status : "— geometry invalid";
+
+    private string GatedClass(string rowClass) => GeometryWorkable ? rowClass : "";
+
     private async Task Calculate()
     {
         isCalculating = true;
@@ -4087,6 +4202,21 @@ else
             validationMessages.Add("The internal gear needs more teeth than the pinion inside it (z₂ > z₁).");
         if (Internal && engine.RingOuterDiameter < 0)
             validationMessages.Add("Rim outside diameter (Dₒ) cannot be negative; enter 0 to leave the rim unchecked.");
+
+        // Out-of-range angles come BEFORE the geometry that depends on them. At
+        // β = 60° the only message shown was "Dₒ must be larger than the annulus
+        // root diameter" - true, but a consequence: the root diameter had moved
+        // because the helix angle was impossible in the first place. The reader
+        // fixed Dₒ, pressed Calculate again, and only then saw the real cause.
+        //
+        // ISO 6336 is written for the common pressure angles. 45° was accepted
+        // and reported "OK" with a pointed tooth on both gears.
+        if (engine.PressureAngle < 10 || engine.PressureAngle > 30)
+            validationMessages.Add($"A normal pressure angle of {engine.PressureAngle:0.#}° is outside the range "
+                                 + "ISO 6336 covers. Standard tooling is 20°; 14,5° to 25° is the usable band.");
+        if (Math.Abs(engine.HelixAngle) >= 45)
+            validationMessages.Add($"A helix angle of {engine.HelixAngle:0.#}° is beyond what ISO 6336 covers "
+                                 + "(it is written for up to about 30°, and the tolerance standards stop sooner).");
 
         // A bore larger than the root circle is not a gear. It was accepted with
         // no warning at all, gave a NEGATIVE rim thickness - which Y_B then
@@ -4122,14 +4252,6 @@ else
                                      + "negative, which Y_B silently reads as a solid blank.");
         }
 
-        // ISO 6336 is written for the common pressure angles. 45° was accepted
-        // and reported "OK" with a pointed tooth on both gears.
-        if (engine.PressureAngle < 10 || engine.PressureAngle > 30)
-            validationMessages.Add($"A normal pressure angle of {engine.PressureAngle:0.#}° is outside the range "
-                                 + "ISO 6336 covers. Standard tooling is 20°; 14,5° to 25° is the usable band.");
-        if (Math.Abs(engine.HelixAngle) >= 45)
-            validationMessages.Add($"A helix angle of {engine.HelixAngle:0.#}° is beyond what ISO 6336 covers "
-                                 + "(it is written for up to about 30°, and the tolerance standards stop sooner).");
 
         // cos α_wt = a_d cos α_t / a must not exceed 1. Below a_d cos α_t no working pressure
         // angle exists; the engine would clamp it to 0° and return an infinite zone factor.

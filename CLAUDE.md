@@ -2512,6 +2512,119 @@ the key connection in its description, keywords and `VerificationStandards`, wit
 `IsVerified = true`, while the engine uses 0,9·R_e practice values. Decide the flag and the
 description together when the standard is to hand.
 
+### **The Nov 2026 re-check of the fixes**
+
+The user re-tested all thirteen routes in a browser after the round above and recorded a
+"Yeniden Kontrol — 15.11.2026" section per module (Joplin, `Business / Programlar /
+Mekanika`). Every earlier finding was confirmed fixed and the numbers reproduced; what came
+back was a short list of new ones, which were verified against the code and then fixed. Two
+patterns are worth carrying forward.
+
+**A fix can land on the far side of the right answer, and a test whose doc comment is right
+can assert the wrong thing.** The compression spring's coil pitch had been moved from
+`(L0 - 2d)/n` to `L0/n` for an open end. The correct relation is `(L0 - d)/n`:
+`L_0 = n·p +` the axial length the ends take up, which is `d` for a plain unground end,
+`3d` for a squared unground one and `2d` for squared and ground. `SpringTests` already said
+"the pitch is (L0 - d)/n" in its own summary — directly above an assertion that checked
+`80.0 / 8.0`. Read the assertion, not the comment.
+
+**A quantity that is 1,00 by construction is still 1,00 by construction when it is renamed.**
+The single bolt's clamp margin had been fixed for exactly that (it was `FK_min/FKR_min`, and
+`FM_min` is *sized* as `FKR_min + FZ + FPA`). The slip safety factor beside it was
+`FK_min·μ_T·q_F/F_Q`, and `FKR_min` is itself `F_Q/(q_F·μ_T)` whenever slip governs it —
+so it too read 1,00 for every joint with a transverse load, in red. Both now measure against
+`F_M,zul/α_A − F_Z − F_PA`, the clamp force the bolt can be relied on to deliver, and when
+slip sets the requirement the two rows agree exactly — which is the check that they are
+margins rather than identities. On the reviewer's case: 1,00 → **0,19**.
+
+**The non-conservative ones:**
+
+| module | what was wrong | size |
+|---|---|---|
+| taper fit | self-locking tested μ_s/cos φ > tan φ, i.e. μ > **sin** φ, which is less strict than the classical μ > tan φ | 0,1 % at 1:10, 3 % at 1:2 |
+| single bolt | S_slip was 1,00 by construction (above) | 1,00 against 0,19 |
+| ball bearing | the matched-pair option doubled X₀ and Y₀ but left C₀ the single bearing's, so choosing a pair **halved** the static safety it should roughly double | S₀ 2,12 against 4,24 |
+| gear pair | the tip tooth thickness was only flagged below 0,2·m_n; a case-hardened gear wants 0,4·m_n | 0,23·m_n drew nothing |
+| roller bearing | only the PRODUCT e×Y was range-checked, so e = 5 with Y = 0,1 passed and the axial load then never counted at all | — |
+| compression spring | a working length below the solid length was computed: F₁ = 447,7 N and τ = 1200 MPa for a force that cannot exist | — |
+| single bolt | a bolt shorter than the stack it clamps still produced every safety factor (thread engagement −8,0 mm) | — |
+
+**The taper fit's cos φ, since it will look like a regression to anyone comparing numbers.**
+With the normal force on the slant surface `N = p·(π·d_m·L)/cos φ`, the wedge drives the hub
+off with the axial component `N·sin φ = p·area·tan φ`, and friction resists with the axial
+component of `μN`, which is `μN·cos φ = p·area·μ` — the cos φ of the slant area and the
+cos φ of the projection cancel. So the criterion is `μ_s > tan φ` and the three axial forces
+carry a bare μ. The torque capacity keeps the projected area `π·d_m²·L/2`, the usual
+engineering form, which drops a cos φ of its own; under 0,2 % for every self-holding taper
+offered. The worked example moved 53,53 → 53,48 kN, 26,79 → 26,74 kN, 18,76 → 18,72 kN, and
+the 1:2 nut force 179 → 188 kN. **1:30 was also labelled "DIN 254, non-self-holding"** and is
+nothing of the kind — half angle 0,95°, tan φ = 0,017. Every ratio in that list is
+self-holding; the non-self-holding machine taper is the steep 7:24, still not offered because
+nothing here models its retaining mechanism.
+
+**Where a verdict and the table under it disagreed, the table was right.** Four of these:
+
+- **A status cell must not stay green under a FAIL verdict.** On both gear pages ε_α, ζ₁
+  (at 0,000), S_F and S_H kept "✓ OK" beside a verdict saying the geometry is not workable.
+  `GatedClass` / `Gated` in `GearPair.razor` now render "— geometry invalid" for every
+  contact-based row when a check that describes the *mesh* has failed.
+- **Not every entry in `InternalGearWarnings` is an interference check.** The ISO 6336-3 rim
+  thickness limit sits in the same list, so a thin annulus rim was reported as interference
+  and sent the reader after the involutes. The band names the failing checks now
+  (`GeometryFailureHeadings`), and `GeometryFailuresAffectTheMesh` keeps the rim limit from
+  invalidating results that are in fact valid — the teeth mesh perfectly well, the rim is
+  simply outside the standard's root model.
+- **A tooth form that could not be evaluated is not a safety factor of 0,00.** The summary
+  table already said "not evaluable"; the verdict announced "the tooth root safety factor is
+  0,00 — the calculated stress exceeds the permissible stress". No stress was calculated.
+  It has its own branch, and `Iso6336ToothForm` now names the condition that failed with the
+  two diameters instead of "Invalid geometry for tooth form calculation."
+- **Micropitting reaches the verdict at the threshold its own row uses.** The row marks 1 to
+  2 as marginal against "2 preferred" while the verdict only counted below 1,00, so the
+  default pair read "the scuffing and micropitting checks above are satisfied" at
+  S_λ = 1,09. Undercut reaches it too, as a named note rather than a FAIL: an undercut gear
+  runs, but the ISO 6336-3 root model assumes a rack-generated fillet on an un-undercut
+  flank.
+
+**The single bolt's status bands were derived from one number and should not have been.**
+`GetStatus(sf, min)` failed below `min` and called anything under `min*1.2` low, so a clamp
+margin of 1,11 — which meets its 1,00 requirement, and which the engine itself only warns
+about — was reported as a FAIL, while 1,28 came back "Low". `GetBandClass`/`GetBandStatus`
+take both thresholds explicitly, matching the engine's own error-and-warning pair, and the
+thresholds are stated under the table. A negative margin reads 0,00 rather than −0,93: the
+separation case of the same joint already showed 0,00 for the same condition.
+
+**Three findings did not reproduce**, and the reasons are worth keeping:
+
+- The single bolt's "Under Head" washer does **not** clear when the joint type changes to a
+  tapped hole — driven through→tapped→through twice in a browser, the flag survives.
+  `OnJointTypeChanged` does not touch it and nothing else assigns it. What does reset it is
+  New Calculation, which returns both washer flags to their defaults (off).
+- δ_S and δ_P **are** on the results page, as the Elastic Resilience rows.
+- The ball bearing's `Fa > 0,5·C₀` warning does fire (6205 at F_a = 6000 N, F_r = 2000 N).
+
+**Left open deliberately, with the reason on the page:** the matched pair's *life* still runs
+as one bearing under the whole load. ISO 281's double-row X and Y column is not carried, and
+scaling C by 2^0,7 without the factors would overstate the life roughly fourfold — the
+conservative half of a fix is worse than none when the halves pull opposite ways. The results
+card says so and points at the manufacturer's matched-set values.
+
+**Smaller things, each because the page said something it did not mean:** the clamp
+connection's hub yield row read "✓ OK" for a lamellar iron hub whose own warning says to
+treat the number as indicative; the torsion spring's allowable stress was labelled
+"(0.70×Rm)" beside the 0,55·R_m of an opening load; the extension spring's "Expected Cycles
+(body) ∞" sat under a governing hook; the interference fit blamed ISO 286 for a diameter
+its own table does not reach; a taper cone that runs to a point also complained about d_i and
+D_a, which are consequences; the gear pages' out-of-range pressure and helix angle messages
+came *after* the geometry those angles invalidate; and the K_V / K_Hβ boxes returned fifteen
+digits of a figure the standard quotes to three.
+
+**Still waiting on sources,** unchanged from the round above: DIN 7190's assembly clearance,
+cooling α and the 0,8·Rz coefficient; DIN 6885-1 above 130 mm and its length series; DIN
+6892's permissible-pressure method; EN 10270's wire-diameter-dependent R_m for all three
+spring modules; EN 13906-2's preload band; EN 13906-3's reduction for an opening load;
+ISO 281 Table 3 for the 15° angular contact series; and current bearing catalogue values.
+
 ### **Navigation menu, and the one warm colour (Nov 2026)**
 
 The sidebar is **categorised and collapsible**, to the structure agreed in the Joplin
@@ -2797,8 +2910,8 @@ Aggressive:
 
 ---
 
-**Last Updated:** 2026-11-13
-**Template Version:** 3.2 (Nov 2026 review of all thirteen calculator routes)
+**Last Updated:** 2026-11-16
+**Template Version:** 3.3 (Nov 2026 re-check of the review fixes)
 **Standard Format:** `Pages/KeyConnection.razor` + `Services/KeyConnectionEngine.cs`
 **Contact:** contact@mekanika.org
 **YouTube:** youtube@mekanika.org

@@ -567,7 +567,10 @@ else
                         <tr><td>Fatigue Safety &mdash; hook</td><td>SF<sub>hook</sub></td><td>@engine.FatigueHookSafetyFactor.ToString("F2")</td><td>-</td></tr>
                     }
                     <tr class="highlight @(engine.FatigueGoverningSafetyFactor < 1.5 ? "warning" : "")"><td><strong>Governing &mdash; the @engine.FatigueGoverningSite</strong></td><td>SF<sub>fatigue</sub></td><td>@engine.FatigueGoverningSafetyFactor.ToString("F2")</td><td>-</td></tr>
-                    <tr><td>Expected Cycles (body)</td><td>N</td><td>@GetFatigueLifeText()</td><td>cycles</td></tr>
+                    @* "Expected Cycles (body) - infinite" sat under a governing hook safety
+                       of 2,27 and read as the spring's life. The note under the table says
+                       otherwise, but the row has to say it too. *@
+                    <tr><td>Expected Cycles (body)@(engine.FatigueGoverningSite == "body" ? "" : " — no estimate for the hook")</td><td>N</td><td>@GetFatigueLifeText()</td><td>cycles</td></tr>
                 </tbody>
             </table>
 

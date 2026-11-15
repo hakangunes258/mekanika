@@ -419,7 +419,10 @@ else
                         <tr class="@(engine.BendingStress2 > engine.AllowableBendingStress ? "danger" : engine.BendingStress2 > engine.AllowableBendingStress * 0.9 ? "warning" : "highlight")"><td>Bending Stress at α₂</td><td>σ<sub>2</sub></td><td>@engine.BendingStress2.ToString("F0")</td><td>MPa</td></tr>
                     }
                     <tr><td>Max Bending Stress (allowable)</td><td>σ<sub>max</sub></td><td>@engine.MaxBendingStress.ToString("F0")</td><td>MPa</td></tr>
-                    <tr><td>Allowable Bending Stress (0.70×R<sub>m</sub>)</td><td>σ<sub>zul</sub></td><td>@engine.AllowableBendingStress.ToString("F0")</td><td>MPa</td></tr>
+                    @* The factor is 0,70 Rm closing and 0,55 Rm opening, so the label has
+                       to read the ratio back rather than state one of them. It said
+                       "0.70×Rm" beside the 935 MPa of an opening load, which is 0,55. *@
+                    <tr><td>Allowable Bending Stress (@(engine.TensileStrength > 0 ? (engine.AllowableBendingStress / engine.TensileStrength).ToString("0.00") : "—")×R<sub>m</sub>@(engine.AllowableStressReducedForOpening ? ", reduced for an opening load" : ""))</td><td>σ<sub>zul</sub></td><td>@engine.AllowableBendingStress.ToString("F0")</td><td>MPa</td></tr>
                 </tbody>
             </table>
         </div>

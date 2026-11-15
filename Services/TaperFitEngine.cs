@@ -108,19 +108,23 @@ public class TaperFitEngine
     // Standard taper ratios
     // Morse tapers are all close to 1:20 (nominally 1:19.002 to 1:20.047
     // depending on the number) - there is no 1:50 Morse taper. 1:50 is a
-    // self-holding pin taper, and 1:30 is a non-self-holding tool taper.
+    // self-holding pin taper.
     // The metric TOOL taper of ISO 296 is 1:20, not 1:16. DIN 254 is the general
     // taper series and 1:16 is one of its members (pipe threads, among others),
-    // so calling 1:16 "Metric" pointed at the wrong thing. The steep 7:24
-    // machine taper (ISO 7388, SK/BT) is not a self-holding taper at all and is
-    // not offered: nothing in this module models the retaining mechanism it needs.
+    // so calling 1:16 "Metric" pointed at the wrong thing.
+    // 1:30 was labelled "non-self-holding" and is nothing of the kind: its half
+    // angle is 0,95 degrees, tan phi = 0,017, so it self-locks at any friction
+    // coefficient a real surface has. Every ratio in this list is self-holding;
+    // the non-self-holding machine taper is the steep 7:24 (ISO 7388, SK/BT),
+    // which is not offered because nothing in this module models the retaining
+    // mechanism it needs.
     public static readonly Dictionary<string, double> StandardTapers = new()
     {
         { "1:20 (Morse 0-6 and metric tool taper, approx.)", 20 },
         { "1:16 (DIN 254 general series)", 16 },
         { "1:10", 10 },
         { "1:5", 5 },
-        { "1:30 (DIN 254, non-self-holding)", 30 },
+        { "1:30 (DIN 254 general series)", 30 },
         { "1:50 (Taper pin, DIN 1B)", 50 }
     };
 
@@ -308,32 +312,46 @@ public class TaperFitEngine
 
         double area = Math.PI * dm * L;          // N/Pa, the conical contact term
         double tanPhi = Math.Tan(halfAngleRad);
-        double cosPhi = Math.Cos(halfAngleRad);
 
         // Self-locking is a property of the friction coefficient and the angle,
-        // not of a fixed angle threshold. The wedge pushes the hub back off with
-        // p*A*tan(phi); friction resists with p*A*mu/cos(phi). A 7,5 degree cut-off
-        // takes no account of mu at all: at mu_s = 0,10 a 1:5 taper (phi = 5,71)
-        // is already at its limit and drew no warning.
-        IsSelfLocking = muStatic / cosPhi > tanPhi;
+        // not of a fixed angle threshold. A 7,5 degree cut-off takes no account of
+        // mu at all: at mu_s = 0,10 a 1:5 taper (phi = 5,71) is already at its
+        // limit and drew no warning.
+        //
+        // The criterion is the classical mu > tan(phi), and the mu/cos(phi) this
+        // module shipped with was wrong. With the normal force N = p*A_slant =
+        // p*(pi*d_m*L)/cos(phi), the wedge drives the hub off with the AXIAL
+        // component N*sin(phi) = p*area*tan(phi), and friction resists with the
+        // AXIAL component of mu*N, which is mu*N*cos(phi) = p*area*mu - the
+        // cos(phi) of the slant area and the cos(phi) of the projection cancel.
+        // Taking the full mu*N as if it acted axially made the test mu > sin(phi),
+        // which is slightly LESS strict than the true one (sin phi < tan phi), so
+        // the old form declared a marginal cone self-locking when it is not.
+        // The error is 0,1 % on a 1:10 cone and 3 % on a 1:2 one.
+        //
+        // The torque capacity above keeps the projected area pi*d_m^2*L/2, which
+        // is the usual engineering form; its own cos(phi) is dropped on the same
+        // grounds, and for every self-holding taper in the list that is under
+        // 0,2 %.
+        IsSelfLocking = muStatic > tanPhi;
 
         // Force needed to pull the hub OFF, using the STATIC coefficient: this is
         // a break-loose condition, not sliding in service. Negative means the
         // cone ejects the hub by itself.
-        ExtractionForce = p * area * (muStatic / cosPhi - tanPhi);
+        ExtractionForce = p * area * (muStatic - tanPhi);
 
         // Service holding capacity against an axial load, using the DYNAMIC
         // coefficient. When the taper is not self-locking there is NO holding
         // capacity: the old code fell back to the absolute magnitude here, so a
         // 1:2 cone that ejects its own hub reported +232 kN of axial capacity.
-        double axialFactor = muDynamic / cosPhi - tanPhi;
+        double axialFactor = muDynamic - tanPhi;
         MaxAxialForceCapacity = axialFactor > 0 ? p * area * axialFactor : 0;
 
         // What a retaining nut has to hold when the taper cannot hold itself.
-        RequiredNutForce = IsSelfLocking ? 0 : p * area * (tanPhi - muStatic / cosPhi);
+        RequiredNutForce = IsSelfLocking ? 0 : p * area * (tanPhi - muStatic);
 
         // Required assembly force (pushing ON: friction and wedge both oppose it)
-        RequiredAssemblyForce = p * area * (muStatic / cosPhi + tanPhi);
+        RequiredAssemblyForce = p * area * (muStatic + tanPhi);
 
         // Combined loading. One friction interface carries both components, so
         // they are not independent — but unlike a cylindrical joint the two

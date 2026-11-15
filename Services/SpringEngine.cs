@@ -191,10 +191,26 @@ public class SpringEngine
             _ => TotalCoils * WireDiameter
         };
 
-        // Coil pitch in the free state. Only a CLOSED end has two dead coils
-        // taking up a wire diameter each; an open-coiled spring has none, so
-        // subtracting 2d there understated the pitch.
-        double deadLength = EndType == "Open" ? 0 : 2 * WireDiameter;
+        // Coil pitch in the free state: L_0 = n * p + (axial length the ends take
+        // up), so p = (L_0 - dead length) / n.
+        //
+        //   plain, unground       L_0 = n*p + d        dead = d
+        //   squared, unground     L_0 = n*p + 3d       dead = 3d
+        //   squared and ground    L_0 = n*p + 2d       dead = 2d
+        //
+        // The two dead coils of a squared end take a wire diameter each; the extra
+        // d on an UNGROUND end is the half diameter at each end that cannot lie
+        // flat, which is the same allowance the solid length above carries.
+        // An open end was given dead = 0, which reported p = L_0/n - 10,00 mm
+        // instead of 9,63 on the page's own example - after an earlier fix went
+        // from 2d straight past the right answer.
+        double deadLength = EndType switch
+        {
+            "Open" => WireDiameter,
+            "Closed" => 3 * WireDiameter,
+            "ClosedGround" => 2 * WireDiameter,
+            _ => 2 * WireDiameter
+        };
         CoilPitch = ActiveCoils > 0 ? (FreeLength - deadLength) / ActiveCoils : 0;
 
         // Wire length

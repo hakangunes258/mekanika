@@ -428,7 +428,10 @@ else
                 <tbody>
                     <tr class="@GetSafetyRowClass(engine.SafetyFactorSliding)"><td>Against Sliding (Torque + Axial)</td><td>SF<sub>slip</sub></td><td>@engine.SafetyFactorSliding.ToString("F2")</td><td>@GetSafetyStatus(engine.SafetyFactorSliding)</td></tr>
                     <tr class="@GetSafetyRowClass(engine.SafetyFactorBolt)"><td>Bolt Yield</td><td>SF<sub>bolt</sub></td><td>@engine.SafetyFactorBolt.ToString("F2")</td><td>@GetSafetyStatus(engine.SafetyFactorBolt)</td></tr>
-                    <tr class="@GetSafetyRowClass(engine.SafetyFactorHubStress)"><td>Hub Yield</td><td>SF<sub>hub</sub></td><td>@engine.SafetyFactorHubStress.ToString("F2")</td><td>@GetSafetyStatus(engine.SafetyFactorHubStress)</td></tr>
+                    @* A brittle hub carries a stand-in yield strength judged by the wrong
+                       criterion, and the warning above the table says to read the number as
+                       indicative. A green "✓ OK" in this cell said the opposite. *@
+                    <tr class="@(engine.BrittleHubMaterial ? "warning" : GetSafetyRowClass(engine.SafetyFactorHubStress))"><td>Hub Yield@(engine.BrittleHubMaterial ? " (lamellar iron)" : "")</td><td>SF<sub>hub</sub></td><td>@engine.SafetyFactorHubStress.ToString("F2")</td><td>@(engine.BrittleHubMaterial ? "⚠️ indicative only" : GetSafetyStatus(engine.SafetyFactorHubStress))</td></tr>
                     <tr class="@GetSafetyRowClass(engine.SafetyFactorPressure)"><td>Contact Pressure</td><td>SF<sub>p</sub></td><td>@engine.SafetyFactorPressure.ToString("F2")</td><td>@GetSafetyStatus(engine.SafetyFactorPressure)</td></tr>
                 </tbody>
             </table>

@@ -211,11 +211,18 @@ public static class GearToothMeasurement
             r.Notes.Add("The tooth is pointed - the tip diameter is above the point where the flanks meet. " +
                         "Reduce the profile shift or the tip diameter.");
         }
-        else if (r.san < 0.2 * g.mn)
+        else if (r.san < 0.4 * g.mn)
         {
-            r.Notes.Add($"Normal tip tooth thickness s_an = {r.san:F3} mm is below the usual minimum of " +
-                        $"0.2 m_n = {0.2 * g.mn:F3} mm. Hardened gears are normally kept above this to avoid " +
-                        "a brittle tip.");
+            // Two bands, because the usual limits differ by heat treatment and only
+            // the lower one was checked: a tip at 0,23 m_n drew no warning at all,
+            // which on a case-hardened gear is a tip that chips.
+            r.Notes.Add(r.san < 0.2 * g.mn
+                ? $"Normal tip tooth thickness s_an = {r.san:F3} mm is below 0.2 m_n = {0.2 * g.mn:F3} mm, " +
+                  "which is thin for any gear - the tip is close to pointed."
+                : $"Normal tip tooth thickness s_an = {r.san:F3} mm is {r.san / g.mn:F2} m_n. A case-hardened " +
+                  $"gear is normally kept above 0.4 m_n = {0.4 * g.mn:F3} mm, since a thin tip is brittle once " +
+                  "the case follows the profile round it; 0.2 m_n is the limit usually quoted for a " +
+                  "through-hardened one.");
         }
 
         // ---------- Chordal tooth thickness (gear tooth caliper) ----------
@@ -277,9 +284,12 @@ public static class GearToothMeasurement
         if (r.sat <= 0)
             r.Notes.Add("The internal gear's tooth is pointed at its tip diameter. Increase the tip diameter "
                       + "(a larger d_a2 shortens the annulus tooth) or reduce x2.");
-        else if (r.san < 0.2 * g.mn)
-            r.Notes.Add($"Normal tip tooth thickness s_an = {r.san:F3} mm is below the usual minimum of "
-                      + $"0.2 m_n = {0.2 * g.mn:F3} mm.");
+        else if (r.san < 0.4 * g.mn)
+            r.Notes.Add(r.san < 0.2 * g.mn
+                ? $"Normal tip tooth thickness s_an = {r.san:F3} mm is below 0.2 m_n = {0.2 * g.mn:F3} mm, "
+                  + "which is thin for any gear - the tip is close to pointed."
+                : $"Normal tip tooth thickness s_an = {r.san:F3} mm is {r.san / g.mn:F2} m_n. A case-hardened "
+                  + $"gear is normally kept above 0.4 m_n = {0.4 * g.mn:F3} mm.");
 
         double cosBetaB = Math.Cos(betaBRad);
         r.zn = g.z / (cosBetaB * cosBetaB * Math.Cos(betaRad));

@@ -128,4 +128,39 @@ public class GearFactorTests
         Assert.Equal(7.6604, expected, 4);
         Assert.Equal(expected, result.Wk, 4);
     }
+
+    /// <summary>
+    /// The tip tooth thickness was only flagged below 0,2 m_n, so a tip at 0,23 m_n
+    /// drew nothing at all - thin enough to chip on a case-hardened gear, where the
+    /// usual lower limit is 0,4 m_n. Two bands now, and the note names the one that
+    /// applies.
+    /// </summary>
+    [Fact]
+    public void AThinTipIsFlaggedAgainstBothLimits()
+    {
+        static GearToothMeasurement.Result Run(double da)
+            => GearToothMeasurement.Calculate(new GearToothMeasurement.GearInput
+            {
+                z = 20, mn = 1, alphaN = 20, beta = 0, x = 0,
+                d = 20, db = 20 * System.Math.Cos(20 * System.Math.PI / 180.0),
+                da = da, df = 17.5, b = 20, SpanTeeth = 3
+            });
+
+        var healthy = Run(22);
+        Assert.True(healthy.san > 0.4, "an unshifted 20-tooth gear has a full tip");
+        Assert.DoesNotContain(healthy.Notes, n => n.Contains("tip tooth thickness"));
+
+        // Lengthening the tip thins it. Find the band between 0,2 and 0,4 m_n and the
+        // one below 0,2, and check each gets its own wording.
+        var middle = Run(22.6);
+        Assert.InRange(middle.san, 0.2, 0.4);
+        Assert.Contains(middle.Notes, n => n.Contains("0.4 m_n"));
+
+        var thin = Run(22.8);
+        Assert.True(thin.san < 0.2, $"s_an came out {thin.san:F3}");
+        Assert.Contains(thin.Notes, n => n.Contains("below 0.2 m_n"));
+
+        // And past the point where the flanks meet it is pointed, not merely thin.
+        Assert.Contains(Run(23.2).Notes, n => n.Contains("pointed"));
+    }
 }

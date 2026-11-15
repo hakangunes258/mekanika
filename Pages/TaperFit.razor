@@ -384,7 +384,7 @@ else
                     <tr class="highlight"><td>Required Assembly Force (μ<sub>s</sub> = @engine.FrictionCoefficientStatic.ToString("F2"))</td><td>F<sub>asm</sub></td><td>@((engine.RequiredAssemblyForce/1000).ToString("F2"))</td><td>kN</td></tr>
                     <tr><td colspan="4" style="background: #f8f9fa; font-weight: 600; padding: 8px 16px;">Self-Locking (μ<sub>s</sub> against tan φ)</td></tr>
                     <tr class="@(engine.IsSelfLocking ? "success" : "danger")">
-                        <td>Self-Locking?</td><td>μ<sub>s</sub>/cos φ &gt; tan φ</td>
+                        <td>Self-Locking?</td><td>μ<sub>s</sub> &gt; tan φ</td>
                         <td>@(engine.IsSelfLocking ? "yes" : "no")</td>
                         <td>@(engine.IsSelfLocking ? "✓ holds itself" : "❌ ejects the hub")</td>
                     </tr>
@@ -411,7 +411,7 @@ else
                         <strong>This taper is not self-locking, so it has no axial holding capacity at all.</strong>
                         At a half angle of @engine.HalfAngle.ToString("F2")° the wedge pushes the hub back off
                         harder than friction holds it (tan φ = @Math.Tan(engine.HalfAngle * Math.PI / 180).ToString("F3")
-                        against μ<sub>s</sub>/cos φ = @((engine.FrictionCoefficientStatic / Math.Cos(engine.HalfAngle * Math.PI / 180)).ToString("F3"))).
+                        against μ<sub>s</sub> = @engine.FrictionCoefficientStatic.ToString("F3")).
                         The joint will not stay together without a nut holding at least
                         @((engine.RequiredNutForce/1000).ToString("F1")) kN, and that preload is not modelled here —
                         the torque capacity above assumes the stated contact pressure is maintained.
@@ -742,12 +742,20 @@ else
                 double dLarge = engine.MeanDiameter + deltaD / 2.0;
 
                 if (dSmall <= 0)
+                {
+                    // Name only this. The bore and hub messages below are consequences
+                    // of the same input error, and leading with "Da must be larger than
+                    // the large-end diameter" sent the reader after the wrong field.
                     validationMessages.Add($"This length and taper ratio run the cone to a point: the small-end diameter would be {dSmall:F2} mm. Shorten the fit length or use a shallower taper.");
-                else if (engine.ShaftInnerDiameter >= dSmall)
-                    validationMessages.Add($"Shaft inner diameter (di) must be smaller than the small-end diameter ({dSmall:F2} mm), or the shaft has no wall there. Enter 0 for a solid shaft.");
+                }
+                else
+                {
+                    if (engine.ShaftInnerDiameter >= dSmall)
+                        validationMessages.Add($"Shaft inner diameter (di) must be smaller than the small-end diameter ({dSmall:F2} mm), or the shaft has no wall there. Enter 0 for a solid shaft.");
 
-                if (engine.HubOuterDiameter > 0 && engine.HubOuterDiameter <= dLarge)
-                    validationMessages.Add($"Hub outer diameter (Da) must be larger than the large-end diameter ({dLarge:F2} mm), not just than the mean diameter.");
+                    if (engine.HubOuterDiameter > 0 && engine.HubOuterDiameter <= dLarge)
+                        validationMessages.Add($"Hub outer diameter (Da) must be larger than the large-end diameter ({dLarge:F2} mm), not just than the mean diameter.");
+                }
             }
 
             if (engine.ShaftInnerDiameter < 0)

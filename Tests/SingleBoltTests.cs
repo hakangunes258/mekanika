@@ -96,6 +96,51 @@ public class SingleBoltTests
     }
 
     /// <summary>
+    /// The slip safety factor was FK_min x mu_T x q / F_Q, and FK_min collapses to
+    /// FKR_min, which when slip governs IS F_Q/(q mu_T) - so the ratio was 1,00 BY
+    /// CONSTRUCTION, reported in red for every joint with a transverse load. It is
+    /// now measured against the clamp force the bolt can be relied on to deliver,
+    /// the same quantity the clamp margin uses, so the two agree exactly whenever
+    /// slip is what sets the requirement.
+    /// </summary>
+    [Fact]
+    public void TheSlipSafetyFactorIsAMarginAndNotAnIdentity()
+    {
+        var input = Default();
+        input.ShearForce = 4000;
+        input.LoadCase = LoadCaseType.AxialAndTransverse;
+        var r = Run(input);
+
+        Assert.NotEqual(1.0, Math.Round(r.SF_slip, 2));
+        Assert.Equal(
+            r.FKR_available * input.InterfaceFriction * input.NumberOfInterfaces / 4000.0,
+            r.SF_slip, 6);
+
+        // Slip governs FKR_min here, so the two margins are the same number.
+        Assert.Equal(r.FKR_slip, r.FKR_min, 0);
+        Assert.Equal(r.SF_clamp, r.SF_slip, 6);
+        Assert.True(r.SF_slip < 1.0, "this M12 cannot hold 4 kN of shear by friction");
+    }
+
+    /// <summary>
+    /// A negative safety factor is not a result. With an impact wrench the available
+    /// residual clamp force goes negative and the margin read -0,93, while the
+    /// separation case of the same joint reported 0,00 for the same condition.
+    /// </summary>
+    [Fact]
+    public void AnOpenJointHasAZeroClampMarginAndNotANegativeOne()
+    {
+        var input = Default();
+        input.RequiredResidualClampForce = 5000;
+        input.TighteningMethod = "Impact wrench";
+        var r = Run(input);
+
+        Assert.True(r.FKR_available < 0, "the bolt cannot be preloaded hard enough");
+        Assert.Equal(0.0, r.SF_clamp);
+        Assert.Equal(999.0, r.SF_slip);     // no transverse load
+    }
+
+    /// <summary>
     /// A working moment at the interface tries to lift one edge. The clamp force
     /// has to keep the whole face in compression:
     ///   F_K,req = M_B . A/W, with A and W of the annular interface.

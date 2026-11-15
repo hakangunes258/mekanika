@@ -639,7 +639,7 @@ else
             if (engine.RotationalSpeed < 0)
                 validationMessages.Add("Rotational speed cannot be negative.");
             if (toleranceWarning != null)
-                validationMessages.Add("The selected fit has no ISO 286 deviations at this diameter, so the deviations are all zero. Pick another fit or switch to Custom.");
+                validationMessages.Add("This diameter is outside the ISO 286 table built into the site, which runs to 500 mm, so the deviations for the selected fit come out zero. ISO 286-2 itself goes further; enter the deviations with the Custom option.");
 
             if (validationMessages.Count > 0)
             {

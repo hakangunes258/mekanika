@@ -39,11 +39,19 @@ U_e = 2 U_r - 0,8 (Rz_1 + Rz_2)        effective diametral interference
 p   = U_e / [ d_m . (C_1/E_1 + C_2/E_2) ]
 
 T_cap = mu_d . p . pi . d_m^2 . L / 2                    torque capacity
-F_asm = p . pi . d_m . L . (mu_s/cos phi + tan phi)      force to press ON
-F_ext = p . pi . d_m . L . (mu_s/cos phi - tan phi)      force to pull OFF
-F_a   = p . pi . d_m . L . (mu_d/cos phi - tan phi)      axial capacity in service
+F_asm = p . pi . d_m . L . (mu_s + tan phi)              force to press ON
+F_ext = p . pi . d_m . L . (mu_s - tan phi)              force to pull OFF
+F_a   = p . pi . d_m . L . (mu_d - tan phi)              axial capacity in service
 
-self-locking  when  mu_s/cos phi &gt; tan phi   (i.e. mu_s &gt; sin phi)</pre>
+self-locking  when  mu_s &gt; tan phi</pre>
+            <p>The friction term in the three axial forces carries no cos&nbsp;&phi;. The normal
+            force on the slant surface is p&middot;&pi;&middot;d<sub>m</sub>&middot;L/cos&nbsp;&phi;,
+            and only the axial component &micro;N&middot;cos&nbsp;&phi; of the friction opposes the
+            wedge, so the two cosines cancel and the condition is the classical
+            &micro;<sub>s</sub>&nbsp;&gt;&nbsp;tan&nbsp;&phi;. The torque capacity keeps the
+            projected area &pi;&middot;d<sub>m</sub>&sup2;&middot;L/2, the usual engineering form,
+            which drops a cos&nbsp;&phi; of its own &mdash; under 0,2&nbsp;% for every self-holding
+            taper offered here.</p>
             <p>Note which friction coefficient goes where. The <em>static</em> coefficient governs
             assembly, extraction and self-locking &mdash; every one of those is a break-loose
             condition. The <em>dynamic</em> one governs sliding in service, so it is what carries
@@ -52,7 +60,7 @@ self-locking  when  mu_s/cos phi &gt; tan phi   (i.e. mu_s &gt; sin phi)</pre>
             ratio.</strong> F<sub>ext</sub> above goes negative as soon as the wedge term beats the
             friction term, and the cone then pushes its own hub off: it has <em>no</em> axial
             holding capacity and needs a nut holding at least
-            p&middot;&pi;&middot;d<sub>m</sub>&middot;L&middot;(tan&nbsp;&phi; &minus; &micro;<sub>s</sub>/cos&nbsp;&phi;).
+            p&middot;&pi;&middot;d<sub>m</sub>&middot;L&middot;(tan&nbsp;&phi; &minus; &micro;<sub>s</sub>).
             A fixed angle cut-off cannot see this: at &micro;<sub>s</sub> = 0,10 a 1:5 cone
             (&phi; = 5,71&deg;) is already at its limit, while at &micro;<sub>s</sub> = 0,15 it
             still holds.</p>
@@ -121,9 +129,9 @@ Shaft von Mises stress            31,75 MPa   at the small end
 Torque capacity                  802,14 Nm
 Applied torque                   250,00 Nm
 Safety against sliding             3,21
-Required assembly force           53,53 kN
-Force to pull the hub off          26,79 kN   self-locking
-Axial capacity in service          18,76 kN</pre>
+Required assembly force           53,48 kN
+Force to pull the hub off          26,74 kN   self-locking
+Axial capacity in service          18,72 kN</pre>
             <p>The joint carries three times the design torque, and the hub is nowhere near
             yield. The number that actually constrains this design is the 53,5 kN assembly force
             &mdash; that is a hydraulic nut or a press, not a hammer.</p>
@@ -133,9 +141,9 @@ Axial capacity in service          18,76 kN</pre>
             stress there is 6 % above the mean-diameter value, which is why the results are
             reported from the governing section rather than from d<sub>m</sub>.</p>
             <p><strong>Steepen the cone to 1:2</strong> (&phi; = 14,04&deg;, tan&nbsp;&phi; = 0,250
-            against &micro;<sub>s</sub>/cos&nbsp;&phi; = 0,155) and the joint stops holding itself.
+            against &micro;<sub>s</sub> = 0,150) and the joint stops holding itself.
             The axial capacity is zero, not a large positive number, and a nut has to supply about
-            179 kN just to keep the hub seated &mdash; which the calculator does not model, so the
+            188 kN just to keep the hub seated &mdash; which the calculator does not model, so the
             torque capacity shown assumes that preload is present. The same cone also shows what
             reading the mean diameter alone costs: its small end is &#216;35 against &#216;65 at
             the large end, so the local pressure runs 350 MPa rather than the 199 MPa at
@@ -184,8 +192,8 @@ Axial capacity in service          18,76 kN</pre>
 
             <p class="mc-q">Do I need a retaining nut?</p>
             <p>That depends on the friction coefficient as much as on the taper. The condition is
-            &micro;<sub>s</sub>/cos&nbsp;&phi; &gt; tan&nbsp;&phi;: at &micro;<sub>s</sub> = 0,15
-            everything down to about 1:3,5 holds itself, at &micro;<sub>s</sub> = 0,10 only about
+            &micro;<sub>s</sub> &gt; tan&nbsp;&phi;: at &micro;<sub>s</sub> = 0,15
+            everything down to about 1:3,3 holds itself, at &micro;<sub>s</sub> = 0,10 only about
             1:5 and shallower. The calculator states whether <em>your</em> cone is self-locking and
             gives the force a nut would have to supply if it is not. In practice a nut is fitted on
             most taper joints regardless, to keep the seating from working loose under vibration,

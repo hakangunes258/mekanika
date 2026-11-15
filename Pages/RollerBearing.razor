@@ -619,6 +619,19 @@ else
                 // roller bearing ever made. Every catalogue row in this database
                 // lands between 0,57 and 0,61; a hand-entered pair at 0,5 is a
                 // typo, not an unusual bearing.
+                //
+                // The product alone is not enough: e = 5 with Y = 0,1 multiplies to
+                // 0,50 and passed, and the result was an axial load that never
+                // counted at all ("Fa/Fr <= e (5,00)") beside an induced-force
+                // warning of 25 000 N. Each factor needs its own bounds, which the
+                // same two relations give for the 9 to 32 degree contact angles every
+                // tapered roller series uses:
+                //   e = 1,5 tan(9°)..1,5 tan(32°)   = 0,24..0,94
+                //   Y = 0,4 cot(32°)..0,4 cot(9°)   = 0,64..2,53
+                if (eFactor > 0 && (eFactor < 0.24 || eFactor > 0.94))
+                    validationMessages.Add($"e = {eFactor:F2} is outside the range a tapered roller bearing can have. e ≈ 1,5·tanα, and contact angles run from about 9° to 32°, so e lies between 0,24 and 0,94. Check the value against the catalogue.");
+                if (yFactor > 0 && (yFactor < 0.64 || yFactor > 2.53))
+                    validationMessages.Add($"Y = {yFactor:F2} is outside the range a tapered roller bearing can have. Y ≈ 0,4·cotα for the same 9° to 32° of contact angle, so Y lies between 0,64 and 2,53. Check the value against the catalogue.");
                 if (eFactor > 0 && yFactor > 0)
                 {
                     double eY = eFactor * yFactor;

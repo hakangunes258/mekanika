@@ -1166,11 +1166,11 @@ else
                     @* Yield and angle controlled tightening take the bolt TO its yield
                        point by design, so a "safety factor against yielding" of 1,78
                        told the user the opposite of what is happening. *@
-                    <tr class="@(yieldControlled ? "warning" : GetSafetyRowClass(result.SF_yield, 1.1))">
+                    <tr class="@(yieldControlled ? "warning" : GetBandClass(result.SF_yield, 1.0, 1.1))">
                         <td>Yielding (Assembly)</td>
                         <td>SF<sub>yield</sub></td>
                         <td>@(yieldControlled ? "n/a" : result.SF_yield.ToString("F2"))</td>
-                        <td>@(yieldControlled ? "tightened to yield by design" : GetStatus(result.SF_yield, 1.1))</td>
+                        <td>@(yieldControlled ? "tightened to yield by design" : GetBandStatus(result.SF_yield, 1.0, 1.1))</td>
                     </tr>
                     @if (yieldControlled)
                     {
@@ -1190,23 +1190,27 @@ else
                        entered a required clamp force saw a FAIL at exactly 1,00. It is
                        now the clamp force the bolt can actually deliver at the low end
                        of the tightening scatter, against what the joint needs. *@
-                    <tr class="@(result.FKR_min > 0 ? GetSafetyRowClass(result.SF_clamp, 1.2) : (result.FKR_available <= 0 ? "danger" : ""))">
+                    @* The bands are the engine's own: it raises an error below 1,0 and a
+                       warning below 1,2. GetStatus(sf, 1.2) failed anything under 1,2 and
+                       called 1,28 "Low", so a joint at 1,11 - which meets its requirement -
+                       was reported as a FAIL. *@
+                    <tr class="@(result.FKR_min > 0 ? GetBandClass(result.SF_clamp, 1.0, 1.2) : (result.FKR_available <= 0 ? "danger" : ""))">
                         <td>Clamp Force Margin</td>
                         <td>SF<sub>clamp</sub></td>
                         <td>@(result.FKR_min > 0 ? result.SF_clamp.ToString("F2") : (result.FKR_available > 0 ? "n/a" : "0.00"))</td>
                         <td>
                             @(result.FKR_min > 0
-                                ? GetStatus(result.SF_clamp, 1.2)
+                                ? GetBandStatus(result.SF_clamp, 1.0, 1.2)
                                 : result.FKR_available > 0 ? "no clamp force required" : "❌ joint opens")
                         </td>
                     </tr>
                     @if (input.ShearForce > 0)
                     {
-                        <tr class="@(GetSafetyRowClass(result.SF_slip, 1.1))">
+                        <tr class="@(GetBandClass(result.SF_slip, 1.0, 1.1))">
                             <td>Slipping</td>
                             <td>SF<sub>slip</sub></td>
                             <td>@result.SF_slip.ToString("F2")</td>
-                             <td>@GetStatus(result.SF_slip, 1.1)</td>
+                             <td>@GetBandStatus(result.SF_slip, 1.0, 1.1)</td>
                         </tr>
                     }
                     @* On the pressure the PART bears. With a washer fitted the head
@@ -1238,11 +1242,11 @@ else
                        count means nothing if the load does not actually swing. *@
                     @if (result.FatigueRelevant)
                     {
-                         <tr class="@(GetSafetyRowClass(result.SF_fatigue, 1.2))">
+                         <tr class="@(GetBandClass(result.SF_fatigue, 1.0, 1.2))">
                             <td>Fatigue Failure</td>
                             <td>SF<sub>fatigue</sub></td>
                             <td>@result.SF_fatigue.ToString("F2")</td>
-                            <td>@GetStatus(result.SF_fatigue, 1.2)</td>
+                            <td>@GetBandStatus(result.SF_fatigue, 1.0, 1.2)</td>
                         </tr>
                     }
                     else
@@ -1256,6 +1260,16 @@ else
                     }
                  </tbody>
             </table>
+            @* The bands were not stated anywhere, so a FAIL at 1,11 next to a "Low" at
+               1,28 read as a bug rather than as two different thresholds. *@
+            <p style="margin: 12px 0 0 0; font-size: 13px; color: #6c757d;">
+                <strong>Thresholds.</strong> Each row fails below 1,00 and is marked low up to the
+                reserve the check wants: 1,10 for yielding and slipping, 1,20 for the clamp force
+                margin and for fatigue, 1,00 for surface pressure. The clamp and slip rows are both
+                measured against the clamp force the bolt can be relied on to deliver
+                (F<sub>M,zul</sub>/&alpha;<sub>A</sub> less settling and the load's relief of the
+                parts), which is what makes them margins rather than identities.
+            </p>
         </div>
 
         @if (result.FatigueRelevant)
@@ -2503,6 +2517,24 @@ else
                 validationMessages.Add($"The minimum axial force ({input.AxialForceMin:0.#} N) cannot exceed the maximum ({input.AxialForceMax:0.#} N).");
             else if (clampedParts.Any(p => p.Thickness <= 0)) validationMessages.Add("Every clamped part needs a thickness greater than 0.");
 
+            // A bolt shorter than the stack it clamps is not a short bolt, it is a
+            // bolt that is not there. The results used to carry the "too short"
+            // warning and then print every safety factor anyway - at L = 22 mm into a
+            // 30 mm stack the thread engagement came out at MINUS 8,0 mm and the page
+            // still reported a preload, a clamp force and four safety factors. A
+            // length that is merely below the recommended one still calculates, with
+            // the warning: that is a nut-protrusion question, not an impossible joint.
+            if (clampedParts.Count > 0 && clampedParts.All(p => p.Thickness > 0))
+            {
+                double lKcheck = CalculateClampLength();
+                if (boltLength > 0 && lKcheck > 0 && boltLength <= lKcheck)
+                {
+                    validationMessages.Add(input.JointType == JointType.TappedHole
+                        ? $"The bolt length ({boltLength:0.#} mm) does not reach past the clamped length ({lKcheck:0.#} mm), so there is no thread engagement at all. Lengthen the bolt, or use the auto-size button beside the field."
+                        : $"The bolt length ({boltLength:0.#} mm) does not reach past the clamped length ({lKcheck:0.#} mm), so no thread emerges for the nut. Lengthen the bolt, or use the auto-size button beside the field.");
+                }
+            }
+
             if (validationMessages.Count > 0)
             {
                 await Analytics.TrackCalculationError("single-bolt", "validation_failed", string.Join("; ", validationMessages));
@@ -2956,6 +2988,14 @@ else
     private string GetSafetyRowClass(double sf, double min) => sf < min ? "danger" : sf < min * 1.2 ? "warning" : "success";
 
     private string GetStatus(double sf, double min) => sf < min ? "❌ FAIL" : sf < min * 1.2 ? "⚠️ Low" : "✓ OK";
+
+    // Two explicit bands instead of min and min*1.2. The derived upper band put the
+    // FAIL threshold where the "wants a reserve" threshold belonged: a clamp margin
+    // of 1,11 meets the 1,00 requirement and was reported as a FAIL, while 1,28 -
+    // above the engine's own 1,2 warning line - came back "Low".
+    private string GetBandClass(double sf, double fail, double low) => sf < fail ? "danger" : sf < low ? "warning" : "success";
+
+    private string GetBandStatus(double sf, double fail, double low) => sf < fail ? "❌ FAIL" : sf < low ? "⚠️ Low" : "✓ OK";
 
 
 
