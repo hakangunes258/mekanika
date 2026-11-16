@@ -1,0 +1,1259 @@
+@page "/disc-spring"
+@using MechanicalCalculatorWeb.Services
+@inject AnalyticsService Analytics
+@inject SeoService Seo
+@inject ModuleMetadataService Metadata
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Disc Spring Calculator - Mekanika</PageTitle>
+
+<div class="page-header">
+    <h1><ModuleIcon Type="disc-spring" Size="large" Style="transparent" CustomStyle="margin-right: 12px;" /> Disc Spring Calculator</h1>
+    <p>Disc spring (Belleville washer) design according to DIN 2092, with the groups and series of DIN 2093</p>
+</div>
+
+<SharedCalculationLoader Module="disc-spring" OnRestore="ApplyShareState" />
+
+@if (!showResults)
+{
+    <!-- INPUT FORM -->
+    <div class="form-grid">
+        <!-- Disc Geometry -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="geometry" Size="medium" Style="solid" />
+                <h2>Disc Geometry</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Outer Diameter (D<sub>e</sub>)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="engine.OuterDiameter" placeholder="e.g. 40" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Inner Diameter (D<sub>i</sub>)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" @bind="engine.InnerDiameter" placeholder="e.g. 20.4" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Material Thickness (t)</label>
+                <div class="input-group">
+                    <input type="number" step="0.05" @bind="engine.Thickness" placeholder="e.g. 2.25" />
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Free Overall Height (l<sub>0</sub>)</label>
+                <div class="input-group">
+                    <input type="number" step="0.05" @bind="engine.FreeHeight" placeholder="e.g. 3.15" />
+                    <span class="unit">mm</span>
+                </div>
+                <small style="color: #6c757d; font-size: 12px;">
+                    The whole free height of the disc, thickness included &mdash; not the cone height.
+                    The cone height h&#8320; = l&#8320; &minus; t' is what the disc can deflect.
+                </small>
+            </div>
+
+            @if (PreviewConeHeight > 0 && engine.InnerDiameter > 0)
+            {
+                <div class="info-box">
+                    <strong>From these four numbers:</strong><br />
+                    &delta; = D<sub>e</sub>/D<sub>i</sub> = @((engine.OuterDiameter / engine.InnerDiameter).ToString("F2")) &nbsp;&middot;&nbsp;
+                    h&#8320; = @PreviewConeHeight.ToString("F2") mm &nbsp;&middot;&nbsp;
+                    h&#8320;/t' = @((PreviewConeHeight / PreviewThickness).ToString("F2")) &nbsp;&middot;&nbsp;
+                    D<sub>e</sub>/t = @((engine.OuterDiameter / engine.Thickness).ToString("F1"))
+                    @if (!string.IsNullOrEmpty(PreviewSeries))
+                    {
+                        <text><br />Shape resembles DIN 2093 <strong>series @PreviewSeries</strong>.</text>
+                    }
+                </div>
+            }
+        </div>
+
+        <!-- Construction -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="dimensions" Size="medium" Style="solid" />
+                <h2>Construction</h2>
+            </div>
+
+            @* A string-backed select, not a bool. @bind on a <select> goes through the
+               value attribute and the renderer drops that attribute when handed a bool
+               false, so a bool-bound select cannot tell its two options apart - the gear
+               module shipped a dead dialog that way. *@
+            <div class="form-group">
+                <label>Contact Surfaces</label>
+                <select @bind="constructionMode" @bind:after="OnConstructionChanged">
+                    <option value="Plain">No contact surfaces &mdash; t' = t, K&#8324; = 1</option>
+                    <option value="Contact">With contact surfaces and reduced thickness t'</option>
+                </select>
+                <small style="color: #6c757d; font-size: 12px;">
+                    DIN 2093 gives its Group 3 sizes (t above 6 mm) ground contact surfaces, which shorten
+                    the lever arm and stiffen the disc. The thickness is then reduced to bring the force
+                    back &mdash; the two effects pull opposite ways, so neither can be left out.
+                </small>
+            </div>
+
+            @if (engine.HasContactSurfaces)
+            {
+                <div class="form-group">
+                    <label>Reduced Thickness (t')</label>
+                    <div class="input-group">
+                        <input type="number" step="0.01" @bind="engine.ReducedThickness" placeholder="blank = 0.94 t" />
+                        <span class="unit">mm</span>
+                    </div>
+                    <small style="color: #6c757d; font-size: 12px;">
+                        Leave blank for 0.94&nbsp;t, the ratio the DIN 2093 Group 3 sizes are built around.
+                        @if (engine.Thickness > 0)
+                        {
+                            <text> At t = @engine.Thickness.ToString("F2") mm that is @((0.94 * engine.Thickness).ToString("F2")) mm.</text>
+                        }
+                    </small>
+                </div>
+            }
+
+            <div class="form-group">
+                <label>Discs in Parallel (n)</label>
+                <div class="input-group">
+                    <input type="number" step="1" min="1" @bind="engine.ParallelCount" />
+                    <span class="unit">discs</span>
+                </div>
+                <small style="color: #6c757d; font-size: 12px;">Nested the same way round. Multiplies force, not travel.</small>
+            </div>
+
+            <div class="form-group">
+                <label>Sets in Series (i)</label>
+                <div class="input-group">
+                    <input type="number" step="1" min="1" @bind="engine.SeriesCount" />
+                    <span class="unit">sets</span>
+                </div>
+                <small style="color: #6c757d; font-size: 12px;">Alternating, face to face. Multiplies travel, not force.</small>
+            </div>
+        </div>
+
+        <!-- Material -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="material" Size="medium" Style="solid" />
+                <h2>Material</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Grade</label>
+                <select @bind="selectedMaterial" @bind:after="OnMaterialChanged">
+                    @foreach (var m in DiscSpringEngine.Materials)
+                    {
+                        <option value="@m.Key">@m.Value.Name</option>
+                    }
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Elastic Modulus (E)</label>
+                <div class="input-group">
+                    <input type="number" step="1000" @bind="engine.ElasticModulus" />
+                    <span class="unit">MPa</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Poisson's Ratio (&nu;)</label>
+                <div class="input-group">
+                    <input type="number" step="0.01" @bind="engine.PoissonRatio" />
+                    <span class="unit">-</span>
+                </div>
+                <small style="color: #6c757d; font-size: 12px;">
+                    Enters every force and every stress through 1/(1 &minus; &nu;&sup2;). A disc spring result is
+                    far more sensitive to E and &nu; than to the grade name, which is why both are editable.
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label>Permissible Static Stress at Point I</label>
+                <div class="input-group">
+                    <input type="number" step="50" @bind="engine.PermissibleStaticStress" />
+                    <span class="unit">MPa</span>
+                </div>
+                <small style="color: #6c757d; font-size: 12px;">
+                    2600 MPa is the DIN 2093 practice figure for spring steel. It sits far above the yield
+                    strength on purpose: &sigma;<sub>I</sub> is a theoretical edge stress that a real disc
+                    relieves by local yielding on its first strokes.
+                </small>
+            </div>
+        </div>
+
+        <!-- Loading -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="loading" Size="medium" Style="solid" />
+                <h2>Working Positions</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Given As</label>
+                <select @bind="loadInputMode" @bind:after="OnLoadInputChanged">
+                    <option value="Deflection">Deflection of one disc (s&#8321;, s&#8322;)</option>
+                    <option value="Force">Force on the whole stack (F&#8321;, F&#8322;)</option>
+                </select>
+            </div>
+
+            @if (engine.LoadInput == DiscSpringLoadInput.Deflection)
+            {
+                <div class="form-group">
+                    <label>Position 1 &mdash; Deflection (s&#8321;)</label>
+                    <div class="input-group">
+                        <input type="number" step="0.01" @bind="engine.Deflection1" placeholder="e.g. 0.225" />
+                        <span class="unit">mm</span>
+                    </div>
+                    <small style="color: #6c757d; font-size: 12px;">Preloaded rest position, per disc.</small>
+                </div>
+
+                <div class="form-group">
+                    <label>Position 2 &mdash; Deflection (s&#8322;)</label>
+                    <div class="input-group">
+                        <input type="number" step="0.01" @bind="engine.Deflection2" placeholder="e.g. 0.675" />
+                        <span class="unit">mm</span>
+                    </div>
+                    @if (PreviewConeHeight > 0)
+                    {
+                        <small style="color: #6c757d; font-size: 12px;">
+                            0.75&nbsp;h&#8320; = @((0.75 * PreviewConeHeight).ToString("F3")) mm is the DIN 2092
+                            travel limit; flat is @PreviewConeHeight.ToString("F3") mm.
+                        </small>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="form-group">
+                    <label>Position 1 &mdash; Stack Force (F&#8321;)</label>
+                    <div class="input-group">
+                        <input type="number" step="10" @bind="engine.Force1Input" placeholder="e.g. 2300" />
+                        <span class="unit">N</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Position 2 &mdash; Stack Force (F&#8322;)</label>
+                    <div class="input-group">
+                        <input type="number" step="10" @bind="engine.Force2Input" placeholder="e.g. 6500" />
+                        <span class="unit">N</span>
+                    </div>
+                    <small style="color: #6c757d; font-size: 12px;">
+                        The force the whole column carries. The deflection is found by inverting the
+                        characteristic, which is a cubic &mdash; see the note in the results if the shape
+                        number is large enough for it to turn over.
+                    </small>
+                </div>
+            }
+
+            <div class="form-group">
+                <label>Permissible Upper Stress (&sigma;<sub>O,zul</sub>)</label>
+                <div class="input-group">
+                    <input type="number" step="50" @bind="engine.PermissibleUpperStress" placeholder="optional" />
+                    <span class="unit">MPa</span>
+                </div>
+                <small style="color: #6c757d; font-size: 12px;">
+                    For a fatigue application only. Read it off the DIN 2093 fatigue diagram for your
+                    group, at the lower stress the results report. Left blank, the fatigue rows give the
+                    stresses and say the limit has to come from the standard &mdash; the diagrams are not
+                    reproduced here.
+                </small>
+            </div>
+        </div>
+    </div>
+
+    <ValidationAlert Messages="validationMessages" />
+
+    <div class="button-group">
+        <button class="btn btn-success btn-lg @(isCalculating ? "btn-calculating" : "")" @onclick="Calculate" disabled="@isCalculating">
+            @if (isCalculating)
+            {
+                <span class="spinner"></span>
+                <span>Calculating...</span>
+            }
+            else
+            {
+                <ModuleIcon Type="calculate" Size="button" Style="default" />
+                <span>Calculate</span>
+            }
+        </button>
+        <button class="btn btn-secondary" @onclick="ClearForm" disabled="@isCalculating">
+            <ModuleIcon Type="clear" Size="button" Style="default" /> Clear
+        </button>
+    </div>
+}
+else
+{
+    <!-- RESULTS -->
+    @* Scrolls to the top once, as the results replace the form. *@
+    <ScrollToResults />
+    <div class="button-group" style="margin-bottom: 24px;">
+        <button class="btn btn-secondary" @onclick="BackToInput">
+            <ModuleIcon Type="back" Size="button" Style="default" /> Back to Input
+        </button>
+        <button class="btn btn-secondary" @onclick="ClearForm">
+            <ModuleIcon Type="new" Size="button" Style="default" /> New Calculation
+        </button>
+        <button class="btn btn-info @(isSavingPdf ? "btn-saving" : "")" @onclick="SaveAsPdf" disabled="@isSavingPdf">
+            @if (isSavingPdf)
+            {
+                <span class="spinner"></span>
+                <span>Generating PDF...</span>
+            }
+            else
+            {
+                <ModuleIcon Type="pdf" Size="button" Style="default" />
+                <span>Save as PDF</span>
+            }
+        </button>
+        <ShareCalculation Module="disc-spring" State="@BuildShareState()" />
+        <SaveCalculation Module="disc-spring" State="@BuildShareState()" />
+    </div>
+
+    @if (openedFromSharedLink)
+    {
+        <div class="alert alert-info" style="margin-bottom: 24px;">
+            <ModuleIcon Type="info" Size="small" Style="default" />
+            <div>
+                <strong>Opened from a shared link.</strong>
+                The inputs below came from the link and were recalculated with the current engine.
+            </div>
+        </div>
+    }
+
+    @if (validationErrors.Any())
+    {
+        <div class="alert alert-warning" style="margin-bottom: 24px;">
+            <ModuleIcon Type="safety" Size="small" Style="default" />
+            <div>
+                <strong>Design Warnings:</strong>
+                <ul style="margin: 8px 0 0 0; padding-left: 20px;">
+                    @foreach (var error in validationErrors)
+                    {
+                        <li>@error</li>
+                    }
+                </ul>
+            </div>
+        </div>
+    }
+
+    <div id="results-content">
+        <!-- Geometry & Shape -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="geometry" Size="medium" Style="solid" />
+                <h2>Geometry &amp; Shape</h2>
+            </div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Outer Diameter</td><td>D<sub>e</sub></td><td>@engine.OuterDiameter.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Inner Diameter</td><td>D<sub>i</sub></td><td>@engine.InnerDiameter.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Radial Width</td><td>(D<sub>e</sub>&minus;D<sub>i</sub>)/2</td><td>@engine.RadialWidth.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Material Thickness</td><td>t</td><td>@engine.Thickness.ToString("F3")</td><td>mm</td></tr>
+                    <tr class="@(engine.HasContactSurfaces ? "highlight" : "")">
+                        <td>Thickness Used in the Equations</td><td>t'</td>
+                        <td>@engine.CalcThickness.ToString("F3")</td><td>mm</td>
+                    </tr>
+                    <tr><td>Free Overall Height</td><td>l<sub>0</sub></td><td>@engine.FreeHeight.ToString("F3")</td><td>mm</td></tr>
+                    <tr class="highlight"><td>Free Cone Height = Travel to Flat</td><td>h<sub>0</sub></td><td>@engine.ConeHeight.ToString("F3")</td><td>mm</td></tr>
+                    <tr><td>Cone Angle, Free</td><td>&phi;</td><td>@engine.ConeAngle.ToString("F2")</td><td>&deg;</td></tr>
+                    <tr class="highlight"><td>Diameter Ratio</td><td>&delta;</td><td>@engine.DiameterRatio.ToString("F3")</td><td>-</td></tr>
+                    <tr class="highlight"><td>Shape Number</td><td>h<sub>0</sub>/t'</td><td>@engine.H0OverT.ToString("F3")</td><td>-</td></tr>
+                    <tr><td>Slenderness</td><td>D<sub>e</sub>/t</td><td>@engine.DeOverT.ToString("F2")</td><td>-</td></tr>
+                    <tr><td>Height Ratio</td><td>l<sub>0</sub>/t</td><td>@engine.L0OverT.ToString("F3")</td><td>-</td></tr>
+                    <tr><td>Mass, One Disc</td><td>m</td><td>@engine.Mass.ToString("F2")</td><td>g</td></tr>
+                    <tr>
+                        <td>DIN 2093 Thickness Group</td><td>-</td>
+                        <td>@(engine.ThicknessGroup > 0 ? engine.ThicknessGroup.ToString() : "outside")</td>
+                        <td>@GroupNote()</td>
+                    </tr>
+                    <tr>
+                        <td>Shape Resembles Series</td><td>-</td>
+                        <td>@(string.IsNullOrEmpty(engine.SeriesMatch) ? "between series" : engine.SeriesMatch)</td>
+                        <td>@SeriesNote()</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p style="font-size: 13px; color: #6c757d; margin: 12px 0 0 0;">
+                The series is a resemblance test on the shape number h<sub>0</sub>/t' &mdash; A is about 0.40,
+                B 0.75 and C 1.30. The DIN 2093 size tables themselves are not reproduced here, so these are
+                your own dimensions throughout.
+            </p>
+        </div>
+
+        <!-- Shape factors -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="settings" Size="medium" Style="solid" />
+                <h2>DIN 2092 Shape Factors</h2>
+            </div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Force Factor</td><td>K<sub>1</sub></td><td>@engine.K1.ToString("F5")</td><td>-</td></tr>
+                    <tr><td>Stress Factor</td><td>K<sub>2</sub></td><td>@engine.K2.ToString("F5")</td><td>-</td></tr>
+                    <tr><td>Stress Factor</td><td>K<sub>3</sub></td><td>@engine.K3.ToString("F5")</td><td>-</td></tr>
+                    <tr class="@(engine.K4 != 1.0 ? "highlight" : "")">
+                        <td>Contact-Surface Factor</td><td>K<sub>4</sub></td>
+                        <td>@engine.K4.ToString("F5")</td>
+                        <td>@(engine.K4 == 1.0 ? "no contact surfaces" : "-")</td>
+                    </tr>
+                </tbody>
+            </table>
+            @if (engine.K4FellBack)
+            {
+                <div class="alert alert-warning" style="margin-top: 16px;">
+                    <ModuleIcon Type="warning" Size="small" Style="default" />
+                    <div>
+                        K<sub>4</sub> could not be evaluated for this t'/t and l<sub>0</sub>/t pair, so it was
+                        held at 1. Check the reduced thickness: DIN 2092's expression goes singular when t'
+                        approaches the free height.
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- Working positions -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="loading" Size="medium" Style="solid" />
+                <h2>Working Positions</h2>
+            </div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Deflection per Disc, Position 1</td><td>s<sub>1</sub></td><td>@engine.Position1.Deflection.ToString("F3")</td><td>mm</td></tr>
+                    <tr><td>&hellip; as a fraction of h<sub>0</sub></td><td>s<sub>1</sub>/h<sub>0</sub></td><td>@engine.Position1.DeflectionRatio.ToString("F3")</td><td>-</td></tr>
+                    <tr><td>Deflection per Disc, Position 2</td><td>s<sub>2</sub></td><td>@engine.Position2.Deflection.ToString("F3")</td><td>mm</td></tr>
+                    <tr class="@(engine.Position2.DeflectionRatio > 0.75 ? "warning" : "")">
+                        <td>&hellip; as a fraction of h<sub>0</sub></td><td>s<sub>2</sub>/h<sub>0</sub></td>
+                        <td>@engine.Position2.DeflectionRatio.ToString("F3")</td><td>-</td>
+                    </tr>
+                    <tr><td>Working Stroke per Disc</td><td>&Delta;s</td><td>@engine.WorkingStroke.ToString("F3")</td><td>mm</td></tr>
+                    <tr><td>Force per Disc, Position 1</td><td>F<sub>1</sub></td><td>@engine.Position1.Force.ToString("F1")</td><td>N</td></tr>
+                    <tr><td>Force per Disc, Position 2</td><td>F<sub>2</sub></td><td>@engine.Position2.Force.ToString("F1")</td><td>N</td></tr>
+                    <tr class="highlight"><td>Stack Force, Position 1</td><td>F<sub>1,stack</sub></td><td>@engine.Position1.StackForce.ToString("F1")</td><td>N</td></tr>
+                    <tr class="highlight"><td>Stack Force, Position 2</td><td>F<sub>2,stack</sub></td><td>@engine.Position2.StackForce.ToString("F1")</td><td>N</td></tr>
+                    <tr><td>Stack Travel, Position 1</td><td>s<sub>1,stack</sub></td><td>@engine.Position1.StackDeflection.ToString("F3")</td><td>mm</td></tr>
+                    <tr><td>Stack Travel, Position 2</td><td>s<sub>2,stack</sub></td><td>@engine.Position2.StackDeflection.ToString("F3")</td><td>mm</td></tr>
+                    <tr><td>Tangent Rate per Disc at s<sub>2</sub></td><td>dF/ds</td><td>@engine.Position2.Rate.ToString("F0")</td><td>N/mm</td></tr>
+                    <tr class="highlight"><td>Stack Tangent Rate at s<sub>2</sub></td><td>R<sub>stack</sub></td><td>@engine.StackRate.ToString("F0")</td><td>N/mm</td></tr>
+                    <tr><td>Stack Secant Rate over the Stroke</td><td>&Delta;F/&Delta;s</td><td>@engine.SecantRate.ToString("F0")</td><td>N/mm</td></tr>
+                    <tr><td>Energy per Disc at s<sub>2</sub></td><td>W</td><td>@engine.Position2.Energy.ToString("F1")</td><td>Nmm</td></tr>
+                </tbody>
+            </table>
+            <p style="font-size: 13px; color: #6c757d; margin: 12px 0 0 0;">
+                The tangent rate is dF/ds at that one deflection; the secant rate is the average over the
+                stroke. A disc spring's characteristic is a cubic, so the two differ &mdash; take the tangent
+                for stability and resonance, the secant for what a stroke costs in force.
+            </p>
+        </div>
+
+        <!-- Characteristic over the travel -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="operation-conditions" Size="medium" Style="solid" />
+                <h2>Characteristic over the Travel</h2>
+            </div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    @foreach (var p in engine.Curve)
+                    {
+                        <tr class="@(Math.Abs(p.DeflectionRatio - 0.75) < 0.001 ? "highlight" : "")">
+                            <td>Stack Force at @((p.DeflectionRatio * 100).ToString("F0")) % of h<sub>0</sub></td>
+                            <td>F(@p.DeflectionRatio.ToString("F2") h<sub>0</sub>)</td>
+                            <td>@p.StackForce.ToString("F1")</td>
+                            <td>N</td>
+                        </tr>
+                    }
+                    @foreach (var p in engine.Curve)
+                    {
+                        <tr>
+                            <td>Tangent Rate per Disc at @((p.DeflectionRatio * 100).ToString("F0")) % of h<sub>0</sub></td>
+                            <td>dF/ds</td>
+                            <td>@p.Rate.ToString("F0")</td>
+                            <td>N/mm</td>
+                        </tr>
+                    }
+                    <tr><td>Energy per Disc to Flat</td><td>W<sub>c</sub></td><td>@engine.Flat.Energy.ToString("F1")</td><td>Nmm</td></tr>
+                    <tr><td>Energy, Whole Stack to Flat</td><td>W<sub>c,stack</sub></td><td>@((engine.Flat.Energy * engine.DiscCount).ToString("F1"))</td><td>Nmm</td></tr>
+                </tbody>
+            </table>
+            <p style="font-size: 13px; color: #6c757d; margin: 12px 0 0 0;">
+                The rate <em>falls</em> along the travel on every disc spring with a shape number worth
+                having &mdash; that is what a disc spring is for, and it is why the force at 75 % of the
+                travel is well above three quarters of the force at flat.
+            </p>
+        </div>
+
+        <!-- Stresses -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="stress" Size="medium" Style="solid" />
+                <h2>Stresses at the Four Corner Points</h2>
+            </div>
+
+            <p style="font-size: 13px; color: #495057; margin: 0 0 12px 0;">
+                Points I and II sit at the inner edge, III and IV at the outer edge; I and IV are on the
+                upper face, II and III on the lower one. In the normal working range the upper face is in
+                compression and the lower face in tension. <strong>Point I governs static strength</strong>
+                (it is the largest in magnitude) and <strong>points II and III govern fatigue</strong>
+                (they are the tensile ones).
+            </p>
+
+            <p style="font-weight: 600; margin: 16px 0 8px 0;">At the upper working position s<sub>2</sub> = @engine.Position2.Deflection.ToString("F3") mm</p>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr class="danger"><td>Upper Face, Inner Edge</td><td>&sigma;<sub>I</sub></td><td>@engine.Position2.StressI.ToString("F1")</td><td>MPa</td></tr>
+                    <tr class="@(engine.GoverningFatiguePoint == "II" ? "highlight" : "")"><td>Lower Face, Inner Edge</td><td>&sigma;<sub>II</sub></td><td>@engine.Position2.StressII.ToString("F1")</td><td>MPa</td></tr>
+                    <tr class="@(engine.GoverningFatiguePoint == "III" ? "highlight" : "")"><td>Lower Face, Outer Edge</td><td>&sigma;<sub>III</sub></td><td>@engine.Position2.StressIII.ToString("F1")</td><td>MPa</td></tr>
+                    <tr><td>Upper Face, Outer Edge</td><td>&sigma;<sub>IV</sub></td><td>@engine.Position2.StressIV.ToString("F1")</td><td>MPa</td></tr>
+                </tbody>
+            </table>
+
+            <p style="font-weight: 600; margin: 24px 0 8px 0;">At the lower working position s<sub>1</sub> = @engine.Position1.Deflection.ToString("F3") mm</p>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Upper Face, Inner Edge</td><td>&sigma;<sub>I</sub></td><td>@engine.Position1.StressI.ToString("F1")</td><td>MPa</td></tr>
+                    <tr class="@(engine.GoverningFatiguePoint == "II" ? "highlight" : "")"><td>Lower Face, Inner Edge</td><td>&sigma;<sub>II</sub></td><td>@engine.Position1.StressII.ToString("F1")</td><td>MPa</td></tr>
+                    <tr class="@(engine.GoverningFatiguePoint == "III" ? "highlight" : "")"><td>Lower Face, Outer Edge</td><td>&sigma;<sub>III</sub></td><td>@engine.Position1.StressIII.ToString("F1")</td><td>MPa</td></tr>
+                    <tr><td>Upper Face, Outer Edge</td><td>&sigma;<sub>IV</sub></td><td>@engine.Position1.StressIV.ToString("F1")</td><td>MPa</td></tr>
+                </tbody>
+            </table>
+
+            <p style="font-weight: 600; margin: 24px 0 8px 0;">At the flat position s = h<sub>0</sub> = @engine.ConeHeight.ToString("F3") mm</p>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    @* Only red when the design actually goes to flat; otherwise this is the
+                       "if it ever got there" figure and amber is the honest colour. *@
+                    <tr class="@(engine.WorksToFlat ? GetBandClass(engine.SafetyFactorStatic) : (engine.SafetyFactorStatic < 1.0 ? "warning" : ""))"><td>Upper Face, Inner Edge</td><td>&sigma;<sub>I</sub></td><td>@engine.Flat.StressI.ToString("F1")</td><td>MPa</td></tr>
+                    <tr><td>Lower Face, Inner Edge</td><td>&sigma;<sub>II</sub></td><td>@engine.Flat.StressII.ToString("F1")</td><td>MPa</td></tr>
+                    <tr><td>Lower Face, Outer Edge</td><td>&sigma;<sub>III</sub></td><td>@engine.Flat.StressIII.ToString("F1")</td><td>MPa</td></tr>
+                    <tr><td>Upper Face, Outer Edge</td><td>&sigma;<sub>IV</sub></td><td>@engine.Flat.StressIV.ToString("F1")</td><td>MPa</td></tr>
+                </tbody>
+            </table>
+            <p style="font-size: 13px; color: #6c757d; margin: 12px 0 0 0;">
+                The stress carries a factor s but multiplies a bracket that <em>grows</em> as the deflection
+                falls, so the curve is concave: at half the travel the stress is more than half. Backing a
+                disc spring off does not buy as much as a linear spring would suggest.
+            </p>
+        </div>
+
+        <!-- Safety factors -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="safety" Size="medium" Style="solid" />
+                <h2>Safety Factors</h2>
+            </div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Status</th></tr></thead>
+                <tbody>
+                    @* The governing static check: point I at the deflection actually asked
+                       for. The flat-position row below answers a different question and is
+                       only a FAIL when the design reaches flat - reporting the flat figure
+                       alone marked a perfectly usable series A design as failed. *@
+                    <tr class="@GetBandClass(engine.SafetyFactorAtPosition2)">
+                        <td>Static, |&sigma;<sub>I</sub>| at s<sub>2</sub> vs Permissible</td>
+                        <td>S<sub>stat</sub></td>
+                        <td>@engine.SafetyFactorAtPosition2.ToString("F2")</td>
+                        <td>@GetBandStatus(engine.SafetyFactorAtPosition2)</td>
+                    </tr>
+                    <tr class="@(engine.WorksToFlat ? GetBandClass(engine.SafetyFactorStatic) : (engine.SafetyFactorStatic < 1.0 ? "warning" : ""))">
+                        <td>Static, |&sigma;<sub>I</sub>| at Flat vs Permissible</td>
+                        <td>S<sub>stat,c</sub></td>
+                        <td>@engine.SafetyFactorStatic.ToString("F2")</td>
+                        <td>
+                            @if (engine.WorksToFlat)
+                            {
+                                @GetBandStatus(engine.SafetyFactorStatic)
+                            }
+                            else if (engine.SafetyFactorStatic < 1.0)
+                            {
+                                <text>⚠️ needs a stop</text>
+                            }
+                            else
+                            {
+                                <text>not reached</text>
+                            }
+                        </td>
+                    </tr>
+                    @if (engine.FatigueLimitSupplied)
+                    {
+                        <tr class="@GetBandClass(engine.SafetyFactorFatigue)">
+                            <td>Fatigue, &sigma;<sub>O,zul</sub> vs &sigma;<sub>o</sub> at Point @engine.GoverningFatiguePoint</td>
+                            <td>S<sub>fat</sub></td>
+                            <td>@engine.SafetyFactorFatigue.ToString("F2")</td>
+                            <td>@GetBandStatus(engine.SafetyFactorFatigue)</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        <tr>
+                            <td>Fatigue, &sigma;<sub>O,zul</sub> vs &sigma;<sub>o</sub></td>
+                            <td>S<sub>fat</sub></td>
+                            <td>&mdash;</td>
+                            <td>no limit entered</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            <p style="font-size: 13px; color: #6c757d; margin: 12px 0 0 0;">
+                <strong>Bands:</strong> below 1.00 fails, below 1.10 is low, at or above 1.10 is OK.
+                There is deliberately no 1.5 bar here &mdash; the permissible stress is already a practice
+                limit that allows for the disc relieving itself by setting, so meeting it <em>is</em> the
+                requirement and a second safety factor on top of it would be counted twice.
+            </p>
+
+            <p style="font-size: 13px; color: #6c757d; margin: 12px 0 0 0;">
+                <strong>The first row is the one that judges this design:</strong>
+                |&sigma;<sub>I</sub>| at s<sub>2</sub> is @engine.StaticStressAtPosition2.ToString("F0") MPa
+                against a permissible @engine.PermissibleStaticStress.ToString("F0") MPa. The second row asks
+                a different question &mdash; what happens if the disc is ever compressed all the way, where
+                point I reaches @engine.StaticStressAtFlat.ToString("F0") MPa. DIN 2093 states its figure at
+                the flat position, so that is where it is evaluated, but a disc that is never taken there is
+                not failed by it; it needs a mechanical stop.
+                Both are comparisons of a <em>calculated</em> edge stress with a practice limit, not with the
+                yield strength: a real disc relieves the peak by yielding locally on its first strokes, which
+                is why the permissible figure is the higher of the two.
+            </p>
+        </div>
+
+        <!-- Fatigue data -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="life-time" Size="medium" Style="solid" />
+                <h2>Fatigue Data</h2>
+            </div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr class="highlight"><td>Governing Tensile Point</td><td>-</td><td>@(string.IsNullOrEmpty(engine.GoverningFatiguePoint) ? "—" : engine.GoverningFatiguePoint)</td><td>-</td></tr>
+                    <tr><td>Lower Stress, at s<sub>1</sub></td><td>&sigma;<sub>u</sub></td><td>@engine.LowerStress.ToString("F1")</td><td>MPa</td></tr>
+                    <tr class="highlight"><td>Upper Stress, at s<sub>2</sub></td><td>&sigma;<sub>o</sub></td><td>@engine.UpperStress.ToString("F1")</td><td>MPa</td></tr>
+                    <tr><td>Stress Range</td><td>&sigma;<sub>h</sub></td><td>@engine.StressRange.ToString("F1")</td><td>MPa</td></tr>
+                    <tr>
+                        <td>Permissible Upper Stress</td><td>&sigma;<sub>O,zul</sub></td>
+                        <td>@(engine.FatigueLimitSupplied ? engine.PermissibleUpperStress.ToString("F0") : "—")</td>
+                        <td>@(engine.FatigueLimitSupplied ? "MPa" : "from DIN 2093")</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="alert alert-info" style="margin-top: 16px;">
+                <ModuleIcon Type="info" Size="small" Style="default" />
+                <div>
+                    <strong>The DIN 2093 fatigue diagrams are not reproduced here.</strong>
+                    They are charts of permissible upper stress against lower stress, one per thickness
+                    group and life, and reading one off from memory would put a made-up number straight
+                    into a safety factor. Take &sigma;<sub>O,zul</sub> from the diagram for group
+                    @(engine.ThicknessGroup > 0 ? engine.ThicknessGroup.ToString() : "?") at
+                    &sigma;<sub>u</sub> = @engine.LowerStress.ToString("F0") MPa and enter it above.
+                </div>
+            </div>
+        </div>
+
+        <!-- Stack -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="dimensions" Size="medium" Style="solid" />
+                <h2>Stack</h2>
+            </div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>Discs in Parallel</td><td>n</td><td>@engine.ParallelCount</td><td>discs</td></tr>
+                    <tr><td>Sets in Series</td><td>i</td><td>@engine.SeriesCount</td><td>sets</td></tr>
+                    <tr><td>Total Discs</td><td>n&middot;i</td><td>@engine.DiscCount</td><td>discs</td></tr>
+                    <tr class="highlight"><td>Free Length of the Column</td><td>L<sub>0</sub></td><td>@engine.StackFreeLength.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Length at Position 1</td><td>L<sub>1</sub></td><td>@engine.Position1.StackLength.ToString("F2")</td><td>mm</td></tr>
+                    <tr class="highlight"><td>Length at Position 2</td><td>L<sub>2</sub></td><td>@engine.Position2.StackLength.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Length with Every Disc Flat</td><td>L<sub>c</sub></td><td>@engine.StackSolidLength.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Travel to Flat</td><td>i&middot;h<sub>0</sub></td><td>@engine.StackMaxDeflection.ToString("F2")</td><td>mm</td></tr>
+                    <tr><td>Mass of the Column</td><td>m<sub>stack</sub></td><td>@engine.StackMass.ToString("F1")</td><td>g</td></tr>
+                </tbody>
+            </table>
+
+            @if (engine.ParallelCount > 1)
+            {
+                <div class="alert alert-warning" style="margin-top: 16px;">
+                    <ModuleIcon Type="warning" Size="small" Style="default" />
+                    <div>
+                        <strong>Friction between the @engine.ParallelCount nested discs is not modelled.</strong>
+                        Discs in parallel rub on each other as they deflect, so the real column takes more
+                        force on the way down than on the way up. The hysteresis is a few percent per
+                        interface and it grows with n &mdash; the figures above are the frictionless ideal,
+                        which is optimistic for the loading branch.
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- Design recommendation -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="design" Size="medium" Style="solid" />
+                <h2>Design Recommendation</h2>
+            </div>
+            <table class="results-table">
+                <thead><tr><th>Description</th><th>Symbol</th><th>Value</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr class="highlight"><td>Recommended Travel Limit</td><td>0.75 h<sub>0</sub></td><td>@((0.75 * engine.ConeHeight).ToString("F3"))</td><td>mm</td></tr>
+                    <tr><td>Deflection Asked For</td><td>s<sub>2</sub></td><td>@engine.Position2.Deflection.ToString("F3")</td><td>mm</td></tr>
+                    <tr class="@(PastTravelLimit ? "warning" : "")"><td>Travel Margin</td><td>&Delta;s</td><td>@TravelMargin.ToString("F3")</td><td>mm</td></tr>
+                    <tr><td>Stack Force at the Travel Limit</td><td>F(0.75 h<sub>0</sub>)</td><td>@engine.RecommendedLimit.StackForce.ToString("F1")</td><td>N</td></tr>
+                    <tr><td>Stack Force at Flat</td><td>F<sub>c</sub></td><td>@engine.Flat.StackForce.ToString("F1")</td><td>N</td></tr>
+                    <tr class="@(engine.CharacteristicTurnsOver ? "warning" : "")">
+                        <td>Snap-Through Shape Limit</td><td>&radic;2/K<sub>4</sub></td>
+                        <td>@engine.TurnOverShapeLimit.ToString("F3")</td><td>-</td>
+                    </tr>
+                    <tr class="@(engine.CharacteristicTurnsOver ? "warning" : "")">
+                        <td>Shape Number in Hand</td><td>h<sub>0</sub>/t'</td>
+                        <td>@engine.H0OverT.ToString("F3")</td>
+                        <td>@(engine.CharacteristicTurnsOver ? "turns over" : "rises to flat")</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            @if (engine.Position2.Deflection > engine.ConeHeight)
+            {
+                <div class="alert alert-danger" style="margin-top: 16px;">
+                    <ModuleIcon Type="error" Size="small" Style="default" />
+                    <div>
+                        <strong>Beyond flat.</strong> s<sub>2</sub> = @engine.Position2.Deflection.ToString("F3") mm
+                        is past h<sub>0</sub> = @engine.ConeHeight.ToString("F3") mm. A flattened disc bears on
+                        its edges and none of these equations describe it &mdash; the force and the stresses
+                        above are extrapolations, not results.
+                    </div>
+                </div>
+            }
+            else if (engine.SafetyFactorAtPosition2 < 1.0)
+            {
+                <div class="alert alert-danger" style="margin-top: 16px;">
+                    <ModuleIcon Type="error" Size="small" Style="default" />
+                    <div>
+                        <strong>Overstressed as specified.</strong> At s<sub>2</sub> = @engine.Position2.Deflection.ToString("F3") mm
+                        the calculated stress at point I is @engine.StaticStressAtPosition2.ToString("F0") MPa,
+                        past the @engine.PermissibleStaticStress.ToString("F0") MPa permitted. Reduce the travel,
+                        take a thinner disc, or add discs in parallel so each one works less.
+                    </div>
+                </div>
+            }
+            else if (engine.CharacteristicTurnsOver)
+            {
+                <div class="alert alert-warning" style="margin-top: 16px;">
+                    <ModuleIcon Type="warning" Size="small" Style="default" />
+                    <div>
+                        <strong>The characteristic turns over.</strong> At h<sub>0</sub>/t' =
+                        @engine.H0OverT.ToString("F2") the rate reaches zero before flat, so the force falls
+                        again over the last part of the travel and the disc can snap through. Design a hard
+                        stop below the turning point, or drop the shape number below
+                        @engine.TurnOverShapeLimit.ToString("F2").
+                    </div>
+                </div>
+            }
+            else if (PastTravelLimit)
+            {
+                <div class="alert alert-warning" style="margin-top: 16px;">
+                    <ModuleIcon Type="warning" Size="small" Style="default" />
+                    <div>
+                        <strong>Past the recommended travel limit.</strong> s<sub>2</sub> is
+                        @((-TravelMargin).ToString("F3")) mm beyond 0.75 h<sub>0</sub>. Both the characteristic
+                        and the stresses are least reliable in the last quarter of the travel, and the setting
+                        loss over life is largest there.
+                    </div>
+                </div>
+            }
+            else if (engine.SafetyFactorStatic < 1.0)
+            {
+                <div class="alert alert-warning" style="margin-top: 16px;">
+                    <ModuleIcon Type="warning" Size="small" Style="default" />
+                    <div>
+                        <strong>Fine as specified, but it must not be compressed to flat.</strong> At
+                        s<sub>2</sub> point I is at @engine.StaticStressAtPosition2.ToString("F0") MPa, within
+                        the @engine.PermissibleStaticStress.ToString("F0") MPa permitted; taken all the way to
+                        flat it would reach @engine.StaticStressAtFlat.ToString("F0") MPa, which is
+                        @((engine.StaticStressAtFlat / engine.PermissibleStaticStress).ToString("F2"))&times;
+                        the permitted figure. A stiff shape is normally past the limit at flat, so this is a
+                        reason to fit a stop rather than a reason to change the disc &mdash; but the further
+                        past it sits, the less the stop may be allowed to move.
+                    </div>
+                </div>
+            }
+            else if (engine.SafetyFactorAtPosition2 < 1.5)
+            {
+                <div class="alert alert-warning" style="margin-top: 16px;">
+                    <ModuleIcon Type="warning" Size="small" Style="default" />
+                    <div>
+                        <strong>Within the travel limit, but close to the static figure.</strong> Point I is
+                        at @engine.StaticStressAtPosition2.ToString("F0") MPa against
+                        @engine.PermissibleStaticStress.ToString("F0") MPa permitted. There is little left for
+                        over-travel, and over-travel is what mechanisms do.
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-success" style="margin-top: 16px;">
+                    <ModuleIcon Type="check" Size="small" Style="default" />
+                    <div>
+                        <strong>Within the travel limit and the static figure.</strong> Check the fatigue
+                        rows as well if the stack cycles: that is assessed on the tensile points, not on
+                        point I.
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- Scope -->
+        <div class="card">
+            <div class="card-header">
+                <ModuleIcon Type="info" Size="medium" Style="solid" />
+                <h2>What This Calculation Does Not Cover</h2>
+            </div>
+            <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
+                <li><strong>Friction and hysteresis.</strong> Neither between discs nested in parallel nor
+                    against the guide rod or sleeve. Both make the loading branch stiffer than the figures
+                    above and the unloading branch softer.</li>
+                <li><strong>Setting and relaxation.</strong> A disc spring loses force over its life,
+                    most of it on the first strokes and most of it when worked near flat. Nothing here
+                    predicts that loss.</li>
+                <li><strong>The DIN 2093 fatigue diagrams</strong>, as the fatigue card says. The stresses
+                    are computed; the permissible one has to come from the standard.</li>
+                <li><strong>Temperature.</strong> E falls and relaxation rises with temperature; the
+                    calculation runs at the E and &nu; entered, whatever they describe.</li>
+                <li><strong>The DIN 2093 size tables.</strong> Dimensions are entered freely here, and the
+                    series shown is a resemblance test on the shape number, not a catalogue lookup.</li>
+                <li><strong>Guide clearances and edge radii.</strong> The disc is treated as a plain
+                    truncated cone of constant thickness.</li>
+            </ul>
+        </div>
+    </div>
+}
+
+<style>
+    .results-table { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 0; }
+    .results-table th { background: #f8f9fa; padding: 12px 16px; text-align: left; font-weight: 600; color: #2c3e50; border-bottom: 2px solid #dee2e6; }
+    .results-table td { padding: 10px 16px; border-bottom: 1px solid #eee; }
+    .results-table tr:hover { background: #f8f9fa; }
+    .results-table tr.highlight { background: #e3f2fd; font-weight: 500; }
+    .results-table tr.warning { background: #fff8e1; }
+    .results-table tr.danger { background: #ffebee; }
+    .results-table tr.success { background: #e8f5e9; }
+
+    .results-table th:nth-child(1) { width: 40%; }
+    .results-table th:nth-child(2) { width: 15%; text-align: center; }
+    .results-table th:nth-child(3) { width: 25%; text-align: right; }
+    .results-table th:nth-child(4) { width: 20%; text-align: center; }
+
+    .results-table td:nth-child(2) {
+        text-align: center;
+        font-family: 'Times New Roman', serif;
+        font-style: italic;
+        color: #666;
+    }
+
+    .results-table td:nth-child(3) {
+        text-align: right;
+        font-weight: 500;
+        font-family: 'Consolas', 'Courier New', monospace;
+    }
+
+    .results-table td:nth-child(4) { text-align: center; color: #666; }
+
+    .btn-info {
+        background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+        color: white;
+    }
+
+    .btn-info:hover {
+        background: linear-gradient(135deg, #138496 0%, #117a8b 100%);
+    }
+
+    .info-box {
+        background: #e8f4fc;
+        padding: 12px;
+        border-radius: 8px;
+        font-size: 13px;
+    }
+</style>
+
+<ModuleContent Module="disc-spring" />
+
+@code {
+    private DiscSpringEngine engine = new();
+
+    /// <summary>Why Calculate refused, shown by <see cref="ValidationAlert"/>.</summary>
+    private List<string> validationMessages = new();
+    /// <summary>Design warnings from the engine, shown above the results.</summary>
+    private List<string> validationErrors = new();
+
+    private ModuleInfo moduleInfo = new();
+    private bool showResults = false;
+    private bool isCalculating = false;
+    private bool isSavingPdf = false;
+    private bool openedFromSharedLink = false;
+    private string selectedMaterial = "51CrV4";
+
+    /// <summary>
+    /// Both of these are string-backed and mirrored onto the engine in their
+    /// @@bind:after handler. A bool or an enum bound straight to a &lt;select&gt;
+    /// cannot tell its options apart, because the renderer drops a value attribute
+    /// of `false` - that is how the gear module shipped a dialog with no fields in
+    /// it. See OnConstructionChanged / OnLoadInputChanged.
+    /// </summary>
+    private string constructionMode = "Plain";
+    private string loadInputMode = "Deflection";
+
+    // ---- live preview on the input form ----
+
+    private double PreviewThickness =>
+        DiscSpringEngine.EffectiveThickness(engine.Thickness, engine.HasContactSurfaces, engine.ReducedThickness);
+
+    private double PreviewConeHeight => engine.Thickness > 0 && engine.FreeHeight > 0
+        ? engine.FreeHeight - PreviewThickness
+        : 0;
+
+    private string PreviewSeries
+    {
+        get
+        {
+            if (PreviewConeHeight <= 0 || PreviewThickness <= 0) return "";
+            double shape = PreviewConeHeight / PreviewThickness;
+            var best = DiscSpringEngine.SeriesGuide.OrderBy(g => Math.Abs(g.H0OverT - shape)).First();
+            return Math.Abs(best.H0OverT - shape) <= 0.12 ? best.Series : "";
+        }
+    }
+
+    /// <summary>
+    /// How much travel is left before 0.75 h₀. The tolerance is not decoration: the
+    /// interesting deflection IS the limit, and 0.675 typed into the field differs
+    /// from a computed 0.75 × 0.9 in the last bit of a double — which printed
+    /// "Travel Margin −0.000 mm" under a verdict reading "s₂ is 0.000 mm beyond the
+    /// limit". The engine's own warning carries the same tolerance.
+    /// </summary>
+    private double TravelTolerance => Math.Max(engine.ConeHeight, 1.0) * 1e-9;
+
+    private double RawTravelMargin => 0.75 * engine.ConeHeight - engine.Position2.Deflection;
+    private double TravelMargin => Math.Abs(RawTravelMargin) < TravelTolerance ? 0 : RawTravelMargin;
+    private bool PastTravelLimit => RawTravelMargin < -TravelTolerance;
+
+    /// <summary>
+    /// Status bands, stated explicitly rather than taken from one number.
+    ///
+    /// The other modules band at 1.0 / 1.5, and that is wrong here: the 2600 MPa
+    /// figure is already a practice limit that allows for the disc relieving itself
+    /// by setting, so meeting it IS the requirement — there is no second factor of
+    /// 1.5 on top. A blanket 1.5 band called a perfectly ordinary 1.25 "marginal",
+    /// which is the same over-strict reporting the November 2026 review found on the
+    /// single bolt. 1.10 is flagged because a few percent of over-travel eats it.
+    /// The thresholds are printed under the table.
+    /// </summary>
+    private const double BandFail = 1.00;
+    private const double BandLow = 1.10;
+
+    private static string GetBandClass(double sf) => sf < BandFail ? "danger" : sf < BandLow ? "warning" : "success";
+    private static string GetBandStatus(double sf) => sf < BandFail ? "❌ FAIL" : sf < BandLow ? "⚠️ Low" : "✓ OK";
+
+    protected override async Task OnInitializedAsync()
+    {
+        ApplyMaterial("51CrV4");
+
+        moduleInfo = Metadata.GetModule("disc-spring");
+        await SetSeoMetadata();
+        await SetStructuredData();
+        await Analytics.TrackPageView("/disc-spring", moduleInfo.Name);
+    }
+
+    private async Task SetSeoMetadata()
+    {
+        var baseUrl = "https://mekanika.org";
+        var seo = new SeoMetadata
+        {
+            Title = $"{moduleInfo.Name} - Free Online Tool | Mekanika",
+            Description = moduleInfo.Description,
+            Keywords = moduleInfo.Keywords,
+            CanonicalUrl = $"{baseUrl}{moduleInfo.Route}",
+            OgTitle = moduleInfo.Name,
+            OgDescription = moduleInfo.Description,
+            OgImage = $"{baseUrl}/brand/og.png",
+            OgUrl = $"{baseUrl}{moduleInfo.Route}",
+            TwitterCard = "summary",
+            TwitterTitle = moduleInfo.Name,
+            TwitterDescription = moduleInfo.Description,
+            TwitterImage = $"{baseUrl}/brand/og.png"
+        };
+
+        await Seo.SetMetaTags(seo);
+    }
+
+    private async Task SetStructuredData()
+    {
+        var structuredData = new
+        {
+            context = "https://schema.org",
+            type = "SoftwareApplication",
+            name = moduleInfo.Name,
+            description = moduleInfo.Description,
+            applicationCategory = "EngineeringApplication",
+            operatingSystem = "Web Browser",
+            browserRequirements = "Requires JavaScript, WebAssembly support",
+            offers = new { type = "Offer", price = "0", priceCurrency = "USD" },
+            aggregateRating = new { type = "AggregateRating", ratingValue = "4.8", ratingCount = "150" }
+        };
+
+        await Seo.SetStructuredData(structuredData);
+    }
+
+    private void ApplyMaterial(string key)
+    {
+        if (!DiscSpringEngine.Materials.TryGetValue(key, out var m)) return;
+        selectedMaterial = key;
+        engine.MaterialGrade = key;
+        engine.ElasticModulus = m.E;
+        engine.PoissonRatio = m.Nu;
+        engine.Density = m.Density;
+    }
+
+    private void OnMaterialChanged() => ApplyMaterial(selectedMaterial);
+
+    private void OnConstructionChanged()
+    {
+        engine.HasContactSurfaces = constructionMode == "Contact";
+        // Leaving a stale t' behind would keep reducing the thickness of a spring the
+        // user has just told us has no contact surfaces.
+        if (!engine.HasContactSurfaces) engine.ReducedThickness = 0;
+    }
+
+    private void OnLoadInputChanged()
+        => engine.LoadInput = loadInputMode == "Force"
+            ? DiscSpringLoadInput.Force
+            : DiscSpringLoadInput.Deflection;
+
+    private async Task Calculate()
+    {
+        isCalculating = true;
+        StateHasChanged();
+        await Task.Delay(350);
+        try
+        {
+            // Name what is missing rather than returning in silence.
+            validationMessages.Clear();
+
+            if (engine.OuterDiameter <= 0) validationMessages.Add("Outer diameter (Dₑ) must be greater than 0.");
+            if (engine.InnerDiameter <= 0) validationMessages.Add("Inner diameter (Dᵢ) must be greater than 0.");
+            if (engine.OuterDiameter > 0 && engine.InnerDiameter > 0 && engine.OuterDiameter <= engine.InnerDiameter)
+                validationMessages.Add($"Outer diameter ({engine.OuterDiameter:0.##} mm) must be larger than the inner diameter ({engine.InnerDiameter:0.##} mm).");
+            if (engine.Thickness <= 0) validationMessages.Add("Material thickness (t) must be greater than 0.");
+
+            if (engine.HasContactSurfaces && engine.ReducedThickness > 0 && engine.ReducedThickness >= engine.Thickness)
+                validationMessages.Add($"Reduced thickness t' ({engine.ReducedThickness:0.##} mm) must be below the material thickness t ({engine.Thickness:0.##} mm) — that is what makes it reduced. Leave it blank for 0.94 t.");
+
+            // h0 = l0 - t' has to be positive or there is no cone and nothing to
+            // deflect. The t' rule is shared with the engine rather than copied.
+            if (engine.Thickness > 0 && engine.FreeHeight > 0 && PreviewConeHeight <= 0)
+                validationMessages.Add($"Free height l₀ ({engine.FreeHeight:0.###} mm) must be greater than t' ({PreviewThickness:0.###} mm); the cone height h₀ = l₀ − t' is what the disc deflects.");
+            else if (engine.FreeHeight <= 0)
+                validationMessages.Add("Free overall height (l₀) must be greater than 0.");
+
+            if (engine.ElasticModulus <= 0) validationMessages.Add("Elastic modulus (E) must be greater than 0.");
+            if (engine.PoissonRatio <= 0 || engine.PoissonRatio >= 0.5)
+                validationMessages.Add($"Poisson's ratio ({engine.PoissonRatio:0.###}) must be between 0 and 0.5; every force and stress divides by 1 − ν².");
+            if (engine.PermissibleStaticStress <= 0)
+                validationMessages.Add("Permissible static stress must be greater than 0.");
+
+            if (engine.ParallelCount < 1) validationMessages.Add("Discs in parallel (n) must be at least 1.");
+            if (engine.SeriesCount < 1) validationMessages.Add("Sets in series (i) must be at least 1.");
+
+            if (engine.LoadInput == DiscSpringLoadInput.Deflection)
+            {
+                if (engine.Deflection2 <= 0)
+                    validationMessages.Add("Deflection at position 2 (s₂) must be greater than 0.");
+                if (engine.Deflection1 < 0)
+                    validationMessages.Add("Deflection at position 1 (s₁) cannot be negative.");
+                if (engine.Deflection1 > 0 && engine.Deflection2 > 0 && engine.Deflection1 > engine.Deflection2)
+                    validationMessages.Add($"s₁ ({engine.Deflection1:0.###} mm) must be below s₂ ({engine.Deflection2:0.###} mm) — position 1 is the lighter of the two, and the fatigue range needs them that way round.");
+            }
+            else
+            {
+                if (engine.Force2Input <= 0)
+                    validationMessages.Add("Stack force at position 2 (F₂) must be greater than 0.");
+                if (engine.Force1Input < 0)
+                    validationMessages.Add("Stack force at position 1 (F₁) cannot be negative.");
+                if (engine.Force1Input > 0 && engine.Force2Input > 0 && engine.Force1Input > engine.Force2Input)
+                    validationMessages.Add($"F₁ ({engine.Force1Input:0.#} N) must be below F₂ ({engine.Force2Input:0.#} N).");
+            }
+
+            if (validationMessages.Count > 0)
+            {
+                await Analytics.TrackCalculationError("disc-spring", "validation_failed", string.Join("; ", validationMessages));
+                return;
+            }
+
+            engine.Calculate();
+            validationErrors = engine.Validate();
+            showResults = true;
+
+            await Analytics.TrackCalculationCompleted("disc-spring", new Dictionary<string, object>
+            {
+                { "outer_diameter", engine.OuterDiameter },
+                { "thickness", engine.Thickness },
+                { "shape_number", engine.H0OverT },
+                { "stack_force", engine.Position2.StackForce }
+            });
+        }
+        catch (Exception ex)
+        {
+            await Analytics.TrackCalculationError("disc-spring", "calculation_failed", ex.Message);
+            throw;
+        }
+        finally
+        {
+            isCalculating = false;
+        }
+    }
+
+    private string GroupNote() => engine.ThicknessGroup switch
+    {
+        1 => "t ≤ 1.25 mm",
+        2 => "1.25 < t ≤ 6 mm",
+        3 => "6 < t ≤ 14 mm",
+        _ => "beyond DIN 2093"
+    };
+
+    private string SeriesNote()
+    {
+        if (string.IsNullOrEmpty(engine.SeriesMatch)) return "h₀/t' between two series";
+        var g = DiscSpringEngine.SeriesGuide.First(x => x.Series == engine.SeriesMatch);
+        return g.Note;
+    }
+
+    private void BackToInput() => showResults = false;
+
+    private void ClearForm()
+    {
+        validationMessages.Clear();
+        engine = new DiscSpringEngine();
+        constructionMode = "Plain";
+        loadInputMode = "Deflection";
+        ApplyMaterial("51CrV4");
+        validationErrors = new();
+        showResults = false;
+        openedFromSharedLink = false;
+    }
+
+    /// <summary>
+    /// The module's inputs in the neutral form shared links and saved calculations
+    /// both use. Inputs only — the engine re-runs on restore, so a months-old link
+    /// reflects the current arithmetic.
+    ///
+    /// The material goes in by key and E, ν and the density ride along beside it, so
+    /// a manual override of any of the three survives the round trip.
+    /// </summary>
+    private CalculationState BuildShareState() => new CalculationState("disc-spring")
+        .Set("De", engine.OuterDiameter)
+        .Set("Di", engine.InnerDiameter)
+        .Set("t", engine.Thickness)
+        .Set("l0", engine.FreeHeight)
+        .Set("cs", engine.HasContactSurfaces)
+        .Set("tr", engine.ReducedThickness)
+        .Set("n", engine.ParallelCount)
+        .Set("i", engine.SeriesCount)
+        .Set("mat", selectedMaterial)
+        .Set("E", engine.ElasticModulus)
+        .Set("nu", engine.PoissonRatio)
+        .Set("rho", engine.Density)
+        .Set("szul", engine.PermissibleStaticStress)
+        .Set("sozul", engine.PermissibleUpperStress)
+        .Set("mode", loadInputMode)
+        .Set("s1", engine.Deflection1)
+        .Set("s2", engine.Deflection2)
+        .Set("F1", engine.Force1Input)
+        .Set("F2", engine.Force2Input);
+
+    /// <summary>
+    /// Restores a state produced by <see cref="BuildShareState"/> and recalculates,
+    /// so the recipient lands on the results.
+    ///
+    /// Order matters: the construction mode and the material both have handlers that
+    /// overwrite other fields, so they run FIRST and the stored values they would
+    /// have cleared are reapplied after. Every getter takes the current value as its
+    /// fallback, so a link from a build that lacked a key leaves that field alone.
+    /// </summary>
+    private async Task ApplyShareState(CalculationState state)
+    {
+        // Construction first: OnConstructionChanged zeroes t' when it switches to
+        // plain, so a stored t' has to be applied after it, not before.
+        constructionMode = state.GetBool("cs", engine.HasContactSurfaces) ? "Contact" : "Plain";
+        OnConstructionChanged();
+        engine.ReducedThickness = state.GetDouble("tr", engine.ReducedThickness);
+
+        engine.OuterDiameter = state.GetDouble("De", engine.OuterDiameter);
+        engine.InnerDiameter = state.GetDouble("Di", engine.InnerDiameter);
+        engine.Thickness = state.GetDouble("t", engine.Thickness);
+        engine.FreeHeight = state.GetDouble("l0", engine.FreeHeight);
+
+        engine.ParallelCount = Math.Max(1, state.GetInt("n", engine.ParallelCount));
+        engine.SeriesCount = Math.Max(1, state.GetInt("i", engine.SeriesCount));
+
+        // Material by key, never by index, then the three properties it drives are
+        // reapplied so an override survives.
+        var mat = state.GetString("mat", selectedMaterial);
+        ApplyMaterial(DiscSpringEngine.Materials.ContainsKey(mat) ? mat : selectedMaterial);
+        engine.ElasticModulus = state.GetDouble("E", engine.ElasticModulus);
+        engine.PoissonRatio = state.GetDouble("nu", engine.PoissonRatio);
+        engine.Density = state.GetDouble("rho", engine.Density);
+
+        engine.PermissibleStaticStress = state.GetDouble("szul", engine.PermissibleStaticStress);
+        engine.PermissibleUpperStress = state.GetDouble("sozul", engine.PermissibleUpperStress);
+
+        // Validated against the option set, or the select renders blank.
+        var mode = state.GetString("mode", loadInputMode);
+        loadInputMode = mode is "Deflection" or "Force" ? mode : loadInputMode;
+        OnLoadInputChanged();
+
+        engine.Deflection1 = state.GetDouble("s1", engine.Deflection1);
+        engine.Deflection2 = state.GetDouble("s2", engine.Deflection2);
+        engine.Force1Input = state.GetDouble("F1", engine.Force1Input);
+        engine.Force2Input = state.GetDouble("F2", engine.Force2Input);
+
+        openedFromSharedLink = true;
+
+        // Calculate() validates, so a damaged link leaves the user on the form.
+        await Calculate();
+    }
+
+    private async Task SaveAsPdf()
+    {
+        isSavingPdf = true;
+        StateHasChanged();
+        try
+        {
+            var fileName = $"DiscSpring-Report-{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            await JSRuntime.InvokeVoidAsync("generatePdf", "results-content", fileName);
+            await Analytics.TrackPdfDownload("disc-spring", fileName);
+        }
+        catch (Exception ex)
+        {
+            await Analytics.TrackCalculationError("disc-spring", "pdf_generation_failed", ex.Message);
+            await JSRuntime.InvokeVoidAsync("console.error", $"PDF generation error: {ex.Message}");
+        }
+        finally
+        {
+            isSavingPdf = false;
+        }
+    }
+}

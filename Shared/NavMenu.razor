@@ -13,9 +13,10 @@
       - the mobile drawer behaviour is unchanged - MainLayout still owns `Open`.
 
     Only modules that actually exist are listed. Planned ones (Woodruff, Spline,
-    bevel/rack/worm gears, disc springs, power transmission, tolerance analysis)
-    are deliberately NOT shown as greyed "coming soon" rows: a nav row that cannot
-    be clicked is a dead end, and the roadmap belongs on the About page.
+    bevel/rack/worm gears, power transmission, tolerance analysis) are deliberately
+    NOT shown as greyed "coming soon" rows: a nav row that cannot be clicked is a
+    dead end, and the roadmap belongs on the About page. Disc springs were on that
+    list until Nov 2026 and are now a real row.
 *@
 
 <nav class="sidebar @(Open ? "open" : "")" id="main-nav">
@@ -133,6 +134,7 @@
             new("compression-spring", "Compression Spring", "spring"),
             new("extension-spring",   "Extension Spring",   "tension"),
             new("torsion-spring",     "Torsion Spring",     "torque"),
+            new("disc-spring",        "Disc Spring",        "disc-spring"),
         }),
         new("Fasteners", "bolt", new NavEntry[]
         {

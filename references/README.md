@@ -42,6 +42,29 @@ without the source. Everything else in the review has been done.
   current 0,05–0,20·R_m is a flat band where the standard reads it off a curve
   against the spring index and the winding method.
 
+### disc-spring — DIN 2092, DIN 2093
+The module is new (Nov 2026) and `IsVerified = false`. Four things need the
+standards, and the first two decide whether what is on screen is right:
+
+- **DIN 2092's definition of σ_OM**, the reference stress at the cross-section
+  centre. It is not implemented, because its location could not be reconstructed
+  from the four corner formulas — the mean of σ_I and σ_II does not agree with the
+  −(3/π) form, so one of the two is wrong and there is no way to tell which.
+- **Which stress DIN 2093 states the 2600 N/mm² static figure for** — σ_I or σ_OM.
+  The engine applies it to |σ_I| at the flat position, which is the attribution in
+  common use. If it belongs to σ_OM, the static rows are measuring the wrong thing.
+- **The DIN 2093 fatigue diagrams** (permissible upper stress against lower stress,
+  per thickness group and life). σ_O,zul is an input today and the results say where
+  it has to come from.
+- **The DIN 2093 dimension tables** (series A, B, C, De 8–250). Not embedded on
+  purpose — see the note on quoting standards in CLAUDE.md, and note that wrong
+  dimensional data here would feed every number downstream. The series shown on the
+  page is a resemblance test on h₀/t', which is derived rather than reproduced.
+
+Also worth a reference run when one is available: a manufacturer catalogue row
+(Schnorr, Mubea, Christian Bauer) diffed the way the three KISSsoft gear reports
+were — F at 0,25/0,50/0,75 h₀ and the four corner stresses are all published.
+
 ### ball-bearing — ISO 281, catalogues
 - ISO 281 Table 3 for the 15° angular contact series: e and Y as functions of
   i·Fa/C0. The single catalogue pair is used over the whole range today and

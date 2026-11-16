@@ -256,6 +256,43 @@ public class ModuleMetadataService
                 HasVideo = false
             },
 
+            ["disc-spring"] = new ModuleInfo
+            {
+                Key = "disc-spring",
+                Name = "Disc Spring Calculator",
+                Route = "/disc-spring",
+                Category = "Springs",
+                Icon = "🔵",
+                Description = "Design disc springs (Belleville washers) and disc spring stacks according to DIN 2092, with the thickness groups and dimension series of DIN 2093. Force-deflection characteristic, the four corner stresses, the snap-through limit and stack geometry.",
+                Keywords = "disc spring, Belleville washer, Tellerfeder, conical spring washer, DIN 2092, DIN 2093, disc spring stack, spring characteristic, snap through, Almen Laszlo",
+                RelatedModules = new[] { "compression-spring", "extension-spring", "torsion-spring" },
+                // NOT verified. The DIN 2092 equation chain is implemented and each part
+                // of it is anchored in Tests/DiscSpringTests.cs by an identity rather than
+                // by a golden value - K4 = 1 exactly at t' = t for any l0/t, the rate as
+                // the derivative of the force, the energy as its integral, the exact
+                // sigma_III - sigma_IV = (sigma_II - sigma_I)/delta that follows from the
+                // Almen-Laszlo -z/r stress field, and a tangent rate of exactly zero at
+                // K4.h0/t' = sqrt(2). What is missing before this can be promoted:
+                //  - no reference report or catalogue row has been diffed against it.
+                //  - sigma_OM, DIN 2092's reference stress at the cross-section centre, is
+                //    NOT implemented: its location could not be reconstructed from the
+                //    corner formulas, and a number nobody can check does not belong next
+                //    to ones that are anchored.
+                //  - the 2600 MPa static figure is applied to |sigma_I| at the flat
+                //    position. That is the attribution in common use, but whether DIN 2093
+                //    states it for sigma_I or for sigma_OM needs the standard's own words.
+                //  - the DIN 2093 fatigue diagrams are not digitised, so sigma_O,zul is an
+                //    input and the results say where it has to come from.
+                //  - the DIN 2093 size tables are not embedded (see CLAUDE.md on quoting
+                //    standards); dimensions are entered freely and the series shown is a
+                //    resemblance test on h0/t'.
+                // Friction, setting/relaxation and temperature are out of scope and the
+                // results card says so.
+                IsVerified = false,
+                VerificationStandards = new[] { "DIN 2092", "DIN 2093" },
+                HasVideo = false
+            },
+
             // ========== GEARS ==========
 
             ["gear-pair"] = new ModuleInfo

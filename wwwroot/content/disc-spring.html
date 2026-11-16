@@ -1,0 +1,305 @@
+<!--
+    The reference section shown under the disc spring calculator.
+
+    ONE COPY, TWO READERS. See the header of interference-fit.html for the rule.
+
+    Every number in the worked example was produced by the engine with these inputs:
+    De 40, Di 20.4, t 2.25, l0 3.15, no contact surfaces, 51CrV4 (E 206000, nu 0.30),
+    s1 0.225, s2 0.675, n 2 in parallel, i 3 in series. The group 3 comparison is
+    De 140, Di 72, t 8.0, l0 10.5, run once with contact surfaces and once without.
+    The near-constant-force example is De 40, Di 20.4, t 1.0, l0 2.30.
+    Re-run them if the engine changes.
+
+    The <pre> blocks are plain ASCII on purpose - A_shaft, sigma_I, h0/t - for the
+    reason recorded in CLAUDE.md: Unicode has no subscript letter for most of what
+    these symbols need, and the nine content files that tried ended up with a euro
+    sign inside a formula. Prose outside <pre> uses real <sub> markup.
+-->
+<section class="module-content">
+
+    <h2>How a disc spring is calculated</h2>
+
+    <p>A disc spring is a shallow truncated cone. Pressing it flat does not bend it the way a
+    beam bends: the cross-section stays very nearly rigid and <strong>rotates about a neutral
+    point</strong>, which drags each material point radially inwards or outwards depending on
+    whether it sits above or below that point. The circumference it occupies changes, and the
+    stress that follows is a <em>tangential</em> one. That single picture &mdash; the
+    Almen&ndash;Laszlo model DIN 2092 is built on &mdash; explains everything else on this page.</p>
+
+    <p>Two consequences are worth having in mind before you read a result. First, the stress at a
+    point varies as &minus;z/r: its <em>sign</em> depends only on which face the point is on, and
+    its <em>size</em> falls off with radius. So the two upper-face corners are in compression and
+    the two lower-face corners in tension, and the outer-edge pair is smaller than the inner-edge
+    pair by exactly the diameter ratio. Second, the force is a <strong>cubic</strong> in the
+    deflection, not a straight line. A disc spring is chosen precisely because its rate falls as
+    it is compressed, and with a tall enough cone the rate reaches zero before the disc is flat.</p>
+
+    <details>
+        <summary>The equations</summary>
+        <div class="mc-body">
+            <p>Everything comes from four shape factors and the two elastic constants:</p>
+<pre>delta = De/Di                              diameter ratio
+h0    = l0 - t'                            cone height = travel to flat
+
+K1 = (1/pi) . ((delta-1)/delta)^2 / ( (delta+1)/(delta-1) - 2/ln(delta) )
+K2 = (6/pi) . ( (delta-1)/ln(delta) - 1 ) / ln(delta)
+K3 = (3/pi) . (delta-1)/ln(delta)
+K4 = 1                                     no contact surfaces
+
+F = 4E/(1-nu^2) . t'^4/(K1 De^2) . K4^2 . (s/t')
+    . [ K4^2 (h0/t' - s/t')(h0/t' - s/(2t')) + 1 ]          force, one disc
+
+dF/ds = 4E/(1-nu^2) . t'^3/(K1 De^2) . K4^2
+        . [ K4^2 ( (h0/t')^2 - 3(h0/t')(s/t') + 1.5(s/t')^2 ) + 1 ]
+
+W = 2E/(1-nu^2) . t'^5/(K1 De^2) . K4^2 . (s/t')^2
+    . [ K4^2 (h0/t' - s/(2t'))^2 + 1 ]                      energy, one disc</pre>
+
+            <p>The four corner stresses share one common factor
+            c = 4E/(1&minus;&nu;&sup2;)&nbsp;&middot;&nbsp;t'&nbsp;s/(K<sub>1</sub>D<sub>e</sub>&sup2;),
+            and differ only in a sign and in the 1/&delta;:</p>
+<pre>X = h0/t' - s/(2t')
+
+sigma_I   = -c . K4 . [ K4 . K2 . X + K3 ]              upper face, inner edge
+sigma_II  = -c . K4 . [ K4 . K2 . X - K3 ]              lower face, inner edge
+sigma_III = +c . K4 . (1/delta) . [ K4 (K2 - 2 K3) X + K3 ]   lower face, outer edge
+sigma_IV  = +c . K4 . (1/delta) . [ K4 (K2 - 2 K3) X - K3 ]   upper face, outer edge</pre>
+
+            <p><strong>Those four are not four independent formulas.</strong> Subtracting the pairs
+            leaves the identity</p>
+<pre>sigma_III - sigma_IV = (sigma_II - sigma_I) / delta</pre>
+            <p>at every deflection, which is the &minus;z/r field written out: the part of the
+            stress that flips sign between the two faces is the same at both radii apart from the
+            1/r. It is also the cheapest check that all four have been transcribed correctly, and
+            the calculator's test suite asserts it rather than asserting four numbers.</p>
+
+            <p><strong>Springs with contact surfaces</strong> &mdash; the DIN 2093 Group 3
+            construction, for thicknesses above 6 mm &mdash; replace t by the reduced thickness t'
+            and pick up K<sub>4</sub> from DIN 2092's C<sub>1</sub>/C<sub>2</sub> expression.
+            Setting t' = t collapses that expression to K<sub>4</sub> = 1 exactly, for any
+            l<sub>0</sub>/t, which is why there is one set of equations here and not two.</p>
+
+            <table class="mc-sym">
+                <thead><tr><th>Symbol</th><th>Meaning</th><th>Unit</th></tr></thead>
+                <tbody>
+                    <tr><td>D<sub>e</sub>, D<sub>i</sub></td><td>Outer and inner diameter</td><td>mm</td></tr>
+                    <tr><td>t</td><td>Material thickness</td><td>mm</td></tr>
+                    <tr><td>t'</td><td>Reduced thickness of a spring with contact surfaces</td><td>mm</td></tr>
+                    <tr><td>l<sub>0</sub></td><td>Free overall height, thickness included</td><td>mm</td></tr>
+                    <tr><td>h<sub>0</sub></td><td>Free cone height, l<sub>0</sub> &minus; t' &mdash; the travel to flat</td><td>mm</td></tr>
+                    <tr><td>s</td><td>Deflection of one disc</td><td>mm</td></tr>
+                    <tr><td>&delta;</td><td>Diameter ratio D<sub>e</sub>/D<sub>i</sub></td><td>&ndash;</td></tr>
+                    <tr><td>E, &nu;</td><td>Elastic modulus and Poisson's ratio</td><td>MPa, &ndash;</td></tr>
+                    <tr><td>&sigma;<sub>I..IV</sub></td><td>Tangential stress at the four corners of the section</td><td>MPa</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </details>
+
+    <details>
+        <summary>Where the inputs come from</summary>
+        <div class="mc-body">
+            <p><strong>l<sub>0</sub> is the whole free height, not the cone height.</strong> This is
+            the one input people get wrong. A catalogue gives the overall height of the free disc
+            with its thickness included; the travel available is h<sub>0</sub> = l<sub>0</sub>
+            &minus; t', which is a much smaller number. On the worked example below l<sub>0</sub> is
+            3.15 mm and the whole travel is 0.90 mm.</p>
+
+            <p><strong>The shape number h<sub>0</sub>/t' is the design decision.</strong> It, and
+            not the diameter, is what makes a disc spring stiff or soft and what decides how
+            strongly the rate falls. The three DIN 2093 series are three choices of it: about 0.40
+            for series A (stiff, short travel), 0.75 for B, and 1.30 for C (soft, long travel,
+            close to the stability limit). The calculator reports which one your dimensions
+            resemble, and says "between series" rather than guessing when they sit in the middle.</p>
+
+            <p><strong>&delta; wants to be near 2.</strong> DIN 2093 sizes sit between about 2.0 and
+            2.3. The Almen&ndash;Laszlo model loses accuracy as &delta; approaches 1 &mdash; the
+            factors all carry 1/ln&nbsp;&delta;, which blows up there &mdash; and a very wide ring
+            is poorly described by a rigid rotating section. The calculator warns outside 1.5&ndash;3.5.</p>
+
+            <p><strong>E and &nu; matter more than the grade name.</strong> Both are editable for
+            that reason: every force and every stress carries 1/(1&nbsp;&minus;&nbsp;&nu;&sup2;),
+            and the force is linear in E. DIN 2093 is written for 51CrV4 and C60S at E = 206 000
+            MPa and &nu; = 0.30; a stainless disc of the same dimensions at 185 000 MPa is 10 %
+            softer on E alone, and about 8 % once its higher &nu; is counted the other way.</p>
+
+            <p><strong>Contact surfaces are a construction, not a finish.</strong> Grinding a flat
+            on the loaded edges shortens the lever arm, which <em>stiffens</em> the disc
+            (K<sub>4</sub> rises above 1); DIN 2093 then takes thickness back out so the catalogue
+            force stays comparable. The two pull opposite ways, so neither can be left out of a
+            calculation. Below 6 mm thickness the question does not arise.</p>
+
+            <p><strong>n and i are two different multipliers.</strong> Discs nested the same way
+            round &mdash; in parallel &mdash; multiply force and leave travel alone. Sets stacked
+            alternately, face to face, multiply travel and leave force alone. Both change the free
+            length of the column, and only the parallel count adds thickness to it.</p>
+
+            <p><strong>The permissible upper stress is optional and has to come from the
+            standard.</strong> DIN 2093's fatigue diagrams are charts of permissible upper stress
+            against lower stress, one per thickness group and per life. They are not reproduced
+            here, because reading one off from memory would put an invented number straight into a
+            safety factor. The calculator gives you the two stresses to enter the chart with, and
+            then checks against whatever you read off it.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Worked example</summary>
+        <div class="mc-body">
+            <p>A series A shape at 40 mm &mdash; D<sub>e</sub> 40, D<sub>i</sub> 20.4, t 2.25,
+            l<sub>0</sub> 3.15, 51CrV4 &mdash; worked between 25 % and 75 % of its travel, with
+            two discs in parallel and three sets in series.</p>
+<pre>delta  40 / 20.4                          1.961
+h0 = l0 - t'  3.15 - 2.25                 0.900 mm
+Shape number h0/t'                        0.400      -> series A
+De/t                                      17.78
+Cone angle, free                           5.25 deg
+Mass, one disc                            16.42 g
+
+K1 0.68614   K2 1.21080   K3 1.36257   K4 1.00000
+
+                        s        F/disc      sigma_I    sigma_II
+Position 1  0.25 h0   0.225 mm   2335.8 N    -745.9     392.0 MPa
+Position 2  0.75 h0   0.675 mm   6500.2 N   -2086.0    1327.7 MPa
+Flat        1.00 h0   0.900 mm   8455.5 N   -2680.3    1871.3 MPa
+
+Tangent rate per disc   at 0.25 h0        9912 N/mm
+                        at 0.75 h0        8784 N/mm
+                        at flat           8643 N/mm
+
+Stack, n = 2 parallel, i = 3 series
+Free length  3 x (3.15 + 2.25)           16.200 mm
+Length at position 2                     14.175 mm
+Every disc flat                          13.500 mm
+Force at position 1                     4671.7 N
+Force at position 2                    13000.4 N
+Travel, position 2                        2.025 mm
+Secant rate over the stroke               6169 N/mm
+Total discs 6                   mass     98.53 g
+
+sigma_I at position 2                     2086 MPa  vs 2600 permitted -> 1.25
+sigma_I at flat                           2680 MPa  vs 2600 permitted -> 0.97
+Fatigue, governing point II   sigma_u      392.0 MPa
+                              sigma_o     1327.7 MPa
+                              range        935.7 MPa</pre>
+
+            <p><strong>Read the two static lines together.</strong> At the deflection asked for the
+            disc is at 2086 MPa, a factor of 1.25 on the 2600 MPa practice figure &mdash; fine. Taken
+            all the way to flat the same disc would reach 2680 MPa, a factor of 0.97. That is not a
+            badly chosen example: a well-formed series A shape is <em>always</em> past the figure at
+            flat, and it is most of the reason DIN 2092 puts the recommended travel limit at
+            0.75 h<sub>0</sub>. <strong>The travel has to be limited by a stop, not by an
+            instruction</strong> &mdash; and the two rows are reported separately for exactly that
+            reason, because one number cannot say both things and a red verdict on the flat figure
+            would condemn a perfectly usable design.</p>
+
+            <p><strong>Now look at what the last quarter of the travel buys.</strong> Going from
+            0.675 mm to flat adds 0.225 mm of travel and 1955 N of force per disc, while the stress
+            at point I rises by 594 MPa. The force per millimetre is falling and the stress per
+            millimetre is not &mdash; that is the whole trade a disc spring makes.</p>
+
+            <p><strong>And what backing off buys, which is less than you would think.</strong> At
+            half the travel the stress at point I is 1441 MPa: 54 % of the flat value, not 50 %. The
+            stress carries a factor s but multiplies a bracket that <em>grows</em> as the deflection
+            falls, so the curve is concave. The first part of the travel costs more stress per
+            millimetre than the last.</p>
+
+            <p><strong>The stack figures are two separate multiplications.</strong> Two in parallel
+            doubled the force to 13 000 N without changing the travel of a disc; three in series
+            tripled the travel to 2.025 mm without changing the force. The free length gained the
+            material thickness once, for the second disc of each parallel pair:
+            3&nbsp;&times;&nbsp;(3.15&nbsp;+&nbsp;2.25)&nbsp;=&nbsp;16.2 mm, not
+            3&nbsp;&times;&nbsp;3.15.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Reading the result</summary>
+        <div class="mc-body">
+            <p><strong>Point I for static strength, points II and III for fatigue.</strong> Point I
+            is the largest of the four in magnitude and it is compressive, which is why it is
+            compared against a practice figure rather than against the yield strength: it is a
+            calculated edge stress that a real disc relieves by yielding locally on its first few
+            strokes. The tensile points are the ones a crack starts from, so those are what DIN 2093
+            assesses fatigue on &mdash; whichever of the two is larger. Which one that is depends on
+            the shape number, so the calculator picks it at the upper position and then reads the
+            lower stress <em>at the same point</em>; a range taken between two different points is
+            not a range.</p>
+
+            <p><strong>Check the shape number against the snap-through limit.</strong> The tangent
+            rate reaches zero at the flat position when K<sub>4</sub>&nbsp;h<sub>0</sub>/t' =
+            &radic;2 &asymp; 1.414, and past that the force <em>falls</em> over the last part of the
+            travel: the disc becomes unstable and can snap through. This is exact, not a rule of
+            thumb, and it is a property of the shape alone &mdash; no load, material or diameter
+            enters it. Series C sits at 1.30, deliberately just inside.</p>
+
+            <p><strong>A high shape number is also how you get a near-constant force.</strong> A
+            1 mm thick disc at D<sub>e</sub> 40 with l<sub>0</sub> 2.30 has h<sub>0</sub>/t = 1.30
+            and carries 1016 N at 0.75 h<sub>0</sub> against 1072 N at flat &mdash; 5 % more force
+            over the last quarter of its travel. That flat region is why disc springs are used to
+            hold a preload while something wears or expands, and it is the one thing a helical
+            spring cannot do.</p>
+
+            <p><strong>The tangent rate and the secant rate are different numbers.</strong> Both are
+            reported. The tangent is dF/ds at one deflection and is what you want for stability and
+            resonance; the secant is the average over the stroke and is what you want for "what does
+            this travel cost me in force". On the worked example above a single disc has a tangent
+            rate of 8784 N/mm at position 2 and a secant rate of 9254 N/mm over the stroke.</p>
+
+            <p><strong>Treating a Group 3 disc as if it had no contact surfaces is not
+            conservative.</strong> A 140&nbsp;&times;&nbsp;72&nbsp;&times;&nbsp;8, l<sub>0</sub> 10.5
+            disc calculated with its contact surfaces reaches 100.2 kN at flat; calculated as a plain
+            disc of the same dimensions it reads 86.6 kN. That is 14 % <em>under</em> the real force,
+            so the error is in the direction that matters. Both halves of the construction are doing
+            work: t' = 7.52 mm takes force out through t'&#8308;, K<sub>4</sub> = 1.081 puts it back,
+            and h<sub>0</sub> = l<sub>0</sub> &minus; t' is 2.98 mm rather than 2.50.</p>
+
+            <p><strong>What is not in any of these numbers.</strong> Friction &mdash; between discs
+            nested in parallel and against the guide &mdash; makes the loading branch stiffer than
+            the figures and the unloading branch softer, by a few percent per interface. Setting:
+            a disc spring loses force over its life, most of it on the first strokes and most of it
+            when worked near flat. Temperature: E falls and relaxation rises, and the calculation
+            runs at whatever E you entered. None of the three is modelled, and all three push the
+            same way on a stack that is worked hard.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>Frequently asked questions</summary>
+        <div class="mc-body">
+            <p class="mc-q">Why is the permissible stress higher than the yield strength?</p>
+            <p>Because &sigma;<sub>I</sub> is a theoretical stress at a sharp edge, computed from a
+            model that treats the section as rigid. The real disc yields locally there on its first
+            strokes, redistributes the peak and then behaves elastically. The 2600 MPa figure for
+            spring steel is calibrated to that behaviour, not to first yield.</p>
+
+            <p class="mc-q">Parallel or series?</p>
+            <p>Parallel for force, series for travel. Two in parallel double the force at the same
+            travel; two in series double the travel at the same force. Mixing them gives any
+            combination &mdash; that is the main reason disc springs are specified at all.</p>
+
+            <p class="mc-q">Why does the rate fall as the spring is compressed?</p>
+            <p>Because flattening the cone reduces the lever arm the load acts through. It is
+            geometry, not material, which is why the effect scales with the shape number
+            h<sub>0</sub>/t' and vanishes for a nearly flat washer.</p>
+
+            <p class="mc-q">Can I work the spring all the way to flat?</p>
+            <p>Mechanically yes, and catalogues quote the force at flat. But DIN 2092 recommends
+            0.75 h<sub>0</sub> as the travel limit: the model is least reliable in the last quarter,
+            the stresses are highest there, and the setting loss over life is largest there.
+            Design a hard stop.</p>
+
+            <p class="mc-q">Why is there no fatigue life in cycles?</p>
+            <p>Because the permissible stress comes from DIN 2093's own diagrams, which are not
+            reproduced here. The calculator gives the upper and lower stress at the governing
+            tensile point; read the limit off the diagram for your thickness group and enter it,
+            and the comparison is then made on the page.</p>
+
+            <p class="mc-q">Which standard is this?</p>
+            <p>DIN 2092 for the calculation, with the thickness groups and the series ratios of
+            DIN 2093. The dimension tables of DIN 2093 are not embedded &mdash; dimensions are
+            entered freely.</p>
+        </div>
+    </details>
+
+</section>

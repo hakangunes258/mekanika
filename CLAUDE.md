@@ -799,6 +799,7 @@ Standard emoji icons for consistency:
 | **Clamp Connection** | ClampConnection.razor | ✅ | ✅ | ✅ | ✅ | ✅ **Full Standard** |
 | **Extension Spring** | ExtensionSpring.razor | ✅ | ✅ | ✅ | ✅ | ✅ **Full Standard** |
 | **Torsion Spring** | TorsionSpring.razor | ✅ | ✅ | ✅ | ✅ | ✅ **Full Standard** |
+| **Disc Spring** | DiscSpring.razor | ✅ | ✅ | ✅ | ✅ | ✅ **Full Standard** (bands 1.00/1.10, see below) |
 | **Gear Pair** | GearPair.razor | ✅ | ✅ | ✅ | ✅ | ✅ **Full Standard** |
 | **Internal Gear Pair** | InternalGearPair.razor → GearPair.razor | ✅ | ✅ | ✅ | ✅ | ✅ **Full Standard** (same component) |
 | **Ball Bearing** | BallBearing.razor | ✅ | ✅ | ✅ | ❌ | ⚠️ **Missing GetSafetyRowClass** |
@@ -819,8 +820,15 @@ Standard emoji icons for consistency:
 
 ### Summary
 
-- ✅ **Full Standard (8/12 calc modules):** KeyConnection, InterferenceFit, TaperFit, SingleBolt, ClampConnection, ExtensionSpring, TorsionSpring, GearPair
-- ⚠️ **Partial Standard (4/12 calc modules):** BallBearing, RollerBearing, CompressionSpring, MomentOfInertia — all missing `GetSafetyRowClass` + `GetSafetyStatus` helper methods
+- ✅ **Full Standard (9/13 calc modules):** KeyConnection, InterferenceFit, TaperFit, SingleBolt, ClampConnection, ExtensionSpring, TorsionSpring, DiscSpring, GearPair
+- ⚠️ **Partial Standard (4/13 calc modules):** BallBearing, RollerBearing, CompressionSpring, MomentOfInertia — all missing `GetSafetyRowClass` + `GetSafetyStatus` helper methods
+
+**DiscSpring names its helpers `GetBandClass` / `GetBandStatus`, and that is deliberate.** They
+take explicit thresholds (1.00 fail, 1.10 low) instead of the usual 1.0/1.5, because the 2600 MPa
+permissible stress is *already* a practice limit that allows for the disc relieving itself by
+setting — a second factor of 1.5 on top of it counts the same allowance twice, and it reported an
+ordinary 1.25 as "Marginal". The thresholds are printed under the table, the way the single bolt's
+are. A module whose permissible value already contains the margin should do the same.
 
 ---
 
@@ -869,14 +877,14 @@ When updating other modules to match the keyway format:
 - Always provide units in the UI
 - Material properties are injected via `MaterialService`
 - PDF generation uses JavaScript interop with jsPDF library (`Pages/pdfGenerator.js`)
-- **Every calculator shows why Calculate refused.** All twelve (thirteen routes — internal-gear
+- **Every calculator shows why Calculate refused.** All thirteen (fourteen routes — internal-gear
   shares gear-pair's component) fill a `List<string>` and
   render `Shared/ValidationAlert.razor` above the button (moment-of-inertia uses its own
   `validationError` string). A bare `return` in a Calculate guard is a bug: the button
   appears dead and the visitor cannot tell the app from a broken page. gear-pair was the
   last one still doing it and was fixed in Aug 2026.
 
-### **Result-table column rules are duplicated in eleven pages — keep them identical**
+### **Result-table column rules are duplicated in twelve pages — keep them identical**
 
 Every single-shape calculator declares the same `.results-table` column widths and
 alignments in its own Razor `<style>` block. `tools/check-table-css.mjs` (run by the deploy
@@ -901,7 +909,7 @@ new column is picked up automatically.
 `Point | gY | ρn,Y | X_Y | Θfl,Y | λGF,Y`, a label followed by five numbers. No selector can
 tell them apart, so the second carries an explicit `.results-table-numeric`.
 
-**Why the eleven duplicates have not simply been merged into `modern-icons.css`:** two pages
+**Why the twelve duplicates have not simply been merged into `modern-icons.css`:** two pages
 use `.results-table` for something else — `MyCalculations` for the saved-calculations list and
 `Account` for a two-column key/value table — and a shared rule would restyle both. Scoping it
 with the obvious `#results-content` prefix then out-specifies gear-pair's rules, because an id
@@ -1577,7 +1585,7 @@ draw outlines nor act as snap targets.
 ### **Shareable Calculation Links**
 
 Every calculation module can produce a link that reopens it with the same inputs.
-Live on **all twelve calculators**. No account and no backend — the inputs ride in
+Live on **all thirteen calculators**. No account and no backend — the inputs ride in
 the URL fragment and the recipient's browser re-runs the engine.
 
 **Files:**
@@ -1630,7 +1638,7 @@ the original path and fragment.
 ### **Module Reference Content (the SEO sections)**
 
 The section under a calculator — what it computes, where the inputs come from, a worked
-example, an FAQ. Live on **all twelve calculators** (Aug 2026); the mechanism is per-module and
+example, an FAQ. Live on **all thirteen calculators** (Aug 2026; disc-spring Nov 2026); the mechanism is per-module and
 optional, so a module with no content file simply gets no section.
 
 **Every number in every worked example was read off the running page, not out of a textbook.**
@@ -2318,6 +2326,77 @@ test can check direction as well as a point — monotonic life factors, a roughe
 scoring better, doubling the power never raising a safety factor — it does, because that is
 the part a single point cannot see.
 
+### **Disc Spring — `/disc-spring` (Nov 2026)**
+
+Disc springs (Tellerfedern, Belleville washers) to **DIN 2092**, with the thickness groups
+and the series ratios of **DIN 2093**. `Services/DiscSpringEngine.cs` + `Pages/DiscSpring.razor`
++ `Tests/DiscSpringTests.cs` + `wwwroot/content/disc-spring.html`.
+
+**`IsVerified = false`.** No reference report or catalogue row has been diffed against it. What
+it rests on instead is a set of *identities* rather than golden values, because an identity is
+the only thing that can catch a transcription error without the standard to hand:
+
+- **K₄ = 1 exactly when t' = t, for any l₀/t.** Substituting t' = t collapses DIN 2092's C₁ to
+  1/u and C₂ to 1 + 1/u with u = 5/32 (l₀/t − 1)², and then
+  K₄² = −1/(2u) + √((1/(2u) + 1)²) = 1 identically. A mistyped coefficient in either C breaks
+  it. This is what makes the contact-surface branch trustworthy with no worked example.
+- **The rate is the derivative of the force and the energy is its integral**, both checked
+  numerically. The energy integral collapses to a square, which is a second check on the force.
+- **σ_III − σ_IV = (σ_II − σ_I)/δ**, identically, at any deflection. This is the whole content
+  of the Almen-Laszlo −z/r stress field: the part of the stress that flips sign between the two
+  faces is the same at both radii apart from the 1/r. A sign slip on any one of the four
+  formulas, or on the 1/δ, breaks it.
+- **The tangent rate at flat is exactly zero when K₄·h₀/t' = √2.** The rate is proportional to
+  K₄²(a² − 3ax + 1.5x²) + 1; its minimum over the travel sits at x = a and equals 1 − 0.5K₄²a².
+  So snap-through is a property of the shape alone — no load, material or diameter enters it —
+  and series C's 1.30 is deliberately just inside it.
+
+**What is NOT implemented, and why each is a decision rather than an omission:**
+
+- **σ_OM**, DIN 2092's reference stress at the cross-section centre. Its location could not be
+  reconstructed from the four corner formulas — the mean of σ_I and σ_II is −c·K₄²·K₂·X, which
+  is not the −(3/π)·c·K₄ the remembered expression gives, so one of the two is wrong and there
+  is no way to tell which without the standard. A number nobody can check does not belong next
+  to ones that are anchored. **The 2600 MPa static figure is therefore applied to |σ_I| at the
+  flat position**, which is the attribution in common use; whether DIN 2093 states it for σ_I
+  or for σ_OM needs the standard's own words, and that decides whether this is right.
+- **The DIN 2093 fatigue diagrams.** They are charts of permissible upper stress against lower
+  stress, one per group and life. σ_O,zul is an *input*; the results give the two stresses to
+  enter the chart with and say where the limit has to come from. Same call as λ_GFP in the gear
+  module, and for the same reason.
+- **The DIN 2093 size tables.** Dimensions are entered freely. The series shown is a
+  *resemblance test* on h₀/t' (A ≈ 0.40, B ≈ 0.75, C ≈ 1.30), which is derived rather than
+  reproduced — see the note on quoting standards above. The table is the obvious next addition
+  and is waiting on the standard; **do not add it from memory**, wrong dimensional data is
+  worse than none because it feeds every number downstream.
+- **Friction, setting/relaxation and temperature.** All three push the same way on a stack that
+  is worked hard, and all three are named on the results card.
+
+**Three things that bit, all found by reading the live page rather than by a test:**
+
+- **The static check is reported TWICE and must be.** DIN 2093 states its figure at s = h₀, but
+  a well-formed series A disc is *already past it* there — 2680 MPa on the module's own worked
+  example — while sitting at 2086 MPa at the 0.75 h₀ travel limit. Reporting only the
+  flat-position factor put a red FAIL on a perfectly usable design. `SafetyFactorAtPosition2` is
+  the one that judges the design; `SafetyFactorStatic` is the "may it ever be compressed flat"
+  question, and its status reads "needs a stop" rather than FAIL unless s₂ actually reaches
+  flat. One number cannot say both things.
+- **The travel comparisons need a tolerance, and so does the page's own.** The interesting
+  deflection *is* the limit: 0.675 typed into the field differs from a computed 0.75 × 0.9 in
+  the last bit of a double. The engine's warning got a tolerance; the page's
+  `TravelMargin < 0` branch did not, and printed "Travel Margin −0.000 mm" under a verdict
+  reading "s₂ is 0.000 mm beyond the limit". Both carry one now.
+- **The first Group 3 test fixture was a disc that cannot exist** — 80 × 40.5 × 8 has De/t = 10
+  and runs to 7786 MPa at flat. Every K₄ assertion passed on it regardless, and it had already
+  reached the content file as the worked contact-surface example. Replaced by 140 × 72 × 8
+  (De/t 17.5). **A fixture that satisfies the property under test can still be nonsense**; check
+  it against the module's own shape guidance too.
+
+**Stacks are ideal.** n in parallel multiplies force, i in series multiplies travel, and the
+free length gains the *material* thickness t per extra parallel disc — not t', which describes
+the ground contact flat rather than how thick the disc is. Friction between nested discs is
+called out on the card as unmodelled and optimistic for the loading branch.
+
 ### **Parallel Key — the Nov 2026 review**
 
 Driven from the user's own browser test notes (Joplin, `Business / Programlar / Mekanika`),
@@ -2664,7 +2743,7 @@ the cache key on the reference content files.
 
 **Calculate scrolls to the top of the results, and the scroll is INSTANT.**
 `Shared/ScrollToResults.razor` renders nothing and sits at the top of each results branch in
-all twelve calculator components; `OnAfterRenderAsync(firstRender: true)` fires exactly when
+all thirteen calculator components; `OnAfterRenderAsync(firstRender: true)` fires exactly when
 the results view appears, because Blazor disposes the `@if` branch that went away and builds
 the new one — including on a restored share link and on every Back to Input → Calculate again.
 Putting it in the markup rather than in each `Calculate()` keeps a JS interop failure out of
@@ -2764,9 +2843,10 @@ About / Contact / Privacy below.
   `visibility` is transitioned alongside the rows: `visible` applies immediately,
   `hidden` waits out the animation.
 - **Planned-but-unwritten modules are not listed.** Woodruff, Spline, bevel/rack/worm
-  gears, disc springs, power transmission and tolerance analysis were considered as
-  greyed "coming soon" rows and rejected: a nav row that cannot be clicked is a dead
-  end. The roadmap belongs on the About page.
+  gears, power transmission and tolerance analysis were considered as greyed
+  "coming soon" rows and rejected: a nav row that cannot be clicked is a dead
+  end. The roadmap belongs on the About page. Disc springs were on that list until
+  Nov 2026 and are now a real row under Springs.
 - **`.nav-account*` moved out of NavMenu's `<style>` block into `app.css`**, for the
   same reason the module reference sections did — shared chrome has no business
   shipping CSS through the component tree. There is no `<style>` block in NavMenu now;
@@ -3021,7 +3101,7 @@ Aggressive:
 ---
 
 **Last Updated:** 2026-11-16
-**Template Version:** 3.4 (build stamp, scroll-to-results, /privacy; external QA report assessed)
+**Template Version:** 3.5 (disc spring module, DIN 2092/2093)
 **Standard Format:** `Pages/KeyConnection.razor` + `Services/KeyConnectionEngine.cs`
 **Contact:** contact@mekanika.org
 **YouTube:** youtube@mekanika.org

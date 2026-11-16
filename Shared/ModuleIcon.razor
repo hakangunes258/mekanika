@@ -41,6 +41,7 @@
         "compression-spring"           => "spring",
         "extension-spring"             => "tension",
         "torsion-spring"               => "torque",
+        "belleville"                   => "disc-spring",
         "dimension"                    => "dimensions",
         "inertia"                      => "moment-inertia",
         "force"                        => "loading",
@@ -90,6 +91,12 @@
         ["roller-bearing"] = @"<circle cx=""12"" cy=""12"" r=""9""/><circle cx=""12"" cy=""12"" r=""3.4""/><circle cx=""12"" cy=""12"" r=""6.2"" stroke-width=""3"" stroke-linecap=""butt"" stroke-dasharray=""2.6 2.4""/>",
         ["spring"] = @"<path d=""M7 3.5 H17 M7 20.5 H17""/><path d=""M7 5 L17 8 L7 11 L17 14 L7 17 L17 19""/>",
         ["tension"] = @"<circle cx=""12"" cy=""4"" r=""1.8""/><path d=""M12 5.8 V6.5 L16 8.5 L8 11 L16 13.5 L8 16 L12 17.5 V18.2""/><circle cx=""12"" cy=""20"" r=""1.8""/>",
+        // A section through one series pair - two shallow cones meeting at their inner
+        // edges, between the two faces that load them, with the axis of rotation
+        // marked. Deliberately NOT a third zigzag: ["spring"] is an asymmetric sawtooth
+        // between two plates and at 24px a chevron stack would read as the same icon.
+        // Nested V shapes against a sawtooth is the difference the eye actually gets.
+        ["disc-spring"] = @"<path d=""M4 4.5 H20""/><path d=""M5.5 6 L12 11 L18.5 6""/><path d=""M5.5 16 L12 11 L18.5 16""/><path d=""M4 17.5 H20""/><path d=""M12 2 V4 M12 18 V20"" stroke-width=""1.2""/>",
         ["torque"] = @"<path d=""M13.5 14.8 A5 5 0 1 1 16 11""/><path d=""M13.5 14.8 V21""/><path d=""M16 11 H21.5""/>",
         ["key-connection"] = @"<circle cx=""12"" cy=""13.5"" r=""7.5""/><rect x=""8.5"" y=""2.5"" width=""7"" height=""5"" rx=""1""/>",
         ["interference-fit"] = @"<circle cx=""12"" cy=""12"" r=""9""/><circle cx=""12"" cy=""12"" r=""4.3""/><path d=""M1.5 9.5 L4 12 L1.5 14.5""/><path d=""M22.5 9.5 L20 12 L22.5 14.5""/>",
