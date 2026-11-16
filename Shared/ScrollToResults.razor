@@ -1,0 +1,38 @@
+@inject IJSRuntime JS
+
+@*
+    Renders nothing. Scrolls the page to the top once, when the results view appears.
+
+    Every calculator is one page with two views: the input form, then the results in
+    its place. Pressing Calculate at the bottom of a long form swapped the view and
+    left the scroll position untouched, so on gear-pair or torsion-spring the reader
+    was left looking at the middle of a results table with no sign that the top of the
+    page had changed. Nothing in the app called scrollTo at all before this.
+
+    Why a component inside the results block rather than a line in each Calculate():
+    the trigger wanted is "the results view is now on screen", and that is exactly when
+    this component is created. Blazor disposes the subtree of the @if branch that went
+    away and builds the new one, so firstRender is true each time the page flips from
+    the form to the results - including the flip a restored share link causes, and the
+    one after Back to Input and Calculate again. It also keeps the scroll out of the
+    calculation path, where a JS interop failure has no business being.
+
+    Usage: put <ScrollToResults /> at the top of the results branch.
+*@
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        try
+        {
+            await JS.InvokeVoidAsync("mekanikaScrollToTop");
+        }
+        catch
+        {
+            // Scrolling is a courtesy. An old cached index.html without js/shell.js,
+            // or JS blocked outright, must not throw out of a render.
+        }
+    }
+}

@@ -93,6 +93,12 @@
         <NavLink class="nav-item nav-item-minor" href="privacy">
             <ModuleIcon Type="safety" Size="medium" Style="default" /> Privacy Policy
         </NavLink>
+
+        @* The build, where it is visible from every page. The results of these engines
+           change between deploys, so "which version gave me this number" is a real
+           question - see Services/AppVersion.cs. Muted and small: it is a reference,
+           not navigation. *@
+        <div class="nav-build" title="Build of the site you are using">@AppVersion.Display</div>
     </div>
 </nav>
 

@@ -385,6 +385,21 @@ public class ModuleMetadataService
                 HasVideo = false
             },
 
+            ["privacy"] = new ModuleInfo
+            {
+                Key = "privacy",
+                Name = "Privacy Policy",
+                Route = "/privacy",
+                Category = "Information",
+                Icon = "🛡️",
+                Description = "How Mekanika handles your data: calculations run in your browser, what an optional account stores, and your rights under KVKK and the GDPR.",
+                Keywords = "privacy policy, data protection, KVKK, GDPR, client-side calculation, cookies",
+                RelatedModules = new[] { "about", "contact" },
+                IsVerified = false,
+                VerificationStandards = Array.Empty<string>(),
+                HasVideo = false
+            },
+
             ["contact"] = new ModuleInfo
             {
                 Key = "contact",

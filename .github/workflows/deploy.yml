@@ -55,7 +55,19 @@ jobs:
       - name: Publish
         # Target the project, not the .sln (the solution rejects -o with a warning).
         # A standard WASM publish (no AOT) needs no extra workload.
-        run: dotnet publish MechanicalCalculatorWeb.csproj -c Release -o publish
+        #
+        # BuildStamp is compiled into a constant (see the StampBuildInfo target) and
+        # reaches the PDF report footer, the sidebar, the About page and the cache key
+        # on the reference content files. It is the runner's date and short SHA rather
+        # than a number someone bumps, because this repo has two records of a
+        # hand-kept number drifting - the paired ?v= query strings and the duplicated
+        # result-table CSS. RequireBuildStamp makes the build FAIL if this step ever
+        # stops passing it, instead of shipping a site that says "dev".
+        run: |
+          stamp="$(date -u +%Y.%m.%d)-$(git rev-parse --short HEAD)"
+          echo "Build stamp: $stamp"
+          dotnet publish MechanicalCalculatorWeb.csproj -c Release -o publish \
+            -p:BuildStamp="$stamp" -p:RequireBuildStamp=true
 
       - name: Generate a static HTML file per route
         # GitHub Pages has no SPA rewrite: without this every calculator URL is

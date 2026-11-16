@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+using Microsoft.JSInterop;
 using MechanicalCalculatorWeb;
 using MechanicalCalculatorWeb.Services;
 
@@ -86,5 +87,20 @@ await auth.InitializeAsync();
 var library = host.Services.GetRequiredService<CustomLibraryService>();
 await library.RefreshAsync();
 auth.AuthStateChanged += () => _ = library.RefreshAsync();
+
+// Hand the build stamp to the page before the first render, so the PDF generator can
+// put it on a report footer. It is a compiled constant on this side (see the
+// StampBuildInfo target), and js/shell.js is loaded without `defer` precisely so the
+// setter exists by now. A failure here must not stop the app booting - the stamp is
+// an aid to tracing a result, not part of one.
+try
+{
+    var js = host.Services.GetRequiredService<IJSRuntime>();
+    await js.InvokeVoidAsync("mekanikaSetBuildStamp", AppVersion.Stamp);
+}
+catch
+{
+    // no shell helper (an old cached index.html, or JS blocked): the footer omits it
+}
 
 await host.RunAsync();

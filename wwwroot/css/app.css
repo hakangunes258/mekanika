@@ -52,6 +52,25 @@ img {
     -webkit-overflow-scrolling: touch;
 }
 
+/* The header cells of those tables must not wrap. They were free to, so on a phone
+   the Materials header stacked "Surface Pressure (MPa)" into four lines and ran 85px
+   tall before the table ever offered to scroll - the scroll is the right answer for a
+   wide table, and a wrapped header hides that it is there. The DATA cells keep
+   wrapping: a long material name should still break. */
+.table-container th,
+.table-responsive th {
+    white-space: nowrap;
+}
+
+/* The build string under the sidebar's About / Contact / Privacy links. */
+.nav-build {
+    padding: 10px 20px 16px;
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    color: rgba(255, 255, 255, 0.4);
+    font-family: 'Consolas', 'Courier New', monospace;
+}
+
 .hero-logo {
     /* brand/logo-full-on-dark.svg is already white and already trimmed, so this
        no longer needs the brightness/invert filter or the negative margins that

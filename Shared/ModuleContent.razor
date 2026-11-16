@@ -37,7 +37,13 @@
 
         try
         {
-            html = await Http.GetStringAsync($"content/{Module}.html");
+            // Keyed on the build. Pages serves these with max-age=600, so for ten
+            // minutes after a deploy a returning visitor could read the PREVIOUS
+            // build's worked example next to this build's results - which is exactly
+            // what happened to taper-fit's three axial forces in Nov 2026. The two
+            // stylesheets and the scripts carry hand-bumped ?v= numbers for the same
+            // reason; this one cannot drift, because nobody maintains it.
+            html = await Http.GetStringAsync($"content/{Module}.html?v={AppVersion.Stamp}");
         }
         catch
         {

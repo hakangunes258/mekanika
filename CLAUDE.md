@@ -2625,6 +2625,116 @@ cooling α and the 0,8·Rz coefficient; DIN 6885-1 above 130 mm and its length s
 spring modules; EN 13906-2's preload band; EN 13906-3's reduction for an opening load;
 ISO 281 Table 3 for the 15° angular contact series; and current bearing catalogue values.
 
+### **The build stamp, and the Nov 2026 external QA report**
+
+**Every deployed build is stamped, and the stamp is generated.** The deploy workflow passes
+`-p:BuildStamp=<date>-<short sha>` to `dotnet publish`; the `StampBuildInfo` target in
+`MechanicalCalculatorWeb.csproj` writes it into a compiled constant (`BuildInfo.Stamp`), and
+`Services/AppVersion.cs` is what the app reads. A build with no stamp says `dev`, and
+`-p:RequireBuildStamp=true` makes the *build* fail rather than let a deploy go out saying so.
+
+It reaches four places: the footer of every PDF report, the sidebar under the About / Contact
+/ Privacy links, a short section on the About page explaining why it is worth knowing, and
+the cache key on the reference content files.
+
+- **Why it is not a hand-maintained semver.** This repo has two records of a hand-kept number
+  drifting: the paired `?v=` query strings on the two stylesheets, where one was bumped and the
+  other was not and a returning visitor got a broken modal; and the `.results-table` column
+  rules duplicated across eleven pages. A third number to remember on every deploy would be
+  the same trap. A short SHA written by the runner cannot be forgotten, and it maps a saved
+  report back to a commit.
+- **Why a const and not an assembly attribute.** A const survives trimming with nothing to
+  configure, and it is readable during host startup — which is when `Program.cs` hands it to
+  the page, before the first render.
+- **Why the report carries it at all.** These engines' results change between deploys. The
+  November 2026 rounds moved the taper fit's three axial forces, the single bolt's slip safety
+  factor and the ball bearing's static safety for a matched pair. A PDF is the one copy of a
+  result that outlives the session, and share links deliberately re-run the *current* engine
+  rather than storing numbers — so without the stamp there is nothing tying a result to the
+  arithmetic that produced it.
+- **`content/<module>.html?v=<stamp>`** closes a real ten-minute window: Pages serves those
+  files with `max-age=600`, so right after a deploy a returning visitor could read the previous
+  build's worked example beside this build's results. That is exactly what happened to
+  taper-fit's assembly and extraction forces.
+- **`js/shell.js` is loaded WITHOUT `defer`,** because `mekanikaSetBuildStamp` has to exist by
+  the time Blazor's startup code runs. `pdfGenerator.js` is deferred and reads the value later,
+  so it only ever sees a stamp that is already set. Both interop calls are in try/catch: the
+  stamp is an aid to tracing a result, not part of one, and must never stop the app booting or
+  throw out of a render.
+
+**Calculate scrolls to the top of the results, and the scroll is INSTANT.**
+`Shared/ScrollToResults.razor` renders nothing and sits at the top of each results branch in
+all twelve calculator components; `OnAfterRenderAsync(firstRender: true)` fires exactly when
+the results view appears, because Blazor disposes the `@if` branch that went away and builds
+the new one — including on a restored share link and on every Back to Input → Calculate again.
+Putting it in the markup rather than in each `Calculate()` keeps a JS interop failure out of
+the calculation path.
+
+**Do not change it back to `behavior: 'smooth'`.** Both were measured. A smooth scroll is an
+animation that competes with the layout: the results are far taller than the form, and
+Chrome's scroll anchoring dragged the position back down mid-flight — the page finished at
+y = 3966 having started at 1533, i.e. further from the top than before. In the embedded browser
+pane the smooth request was dropped altogether and the page never moved, while the instant
+scroll landed every time. The helper also fires again after two animation frames, so a layout
+that settles late cannot leave the reader half way down.
+
+**`/privacy` has a static page now.** It was the one public route still answering HTTP 404 on
+Pages, because the generator's route list is `sitemap.xml` and the page was not in it. The fix
+used the mechanism already here — a `Category = "Information"` entry in
+`ModuleMetadataService`, which `GetAllModules()` filters out, so the route carries title,
+description and canonical without becoming a calculator card on the home page. The generator
+deliberately hard-errors on a sitemap URL with no metadata, so **the sitemap entry and the
+metadata entry have to be added together**. `/login`, `/account`, `/my-calculations` and
+`/auth/callback` still 404 by design, and `404.html`'s `noindex` is correct for exactly those.
+
+**Wide-table headers do not wrap.** `.table-container th` and `.table-responsive th` carry
+`white-space: nowrap`. The containers already scrolled, but the header cells were free to wrap,
+so on a phone the Materials header stacked "Surface Pressure (MPa)" and ran 85px tall before
+the table ever offered to scroll — and a wrapped header hides that the scroll is there. The
+data cells still wrap, because a long material name should break.
+
+**The external QA report (16 Nov 2026) — what it was worth.** A different AI tool was asked to
+audit the live site and produced a report headlined "13 modules, 100 % accurate, 0.00 %
+deviation" with two critical findings. It is in the user's Downloads, not the repo. Both
+critical findings were measured and **neither held**:
+
+- **Mobile sidebar overflow at 375px: does not reproduce.** Measured on the live site at a true
+  375×812: `.sidebar` is `position: fixed` at `translateX(-300px)`, `.main-content` starts at
+  x = 0 with `margin-left: 0`, the hamburger is visible, and `documentElement.scrollWidth` is
+  375 — no horizontal overflow; with the drawer open the transform is `translateX(0)` and the
+  backdrop shows. The report's own numbers give it away: sidebar 300 + content 547 = **847**,
+  which is the desktop layout at an ~847px viewport, so the emulation was never applied. The
+  CSS it recommends is what `app.css` has had at `@media (max-width: 768px)` all along.
+- **HTTP 404 on all subroutes: mostly wrong, and the remedy it recommends shipped in Aug 2026.**
+  Measured: `/` 200, `/about` 301→200, `/about/` 200, `/contact/` 200, `/interference-fit`
+  301→200, `/interference-fit/` 200, `/gear-pair/` 200, `/materials/` 200. Only `/privacy` and
+  `/login` returned 404, and `/privacy` is now fixed (above).
+
+**Three of its module rows disagree with the live site while claiming 0.00 % deviation**, which
+is the part worth remembering about reports like this:
+
+| module | report's "site output" | measured on the live site |
+|---|---|---|
+| parallel key, d 40, 12×8, l 50, 500 Nm | p 85,4 / 199,4 MPa | **131,6 / 219,3 MPa** |
+| clamp connection, d 40, D_a 70, L 50, 2×M8, 25 Nm | F_M 16,48 kN · p 16,48 MPa · T 217,5 Nm | **18 262 N · 21,5 MPa (33,7 max) · 333,3 Nm** |
+| taper fit | p derived from an applied axial force | the page derives p from the axial displacement Δs and D_a — neither appears in its input list |
+
+Its key-connection hand calculation uses (h − t₂) for the shaft and t₂ for the hub; the page
+uses t₁ and (h − t₁), the latter being a deliberate Nov 2026 correction. Two of its own
+arithmetic chains do not reproduce from its own stated inputs either: the interference fit's
+`T = π d L p µ d/2` gives ~1822 Nm with the stated µ = 0,15, not the 2430 it reports (2430 needs
+µ = 0,20), and its table and its detail section state different inputs for the same result
+(d 50 / D_a 80 / L 40 / E 206 against d 50 / D 100 / L 60 / E 210 000). The taper figure of
+28,53 MPa does not follow from its own formula either, which gives 14,04.
+
+**So: a report that agrees with the page in the places where a number is prominent on screen,
+and quietly substitutes a textbook result elsewhere, produces "0.00 %" everywhere and tells
+you nothing.** The modules it matched (extension spring σ_B 576, torsion n_e 8,42 and
+D_i 16,89, internal gear 743/721 N, bolt A_s 84,3 and Φ_n 0,1254, gear ε_α 1,635, both
+bearings' L10 and S₀) are the ones whose values sit in plain sight. **Do not change an engine
+on the strength of an external audit without re-running the inputs on the page first** — the
+three real items that came out of this one were all in the interface, not the arithmetic.
+
 ### **Navigation menu, and the one warm colour (Nov 2026)**
 
 The sidebar is **categorised and collapsible**, to the structure agreed in the Joplin
@@ -2911,7 +3021,7 @@ Aggressive:
 ---
 
 **Last Updated:** 2026-11-16
-**Template Version:** 3.3 (Nov 2026 re-check of the review fixes)
+**Template Version:** 3.4 (build stamp, scroll-to-results, /privacy; external QA report assessed)
 **Standard Format:** `Pages/KeyConnection.razor` + `Services/KeyConnectionEngine.cs`
 **Contact:** contact@mekanika.org
 **YouTube:** youtube@mekanika.org
